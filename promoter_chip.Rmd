@@ -1,0 +1,48 @@
+---
+title: "promoter_comparison"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("devtools")
+devtools::install("meekrob/ParasiteXML") # Brings biomaRt, GenomicRanges
+library(ParasiteXML)
+
+```
+
+## Promoters are upstream regions of all protein-coding genes
+
+```{r get-promoters}
+
+mart = getParamart()
+promoters = getCElegansPromoters(mart, upstream = 1500) # produces a warning about an out-of-bound range
+head(promoters)
+```
+
+
+```{r read-data}
+promoters.agg = read.table("promoters.sorted.df")
+colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
+
+IDR_peaks.agg = read.table("LE_IDR_peaks.df")
+IDR_peaks.agg$V4 = NULL
+IDR_peaks.agg$V5 = NULL
+IDR_peaks.agg$V6 = NULL
+IDR_peaks.agg$V8 = NULL
+colnames(IDR_peaks.agg) <- c("chrom", "start","end","intensity","nlogq","offset","signal.mean","signal.max")
+
+gr.IDR = makeGRangesFromDataFrame(IDR_peaks.agg,keep.extra.columns = T)
+seqinfo(gr.IDR) <- Seqinfo(genome="ce11")
+
+gr.promoters = makeGRangesFromDataFrame(promoters.agg,keep.extra.columns = T)
+seqinfo(gr.promoters) <- Seqinfo(genome="ce11")
+```
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
