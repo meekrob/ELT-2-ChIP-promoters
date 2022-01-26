@@ -1,29 +1,48 @@
 ---
 title: "promoter_comparison"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 #install.packages("devtools")
-devtools::install("meekrob/ParasiteXML") # Brings biomaRt, GenomicRanges
+#devtools::install_github("meekrob/ParasiteXML") # Brings biomaRt, GenomicRanges
 library(ParasiteXML)
-
+library(biomaRt)
+library(GenomicRanges)
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
 
 ```{r get-promoters}
-
+library(biomaRt)
 mart = getParamart()
-promoters = getCElegansPromoters(mart, upstream = 1500) # produces a warning about an out-of-bound range
+promoters = getCElegansPromoters(mart, upstream = 500, downstream = 100) 
+promoters = sort(promoters, ignore.strand=T)
 head(promoters)
+selfOverlaps = findOverlaps(promoters, ignore.strand=T)
+head(selfOverlaps)
+
+selfOverlaps = selfOverlaps[which(from(selfOverlaps)!=to(selfOverlaps))]
+overlappingPromoterRows = unique(c( from(selfOverlaps), to(selfOverlaps)))
+filtered.promoters = promoters[-overlappingPromoterRows]
+filtered.promoters = filtered.promoters[-which(seqnames(filtered.promoters) == 'chrM')]
+
+write.table(filtered.promoters, "filtered.promoters.bed", sep="\t", quote=F, row.names=F, col.names=F)
 ```
 
+# Setup a conda environment in your shell
+I had to call my local setup script .zshrc, where I have initialized conda,
+to have access to the "base" environment, where I have installed wiggletools and ucsc user apps.
+
+`$ wiggletools apply_paste filtered.promoters.df meanI maxI filtered.promoters.bed ELT2_LE_combined_subtracted.bw`
 
 ```{r read-data}
-promoters.agg = read.table("promoters.sorted.df")
+promoters.agg = read.table("filtered.promoters.df")
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
 IDR_peaks.agg = read.table("LE_IDR_peaks.df")
@@ -40,9 +59,14 @@ gr.promoters = makeGRangesFromDataFrame(promoters.agg,keep.extra.columns = T)
 seqinfo(gr.promoters) <- Seqinfo(genome="ce11")
 ```
 
+```{r merge-promoters-peaks}
+laps = findOverlaps(gr.promoters,gr.IDR)
+length(laps)
+head(laps)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+gr.promoters$IDR_mean = NaN
+gr.promoters$IDR_max = NaN
+gr.promoters[from(laps)]$IDR_max = gr.IDR[to(laps)]$signal.max
+gr.promoters[from(laps)]$IDR_mean = gr.IDR[to(laps)]$signal.mean
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
