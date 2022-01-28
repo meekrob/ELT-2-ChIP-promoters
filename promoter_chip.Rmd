@@ -94,7 +94,7 @@ gr.promoters
 ```
 ```{r save-file}
 write.table(as.data.frame(gr.promoters), "promoter_signal_embryo.df", row.names=F,
-            col.names=F,
+            col.names=T,
             quote=F,
             sep="\t")
 ```
