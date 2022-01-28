@@ -92,3 +92,9 @@ gr.promoters$IDR_max = log(scale_fac + gr.promoters$IDR_max)
 gr.promoters$IDR_mean = log(scale_fac + gr.promoters$IDR_mean)
 gr.promoters
 ```
+```{r save-file}
+write.table(as.data.frame(gr.promoters), "promoter_signal_embryo.df", row.names=F,
+            col.names=F,
+            quote=F,
+            sep="\t")
+```
