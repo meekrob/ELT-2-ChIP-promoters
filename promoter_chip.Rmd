@@ -70,3 +70,25 @@ gr.promoters[from(laps)]$IDR_max = gr.IDR[to(laps)]$signal.max
 gr.promoters[from(laps)]$IDR_mean = gr.IDR[to(laps)]$signal.mean
 ```
 
+(base) Cumbernauld:ELT-2-ChIP-promoters david$ bigWigInfo ELT2_LE_combined_subtracted.bw 
+version: 4
+isCompressed: yes
+isSwapped: 0
+primaryDataSize: 7,724,199
+primaryIndexSize: 38,660
+zoomLevels: 9
+chromCount: 7
+basesCovered: 35,608,464
+mean: 0.350340
+min: -3276.705811
+max: 5699.461426
+std: 46.132783
+
+```{r}
+scale_fac = 3276.705811 + 1
+gr.promoters$chip_signal_max = log(scale_fac + gr.promoters$chip_signal_max)
+gr.promoters$chip_signal_mean = log(scale_fac + gr.promoters$chip_signal_mean)
+gr.promoters$IDR_max = log(scale_fac + gr.promoters$IDR_max)
+gr.promoters$IDR_mean = log(scale_fac + gr.promoters$IDR_mean)
+gr.promoters
+```
