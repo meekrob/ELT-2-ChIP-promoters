@@ -3,5 +3,8 @@
 .RData
 .Ruserdata
 
+# Mac Spotlight
+.DS_Store
+
 # No spreadsheet swap files
 ~*.xlsx
