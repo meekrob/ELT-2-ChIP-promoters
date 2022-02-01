@@ -1,0 +1,42 @@
+#!/usr/bin/env RScript
+initial.options <- commandArgs(trailingOnly = FALSE)
+file.arg.name <- "--file="
+script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
+
+USAGE = sprintf("%s file.xlsx [sheet number]", script.name)
+
+if(! suppressWarnings(library("readxl", logical.return=TRUE))) {
+    write("ERROR: You must install readxl into your R environment.", stderr())
+    writeLines(USAGE, stderr())
+    quit('no')
+}
+
+args = commandArgs(trailingOnly=TRUE)
+if (length(args) == 0) {
+    write(USAGE, stderr())
+    quit('no')
+}
+
+file.xlsx = args[1]
+if(! file.exists(file.xlsx)) {
+    write( sprintf("Error: %s does not exist", file.xlsx), stderr() )
+    quit('no')
+}
+
+which_sheet = integer(0)
+if (length(args) > 1) {
+    suppressWarnings({which_sheet = as.integer(args[2])})
+}
+
+if (length(which_sheet)==0){
+    which_sheet = 1
+}else if (is.na(which_sheet)) 
+{ 
+    write("ERROR: supplied sheet number must be an integer.", stderr()) 
+    quit('no')
+} 
+
+df = read_xlsx(file.xlsx, which_sheet)
+# remove comment (#) lines from output
+df = df[ -grep(x=df[[1]], pattern='^#'),]
+write.table(df,quote=F,sep="\t",row.names=F, na = "")
