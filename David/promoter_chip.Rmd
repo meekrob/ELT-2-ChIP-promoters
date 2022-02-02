@@ -66,11 +66,11 @@ to have access to the "base" environment, where I have installed wiggletools and
 The same can be done for the IDR peaks.
 
 `$ wiggletools apply_paste LE_IDR_peaks.df meanI maxI ELT2_LE_combined.IDR.bed ELT2_LE_combined_subtracted.bw`
-```{r read-data}
-promoters.agg = read.table("filtered.promoters.df")
+```{r read-data, warning=FALSE}
+promoters.agg = read.table("../DATA/filtered.promoters.minus1000_plus200.df")
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
-IDR_peaks.agg = read.table("LE_IDR_peaks.df")
+IDR_peaks.agg = read.table("../DATA/LE_IDR_peaks.df")
 IDR_peaks.agg$V4 = NULL
 IDR_peaks.agg$V5 = NULL
 IDR_peaks.agg$V6 = NULL
