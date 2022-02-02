@@ -6,5 +6,6 @@
 # Mac Spotlight
 .DS_Store
 
-# No spreadsheet swap files
+# No swap files
+.*.swp
 ~*.xlsx
