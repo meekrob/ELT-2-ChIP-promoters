@@ -1,0 +1,468 @@
+---
+title: "embryo_intestine_RNAseq"
+author: "Robert Williams"
+date: "2/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Install packages
+```{r install-packages}
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install()
+# BiocManager::install("biomaRt")
+# install.packages("tidyverse")
+# install.packages("readxl")
+# BiocManager::install("ComplexHeatmap")
+# install.packages("matrixStats")
+# install.packages("pheatmap")
+# install.packages("RVAideMemoire")
+# install.packages("dendextend")
+# install.packages("binom")
+# BiocManager::install("DESeq2")
+# install.packages("corrplot")
+# BiocManager::install("apeglm")
+# install.packages("ashr")
+```
+
+# Load packages
+
+Load necessary packages
+
+```{r load-packages, quietly = TRUE, echo = FALSE}
+# NOTE: BIOMART MUST BE LOADED BEFORE DPLYR
+# library(biomaRt)
+library(DESeq2)
+library(corrplot)
+library(RColorBrewer)
+library(pheatmap)
+library(tidyverse)
+library(apeglm)
+library(ashr)
+library(InterMineR)
+```
+
+# Data input and processing
+
+Read in the counts data
+
+```{r}
+countsData <- read.delim(file = "../01_input/RWP27_Embryo_Intestine_FACS_200923_all.counts", sep = " ")
+head(countsData)
+```
+
+```{r}
+colnames(countsData[6:15])
+```
+
+Read in and print metadata file
+```{r}
+metadata1 <- read.table(file = "../01_input/RWP27_metadata.tsv", header = FALSE, stringsAsFactors = FALSE)
+colnames(metadata1) <- c("Filename.Fwd", "Filename.Rev", "names")
+
+rep <- c(1,1,1,2,2,2,2,3,3,3)
+type <- c("cells", "gut", "gutless", "whole", "cells", "gut", "gutless", "whole", "gut", "gutless")
+metadata1 <- cbind(metadata1, rep, type)
+metadata1
+```
+
+Factorize metadata
+```{r}
+
+metadata1$names <- factor(
+  metadata1$names,
+  levels = metadata1$names
+)
+metadata1$type <-
+  factor(metadata1$type, levels = c("gutless", "gut", "cells", "whole"))
+```
+
+Order columns according to metadata1 order
+```{r}
+countsData <- countsData  %>% select(chr:length, sort(metadata1$names))
+head(countsData)
+```
+
+Generate a table called "cts" out of the countsData table. Subset the countsData.
+```{r}
+cts <- as.matrix(countsData %>% select(metadata1$names))
+head(cts)
+```
+
+Reorganize the metadata table so the names2 column are now headers
+
+```{r}
+rownames(metadata1)<- metadata1$names
+coldata <- metadata1[,c("names", "rep", "type")]
+rownames(coldata) <- as.vector(metadata1$names)
+coldata
+```
+
+
+Check that the names match  --> Should be TRUE
+
+```{r}
+all(rownames(coldata) == colnames(cts))
+```
+
+# Contamination thresholding
+
+Determine filtering threshold, identify read count threshold for non-intestine specific genes
+
+```{r}
+tissue_specific_genes <- read_csv(file = "../01_input/tissue_specific_genes_220202.csv", show_col_types = FALSE)
+head(tissue_specific_genes)
+```
+
+```{r}
+cts_long <- as.data.frame(cts) %>% rownames_to_column(var = "WBGeneID") %>% 
+  tidyr::pivot_longer(cols = embryoCells_rep1:embryoGFPminus_rep3, values_to = "reads") %>%
+  tidyr::separate(name, sep = "_", into = c("sample_type", "rep")) 
+
+cts_long_summary <- cts_long %>% 
+  group_by(sample_type, WBGeneID) %>% 
+  summarise(mean = mean(reads), variance = var(reads))
+```
+
+```{r}
+cts_long_summary %>% ggplot(aes(x = log(mean), y = log(variance))) +
+  geom_point(alpha = 0.01) +
+  facet_wrap(~sample_type)
+```
+
+```{r}
+cts_long_summary %>% 
+  left_join(tissue_specific_genes, by = "WBGeneID") %>%
+  mutate(tissue = replace_na(tissue, "not_specific")) %>%
+  ggplot(aes(x = log(mean), fill = sample_type)) +
+  geom_density(kernel = "gaussian", alpha = 0.25) +
+  facet_grid(~tissue)
+```
+
+# Make DESeqDataSet
+
+Generate the DESeqDataSet. The variables in this design formula will be the type of sample, and the preparation date. This should reduce the variability between the samples based on when they were made.
+
+From the vignette: "In order to benefit from the default settings of the package, you should put the variable of interest at the end of the formula and make sure the control level is the first level."
+
+The variable of interest is the sample `type`.
+
+Using `DESeqDataSetFromMatrix` since I used the program `featureCounts`.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ type)
+```
+
+Visualize read count distribution
+```{r}
+hist(log(rowSums(counts(dds))))
+abline(v = log(10), col = "red", lty = 2)
+```
+
+Filter genes with low read counts
+```{r}
+keep <- rowSums(counts(dds)) >=10
+dds <- dds[keep,]
+dds
+```
+
+# Perform Differential Expression
+
+```{r}
+dds <- DESeq(dds)
+resultsNames(dds)
+```
+
+```{r}
+res <- results(dds, contrast = c("type", "gut", "gutless"))
+head(res)
+```
+
+Write results output file.  
+
+```{r}
+res_df <- as.data.frame(res)
+# write.csv(x = res_df, "./200511_L1_intestine_FACS_gut_vs_gutless.csv", quote = FALSE)
+```
+
+
+```{r}
+ma_gut_vs_gutless <- plotMA(res, ylim = c(-11,11), alpha = 0.05)
+
+# pdf(file = "./EmbryoFACS_MA_plot_gut_vs_gutless_200930.pdf", 5, 5)
+# plotMA(res, ylim = c(-11,11), alpha = 0.05)
+# dev.off()
+```
+
+```{r}
+resLFC <- lfcShrink(dds, coef = "type_gut_vs_gutless", type = "normal")
+resApeglm <- lfcShrink(dds, coef = "type_gut_vs_gutless", type = "apeglm")
+resAsh <- lfcShrink(dds, coef = "type_gut_vs_gutless", type = "ashr")
+```
+
+
+```{r}
+par(mfrow = c(1,3), mar = c(4,4,2,1))
+plotMA(resLFC, ylim=c(-10,15), main = "normal")
+plotMA(resApeglm, ylim=c(-10,15), main = "apeglm")
+plotMA(resAsh, ylim=c(-10,15), main = "ashr")
+```
+
+```{r}
+# write.csv(resApeglm %>% as.data.frame() %>% rownames_to_column(var = "WBGeneID"), file = "./200531_res_gut_vs_gutless_apeglmShrink.csv")
+
+```
+
+Export the plot
+
+```{r}
+# pdf(file = "./200707_L1FACS_Gut_vs_Nongut_MAplot.pdf", height = 5, width = 5)
+# plotMA(resApeglm, ylim=c(-10,10), main = "L1 FACS Gut vs Nongut Differential Expression")
+# dev.off()
+```
+
+# Export results
+
+```{r}
+resApeglm.df <- as.data.frame(resApeglm) %>% rownames_to_column(var = "WBGeneID")
+# write_csv(resApeglm.df, file = "../03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv", col_names = TRUE)
+
+rld <- rlog(dds)
+rld.df <- as.data.frame(assay(rld)) %>% rownames_to_column(var = "WBGeneID")
+# write_csv(rld.df, file = "../03_output/Embryo_Intestine_Rlog_Counts_220202.csv", col_names = TRUE)
+```
+
+
+
+# Sample-to-sample distance matrix
+
+```{r}
+vsd <- vst(dds, blind = FALSE)
+sampleDists <- dist(t(assay(vsd)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- vsd$names
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors)
+```
+
+Export the plot
+
+```{r}
+# pdf(file = "../03_output/EmbryoFACS_Sample_Distance_Matrix_200930.pdf", height = 4, width = 6)
+# pheatmap(sampleDistMatrix,
+#          clustering_distance_rows = sampleDists,
+#          clustering_distance_cols = sampleDists,
+#          col = colors)
+# dev.off()
+```
+
+```{r}
+plotDispEsts(dds)
+```
+
+```{r fig.width=6, fig.height=8}
+select_rows <- order(rowMeans(counts(dds,normalized=TRUE)),
+                decreasing=TRUE)[1:20]
+df <- as.data.frame(colData(dds)[,c("type","rep")]) %>% mutate(type = fct_recode(type), type = fct_relevel(type, c("whole", "cells", "gut", "gutless"))) %>% arrange(type)
+pheatmap(assay(rld)[select_rows,rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=FALSE, annotation_col=df)
+```
+
+Review automated filtering
+
+```{r}
+metadata(res)$alpha
+metadata(res)$filterThreshold
+plot(metadata(res)$filterNumRej,
+     type = "b", ylab = "number of rejections",
+     xlab = "quantiles of filter")
+lines(metadata(res)$lo.fit, col="red")
+abline(v=metadata(res)$filterTheta)
+```
+
+```{r}
+par(mfrow=c(2,2),mar=c(2,2,1,1))
+ylim <- c(-7,12.5)
+resGA <- results(dds, contrast = c("type", "gut", "gutless"), lfcThreshold=2, altHypothesis="greaterAbs")
+resLA <- results(dds, contrast = c("type", "gut", "gutless"), lfcThreshold=2, altHypothesis="lessAbs")
+resG <- results(dds,contrast = c("type", "gut", "gutless"), lfcThreshold=2, altHypothesis="greater")
+resL <- results(dds,contrast = c("type", "gut", "gutless"), lfcThreshold=2, altHypothesis="less")
+drawLines <- function() abline(h=c(-2,2),col="dodgerblue",lwd=2)
+plotMA(resGA, ylim=ylim); drawLines()
+plotMA(resLA, ylim=ylim); drawLines()
+plotMA(resG, ylim=ylim); drawLines()
+plotMA(resL, ylim=ylim); drawLines()
+
+```
+
+# MA Plot 
+
+```{r fig.width=8, fig.height=6}
+joined_ma <- plotMA(resApeglm, alpha = 0.01, returnData = TRUE) %>% 
+  rownames_to_column(var = "WBGeneID") %>%  
+  left_join(tissue_specific_genes, by = "WBGeneID") %>% 
+  mutate(tissue = replace_na(tissue, "other-genes")) %>% 
+  mutate(tissue = fct_recode(tissue), tissue = fct_relevel(tissue, c("intestine", "rectum", "excretory-system", "coelomic-system", "epithelial-system", "muscular-system", "nervous-system", "reproductive-system", "other-genes")))
+
+tissue_genes_totals <- joined_ma %>% mutate(status = case_when(
+                         lfc >= 2 & isDE == TRUE ~"enriched",
+                         lfc <= 2 & isDE == TRUE ~ "depleted",
+                         TRUE ~ "no_sig_diff")) %>% 
+  group_by(tissue, status) %>% summarise(genes_per_tissue = n_distinct(WBGeneID)) %>% 
+  mutate(mean = 1, lfc = 1, isDE = NA)
+
+ma_tissue_facet <- joined_ma %>%
+  ggplot(aes(x = log(mean), y = lfc, color = isDE == TRUE)) +
+  geom_point(data = joined_ma %>% select(-tissue), alpha = 0.01, color = "lightgrey") +
+  geom_point(alpha = 0.1) +
+  scale_color_manual(values = c("black", "red"), name = "q.value < 0.01") +
+  geom_hline(yintercept = c(-2,2), linetype = "dashed") +
+  # annotate(geom = "text", label = "420", size = 4, x = 1, y = 1) +
+  theme_linedraw() +
+  facet_wrap(~tissue) +
+  ylab("log2FoldChange(GFP+/GFP-)") +
+  xlab("log10(mean normalized read counts")
+  
+
+ma_tissue_facet_labeled <- ma_tissue_facet + 
+  geom_text(data = tissue_genes_totals %>% filter(status == "enriched"), 
+                            mapping = aes(x = 6, y = 11,label = paste("enriched genes = ",genes_per_tissue)), 
+                            color = "black",
+                            size = 3) +
+  geom_text(data = tissue_genes_totals %>% filter(status == "depleted"), 
+                            mapping = aes(x = 6, y = -6,label = paste("depleted genes = ",genes_per_tissue)), 
+                            color = "black",
+                            size = 3) 
+  
+
+ma_tissue_facet_labeled
+```
+export the plot
+```{r}
+ggsave(plot = ma_tissue_facet_labeled, file = "../03_output/Embryo_Intestine_MA_per_organ_system_220202.pdf",
+       width = 8,
+       height = 6)
+
+ggsave(plot = ma_tissue_facet_labeled, file = "../03_output/Embryo_Intestine_MA_per_organ_system_220202.png",
+       width = 8,
+       height = 6,
+       dpi = 700)
+```
+
+Histogram of log2FoldChange facet by tissue
+
+```{r}
+joined_ma %>% filter(isDE == TRUE) %>%
+  ggplot(aes(x = lfc)) +
+  geom_density(data = joined_ma %>% select(-tissue), alpha = 0.1, color = "grey") +
+  geom_density(kernel = "gaussian", alpha = 0.25, aes(fill = tissue)) +
+  geom_vline(xintercept = c(-2,2), linetype = "dotted")+
+  theme_classic() +
+  facet_wrap(~tissue)
+```
+
+# Overlap with published embryo intestine genes
+
+```{r}
+im <- initInterMine(mine = listMines()["WormMine"], "m197OeDbhcudmcu143d2")
+constraints = setConstraints(
+  paths = "Gene.expressionClusters.primaryIdentifier",
+  operators = "=",
+  values = list("WBPaper00037950:intestine_embryo_enriched")
+)
+queryGeneIds = setQuery(
+  select = c(
+    "Gene.primaryIdentifier",
+    "Gene.symbol",
+    "Gene.expressionClusters.primaryIdentifier"
+  ),
+  where = constraints
+)
+
+spencer_embryo_genes <- runQuery(im = im, qry = queryGeneIds)
+head(spencer_embryo_genes)
+```
+
+```{r}
+spencer_ma <- plotMA(resApeglm, alpha = 0.01, returnData = TRUE) %>% rownames_to_column(var = "WBGeneID") %>% 
+  mutate(spencer_embryo = WBGeneID %in% spencer_embryo_genes$Gene.primaryIdentifier)
+
+spencer_ma %>% filter(spencer_embryo == TRUE) %>%
+  ggplot(aes(x = log(mean), y = lfc, color = isDE)) +
+  geom_point(data = spencer_ma %>% select(-spencer_embryo), alpha = 0.1, color = "grey") +
+  geom_point(alpha = 0.25)
+```
+
+
+# Tissue specific ground truth
+
+Take a different approach to label a small set of known tissue specific genes
+
+```{r}
+ground_truth <- readxl::read_xlsx(path = "../01_input/Tissue_Specific_Ground_Truth_RTPW.xlsx")
+tissue_specific_markers <- read.csv(file = "../01_input/Tissue_Specific_Marker_Genes.tsv", header = TRUE, sep = "\t")
+
+neuron_truth <- ground_truth %>% rowwise() %>% mutate(neuron_count = sum(c_across(ADA:VD_DD))) %>% select(WBGeneID, gene_name, neuron_count)
+neuron_truth
+
+
+
+ubiquitous_genes <- neuron_truth %>% filter(neuron_count == ground_truth %>% dplyr::select(ADA:VD_DD) %>% ncol()) 
+ubiquitous_genes
+
+neuron_truth %>% inner_join(tissue_specific_markers, by = c("WBGeneID" = "ExpressionPattern.genes.primaryIdentifier"))
+
+
+germline_genes <- data.frame(WBGeneID = c("WBGene00001598", "WBGene00003993", "WBGene00003992", "WBGene00010492"), gene_name = c("glh-1", "pgl-2", "pgl-1", "meg-1"))
+
+germline_genes$tissue <- "germline"
+
+ground_truth_markers <- ground_truth %>% mutate(tissue= case_when(
+  gene_name == "elt-2" ~ "intestine",
+  WBGeneID %in% (neuron_truth %>% inner_join(tissue_specific_markers, by = c("WBGeneID" = "ExpressionPattern.genes.primaryIdentifier")))$WBGeneID ~ "neuron",
+  Intestine == 1 & Hypodermis == 0 & Muscle == 0 & Germline == 0 & Pharynx == 0 & Neuron == 0 ~ "intestine",
+  Intestine == 0 & Hypodermis == 1 & Muscle == 0 & Germline == 0 & Pharynx == 0 & Neuron == 0 ~ "hypodermis",
+  Intestine == 0 & Hypodermis == 0 & Muscle == 1 & Germline == 0 & Pharynx == 0 & Neuron == 0 ~ "muscle",
+  Intestine == 0 & Hypodermis == 0 & Muscle == 0 & Germline == 1 & Pharynx == 0 & Neuron == 0 ~ "germline",
+  Intestine == 0 & Hypodermis == 0 & Muscle == 0 & Germline == 0 & Pharynx == 1 & Neuron == 0 ~ "pharynx"
+  )) %>% 
+  dplyr::select(!(ADA:VD_DD)) %>%
+  dplyr::select(!(Intestine:Neuron)) %>%
+  drop_na(tissue) %>% 
+  bind_rows(germline_genes)
+
+ground_truth_markers$tissue <- factor(ground_truth_markers$tissue, levels = c("intestine", "hypodermis", "germline", "pharynx", "muscle", "neuron"))
+
+tissues <- c("intestine", "hypodermis", "germline", "pharynx", "muscle", "neuron")
+ordered_genes <- c()
+for(i in tissues){
+  genes <- (ground_truth_markers %>% filter(tissue == i))$gene_name
+  ordered_genes <- append(ordered_genes, genes)
+}
+ordered_genes
+fct_count(ground_truth_markers$tissue)
+```
+
+```{r}
+joined_ma_markers <- plotMA(resApeglm, alpha = 0.01, returnData = TRUE) %>% rownames_to_column(var = "WBGeneID") %>%  left_join(ground_truth_markers, by = "WBGeneID") %>% drop_na(tissue)
+  # mutate(tissue = replace_na(tissue, "not_specific"))
+
+joined_ma_markers %>% #filter(isDE == TRUE) %>%
+  ggplot(aes(x = log(mean), y = lfc, color = tissue)) +
+  geom_point(data = joined_ma %>% select(-tissue), alpha = 0.1, color = "grey") +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = c(-2,2), linetype = "dotted")+
+  theme_classic() +
+  facet_wrap(~tissue)
+```
+

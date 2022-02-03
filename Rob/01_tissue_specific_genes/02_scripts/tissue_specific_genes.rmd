@@ -1,0 +1,421 @@
+---
+title: "WormMine_Tissue_Specific_Genes"
+author: "Rtpw"
+date: "1/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Install Libraries
+```{r}
+# install.packages("tidyverse")
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install(version = "3.14")
+# BiocManager::install("InterMineR")
+```
+
+
+Load Libraries
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(InterMineR)
+library(ComplexHeatmap)
+```
+
+# load genes lists from WormBase
+
+
+```{r}
+tissues <- c("intestine", "pharyngeal-intestinal-valve", "rectum", "coelomic-system", "reproductive-system", "excretory-system", "nervous-system", "epithelial-system", "muscular-system")
+tissue_paths <- c("../01_input/genes_direct_and_inferred_for_WBbt_0005772_intestine.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005767_pharyngeal-intestinal-valve.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005773_rectum.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005749_coelomic-system.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005747_reproductive-system.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005736_excretory-system.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005735_nervous-system.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005730_epithelial-system.txt",
+                  "../01_input/genes_direct_and_inferred_for_WBbt_0005737_muscular-system.txt"
+                  )
+gene_tissue_annotations <- data.frame()
+for(i in 1:length(tissues)){
+  # print(i)
+  # print(tissues[i])
+  # print(tissue_paths[i])
+  
+  gene_tissue_annotations <- data.frame(read_tsv(file = tissue_paths[i], 
+                        c("WBGeneID", "Sequence.name", "Species"),
+                        show_col_types = FALSE
+                        ),
+                        tissue = tissues[i]) %>%
+    bind_rows(gene_tissue_annotations)
+}
+table(gene_tissue_annotations$tissue)
+```
+
+# Gene overlap of tissue assignment
+
+```{r}
+
+filter(gene_tissue_annotations, tissue == "intestine")$WBGeneID
+lt = list(intestine = filter(gene_tissue_annotations, tissue == "intestine")$WBGeneID,
+          pharyngeal.intestinal.valve = filter(gene_tissue_annotations, tissue == "pharyngeal-intestinal-valve")$WBGeneID,
+          rectum = filter(gene_tissue_annotations, tissue == "rectum")$WBGeneID,
+          excretory.system = filter(gene_tissue_annotations, tissue == "excretory-system")$WBGeneID,
+          coelomic.system = filter(gene_tissue_annotations, tissue == "coelomic-system")$WBGeneID,
+          epithelial.system = filter(gene_tissue_annotations, tissue == "epithelial-system")$WBGeneID,
+          nervous.system = filter(gene_tissue_annotations, tissue == "nervous-system")$WBGeneID,
+          reproductive.system = filter(gene_tissue_annotations, tissue == "reproductive-system")$WBGeneID)
+
+m1 <- make_comb_mat(lt)
+UpSet(m1)
+```
+
+
+```{r}
+UpSet(m1[comb_degree(m1) <= 2])
+```
+
+```{r}
+length(extract_comb(m1, "10000000"))
+names(lt)
+m1
+```
+
+```{r}
+tissue_specific_genes <- gene_tissue_annotations %>% group_by(WBGeneID) %>% summarise(sum_tissues = n_distinct(tissue)) %>% filter(sum_tissues == 1) %>% left_join(gene_tissue_annotations, by = "WBGeneID")
+
+table(tissue_specific_genes$tissue)
+tissue_specific_genes_totals <- tissue_specific_genes %>% group_by(tissue) %>% summarise(gene_total = n_distinct(WBGeneID)) %>% mutate(tissue = fct_recode(tissue)) %>% mutate(tissue = fct_reorder(tissue, gene_total))
+ggplot(tissue_specific_genes_totals, aes(x = tissue, y = gene_total))+
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+# UpSet plot sanity check
+
+```{r}
+lt = list(intestine = filter(tissue_specific_genes, tissue == "intestine")$WBGeneID,
+          pharyngeal.intestinal.valve = filter(tissue_specific_genes, tissue == "pharyngeal-intestinal-valve")$WBGeneID,
+          rectum = filter(tissue_specific_genes, tissue == "rectum")$WBGeneID,
+          excretory.system = filter(tissue_specific_genes, tissue == "excretory-system")$WBGeneID,
+          coelomic.system = filter(tissue_specific_genes, tissue == "coelomic-system")$WBGeneID,
+          epithelial.system = filter(tissue_specific_genes, tissue == "epithelial-system")$WBGeneID,
+          nervous.system = filter(tissue_specific_genes, tissue == "nervous-system")$WBGeneID,
+          reproductive.system = filter(tissue_specific_genes, tissue == "reproductive-system")$WBGeneID)
+
+m1 <- make_comb_mat(lt)
+UpSet(m1)
+```
+
+#export the tissue specific gene dataframe
+
+```{r}
+# write_csv(tissue_specific_genes %>% dplyr::select(-sum_tissues, -Species), file = "../03_output/tissue_specific_genes_220202.csv", col_names = TRUE)
+```
+
+
+
+
+# WormMine Crap
+
+<!-- Add developmental stage information via WormMine -->
+
+
+<!-- ```{r} -->
+<!-- im <- initInterMine(mine = listMines()["WormMine"], "m197OeDbhcudmcu143d2") -->
+<!-- im -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # tissue_specific_genes$WBGeneID -->
+
+<!-- myQuery <- getTemplateQuery( -->
+<!--   im = im, -->
+<!--   name = "anatomical_expression_patterns_for_genes" -->
+<!-- ) -->
+<!-- myQuery$where[[1]][["path"]] <- "Gene.primaryIdentifier" -->
+<!-- myQuery$where[[1]][["value"]] <- "WBGene00001250" -->
+<!-- myQuery$select <- c(myQuery$select, "Gene.expressionPatterns.lifeStages.publicName") -->
+<!-- # myQuery$select[[8]] <- c("Gene.expressionPatterns.lifeStages.publicName") -->
+
+<!-- myQuery$where <- setConstraints( -->
+<!--   # modifyQueryConstraints = myQuery, -->
+<!--   # m.index = 1, -->
+<!--   # m.index = 1:length(tissue_specific_genes$WBGeneID), -->
+<!--   paths = "Gene.primaryIdentifier", -->
+<!--   # operators = rep("=", length(tissue_specific_genes$WBGeneID)), -->
+<!--   operators = "LOOKUP", -->
+<!--   values = list(c(tissue_specific_genes$WBGeneID)) -->
+<!-- ) -->
+<!-- runQuery(im = im, myQuery) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- constraints = setConstraints( -->
+<!--   paths = "Gene.primaryIdentifier", -->
+<!--   operators = "=", -->
+<!--   values = list(c(tissue_specific_genes$WBGeneID)) -->
+<!-- ) -->
+<!-- queryGeneIds = setQuery( -->
+<!--   select = c( -->
+<!--     "Gene.primaryIdentifier", -->
+<!--     "Gene.symbol" -->
+<!--   ), -->
+<!--   where = constraints -->
+<!-- ) -->
+
+<!-- runQuery(im = im, qry = queryGeneIds) -->
+<!-- ``` -->
+
+<!-- # Get spencer genes -->
+
+<!-- ```{r} -->
+<!-- constraints = setConstraints( -->
+<!--   paths = "Gene.expressionClusters.primaryIdentifier", -->
+<!--   operators = "=", -->
+<!--   values = list("WBPaper00037950:intestine_embryo_enriched") -->
+<!-- ) -->
+<!-- queryGeneIds = setQuery( -->
+<!--   select = c( -->
+<!--     "Gene.primaryIdentifier", -->
+<!--     "Gene.symbol", -->
+<!--     "Gene.expressionClusters.primaryIdentifier" -->
+<!--   ), -->
+<!--   where = constraints -->
+<!-- ) -->
+
+<!-- spencer_embryo_genes <- runQuery(im = im, qry = queryGeneIds) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- template <- getTemplates(im) -->
+<!-- View(template) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- queryGenePath = getTemplateQuery( -->
+<!--   im = im, -->
+<!--   name = "Genes_expressed_in_given_tissue" -->
+<!-- ) -->
+<!-- queryGenePath -->
+
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- resGenePath <- runQuery(im, queryGenePath) -->
+<!-- View(resGenePath) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- queryGenePath$where[[1]][["value"]] <- "intestine" -->
+<!-- resGenePath <- runQuery(im, queryGenePath) -->
+<!-- str(resGenePath) -->
+
+<!-- ``` -->
+
+<!-- Edit the template query -->
+
+<!-- ```{r} -->
+<!-- myQueryGenePath <- setQuery( -->
+<!--   inheritQuery = queryGenePath, -->
+<!--   select = c(queryGenePath$select, -->
+<!--              "Gene.primaryIdentifier", -->
+<!--              "Gene.expressionPatterns.lifeStages.publicName") -->
+<!-- ) -->
+
+<!-- newConstraint <- list(path = c("Gene.organism.species"), -->
+<!--                op = c("="), -->
+<!--                code = c("B"), -->
+<!--                value = c("elegans")) -->
+<!-- myQueryGenePath@where[[2]] <- newConstraint -->
+
+<!-- getSelect(myQueryGenePath) -->
+
+<!-- myResGenePath <- runQuery(im, myQueryGenePath) -->
+<!-- View(myResGenePath) -->
+<!-- ``` -->
+
+<!-- # Input organ-level anatomry term, return all child anatomry terms -->
+
+<!-- ```{r} -->
+<!-- getTemplateQuery(im = im, -->
+<!--                  name = "Find all anatomy parts and subtypes") -->
+
+<!-- output_columns <- c( -->
+<!--   "Gene.symbol", -->
+<!--   "Gene.secondaryIdentifier", -->
+<!--   "Gene.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.name", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.synonym", -->
+<!--   "Gene.expressionPatterns.lifeStages.publicName" -->
+<!--   ) -->
+<!-- ``` -->
+
+<!-- # Organ anatomy IDs -->
+<!-- ```{r} -->
+<!-- organ_ids <- list("organ" = "WBbt:0003760", -->
+<!--                   "gonad" = "WBbt:0005175",  -->
+<!--                   "intestine" = "WBbt:0005772", -->
+<!--                   "pharynx" = "WBbt:0003681", -->
+<!--                   "sensillum" = "WBbt:0006929", -->
+<!--                   "sex organ" = "WBbt:0008422" -->
+<!--                   ) -->
+<!-- as.character(organ_ids["gonad"]) -->
+<!-- as.character(organ_ids["organ"]) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # Define the output columns -->
+<!-- anatomy_child_columns <- c("AnatomyOntology.identifier", -->
+<!--                            "AnatomyOntology.name", -->
+<!--                            "AnatomyOntology.relations.childTerm.identifier", -->
+<!--                            "AnatomyOntology.relations.childTerm.name", -->
+<!--                            "AnatomyOntology.relations.direct", -->
+<!--                            "AnatomyOntology.relations.relationship" -->
+<!--                            ) -->
+
+<!-- # Define the constraints -->
+<!-- child_terms_constraints <- setConstraints( -->
+<!--   paths = c("AnatomyOntology.identifier",  -->
+<!--             "AnatomyOntology.relations.direct", -->
+<!--             "AnatomyOntology.relations.relationship", -->
+<!--             "AnatomyOntology.relations.relationship"), -->
+<!--   operators = c("=", "=", "=", "="), -->
+<!--   values = list(as.character(as.character(organ_ids["intestine"])), "true", "part_of", "is_a") -->
+<!-- ) -->
+
+
+<!-- # Construct the query -->
+<!-- child_terms_query <- newQuery( -->
+<!--   name = "Anatomy_parent_to_child", -->
+<!--   longDescription = "return child anatomy terms", -->
+<!--   view = anatomy_child_columns, -->
+<!--   sortOrder = "AnatomyOntology.name ASC", -->
+<!--   constraintLogic = "A and B and (C or D)") -->
+
+<!-- # add the constraints -->
+<!-- child_terms_query$where = child_terms_constraints -->
+
+<!-- overlapping_anatomy_terms <- runQuery(im, child_terms_query) -->
+<!-- View(overlapping_anatomy_terms) -->
+<!-- ``` -->
+
+
+
+<!-- # Get all genes associated with all organ-level terms -->
+
+<!-- This works -->
+<!-- ```{r} -->
+<!-- # overlapping_anatomy_terms$AnatomyOntology.relations.childTerm.identifier -->
+<!-- anatomy_terms_subset <- overlapping_anatomy_terms$AnatomyOntology.relations.childTerm.identifier[1:23] -->
+
+
+<!-- gene_columns <- c( -->
+<!--   "Gene.symbol", -->
+<!--   "Gene.secondaryIdentifier", -->
+<!--   "Gene.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.name", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.synonym", -->
+<!--   "Gene.expressionPatterns.lifeStages.publicName" -->
+<!--   ) -->
+
+<!-- # Define the constraints -->
+<!-- organ_genes_constraints <- setConstraints( -->
+<!--   paths = rep("Gene.expressionPatterns.anatomyTerms.primaryIdentifier", length(anatomy_terms_subset)), -->
+<!--   operators = rep("=", length(anatomy_terms_subset)), -->
+<!--   values = as.list(anatomy_terms_subset) -->
+<!-- ) -->
+
+
+<!-- # Construct the query -->
+<!-- organ_genes_query <- newQuery( -->
+<!--   name = "Genes_in_organ", -->
+<!--   longDescription = "return genes present in organ and all child terms", -->
+<!--   view = gene_columns, -->
+<!--   sortOrder = "Gene.expressionPatterns.anatomyTerms.name ASC", -->
+<!--   constraintLogic = paste(as.character(LETTERS[1:length(anatomy_terms_subset)]), collapse = " or ")) -->
+
+<!-- # add the constraints -->
+<!-- organ_genes_query$where = organ_genes_constraints -->
+
+<!-- organ_genes_res <- runQuery(im, organ_genes_query) -->
+<!-- View(organ_genes_res) -->
+<!-- table(organ_genes_res$Gene.expressionPatterns.anatomyTerms.name) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # overlapping_anatomy_terms$AnatomyOntology.relations.childTerm.identifier -->
+
+<!-- gene_columns <- c( -->
+<!--   "Gene.symbol", -->
+<!--   "Gene.secondaryIdentifier", -->
+<!--   "Gene.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.primaryIdentifier", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.name", -->
+<!--   "Gene.expressionPatterns.anatomyTerms.synonym", -->
+<!--   "Gene.expressionPatterns.lifeStages.publicName" -->
+<!--   ) -->
+
+<!-- # Define the constraints -->
+<!-- organ_genes_constraints <- setConstraints( -->
+<!--   paths = c("Gene.expressionClusters.anatomyTerms.primaryIdentifier"), -->
+<!--   operators = c("="), -->
+<!--   values = list(overlapping_anatomy_terms$AnatomyOntology.relations.childTerm.identifier[1])) -->
+
+
+
+<!-- # Construct the query -->
+<!-- organ_genes_query <- newQuery( -->
+<!--   name = "Genes_in_organ", -->
+<!--   longDescription = "return genes present in organ and all child terms", -->
+<!--   view = gene_columns, -->
+<!--   sortOrder = "Gene.expressionPatterns.anatomyTerms.name ASC", -->
+<!--   constraintLogic = "A and B") -->
+
+<!-- # add the constraints -->
+<!-- organ_genes_query$where = organ_genes_constraints -->
+
+<!-- gonad_genes <- runQuery(im, organ_genes_query) -->
+<!-- View(gonad_genes) -->
+<!-- ``` -->
+
+<!-- # Scratch -->
+
+
+<!-- ```{r} -->
+<!-- getTemplateQuery( -->
+<!--   im = im, -->
+<!--   name = "anatomical_expression_patterns_for_genes" -->
+<!-- ) -->
+
+<!-- # this is better used to modify a previous query -->
+<!-- child_terms_query <- setQuery( -->
+<!--   name = "Anatomy_parent_to_child", -->
+<!--   description = "return child anatomy terms", -->
+<!--   select = anatomy_child_columns, -->
+<!--   orderBy = list(c("AnatomyOntology.name" = "ASC")), -->
+<!--   where = child_terms_constraints -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- # what's next -->
+
+<!-- use organ system anatomy terms -->
+
+<!-- this xml worked well for direct relations of terms: -->
+
+<!-- <query name="" model="genomic" view="AnatomyOntology.identifier AnatomyOntology.name AnatomyOntology.relations.childTerm.identifier AnatomyOntology.relations.childTerm.name AnatomyOntology.relations.direct AnatomyOntology.relations.relationship" longDescription="Return a list of all parts and subtypes of an anatomy term" sortOrder="AnatomyOntology.name asc" constraintLogic="B and A and C"> -->
+<!--   <constraint path="AnatomyOntology.name" code="B" op="=" value="intestine"/> -->
+<!--   <constraint path="AnatomyOntology.relations.direct" code="A" op="=" value="true"/> -->
+<!--   <constraint path="AnatomyOntology.relations.relationship" code="C" op="=" value="part of"/> -->
+<!-- </query> -->
