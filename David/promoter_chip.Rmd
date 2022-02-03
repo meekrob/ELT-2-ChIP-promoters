@@ -61,7 +61,7 @@ write.table(filtered.promoters, fname, sep="\t", quote=F, row.names=F, col.names
 I had to call my local setup script .zshrc, where I have initialized conda,
 to have access to the "base" environment, where I have installed wiggletools and ucsc user apps.
 
-`$ wiggletools apply_paste filtered.promoters.df meanI maxI filtered.promoters.bed ELT2_LE_combined_subtracted.bw`
+`$ wiggletools apply_paste filtered.promoters.minus1000_plus200.df meanI maxI filtered.promoters.minus1000_plus200.bed ELT2_LE_combined_subtracted.bw`
 
 The same can be done for the IDR peaks.
 
