@@ -84,6 +84,20 @@ gr.promoters = makeGRangesFromDataFrame(promoters.agg,keep.extra.columns = T)
 seqinfo(gr.promoters) <- Seqinfo(genome="ce11")
 ```
 
+```{r promoter-signal-values, warning=FALSE}
+chipmean.minval = min(gr.promoters$chip_signal_mean,na.rm=T)
+chipmean.minval
+chipmax.minval = min(gr.promoters$chip_signal_max,na.rm=T)
+chipmax.minval
+chipmean.log = log(-chipmean.minval + 1 + gr.promoters$chip_signal_mean,base=2)
+chipmax.log = log(-chipmax.minval + 1 + gr.promoters$chip_signal_max,base=2)
+
+gr.promoters$log_chip_signal_mean = chipmean.log
+gr.promoters$log_chip_signal_max = chipmax.log
+head(gr.promoters)
+write.table(as.data.frame(gr.promoters), file = "../DATA/log_filtered.promoters.minus1000_plus200.df",quote=F, row.names=F,sep="\t")
+```
+
 ```{r merge-promoters-peaks}
 laps = findOverlaps(gr.promoters,gr.IDR)
 length(laps)
