@@ -18,13 +18,13 @@ library(GenomicRanges)
 
 ## Promoters are upstream regions of all protein-coding genes
 
-```{r get-promoters, warning=FALSE}
+```{r get-promoters}
 library(biomaRt)
 mart = getParamart()
 UPSTREAM=1000
 DOWNSTREAM=200
 promoters = getCElegansPromoters(mart, upstream = UPSTREAM, downstream = DOWNSTREAM) 
-promoters = sort(promoters, ignore.strand=T)
+promoters = trim(sort(promoters, ignore.strand=T)) # trim because one interval is chrIV:-359-840 at -1000/+200
 head(promoters)
 selfOverlaps = findOverlaps(promoters, ignore.strand=T)
 #head(selfOverlaps)
@@ -51,7 +51,7 @@ sprintf("There are %d unambiguous promoters.", length(filtered.promoters))
 ```
 
 ```{r write-promoters-bed}
-dest = normalizePath("../DATA") # expected to be run in David or another user directory
+dest = normalizePath("../DATA") # expected for this Rmarkdown to be run in David or another user directory
 fname = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", dest, UPSTREAM, DOWNSTREAM)
 path = (sprintf("../DATA/%s",fname))
 write.table(filtered.promoters, fname, sep="\t", quote=F, row.names=F, col.names=F)
@@ -124,17 +124,4 @@ max: 5699.461426
 std: 46.132783
 
 ```{r}
-scale_fac = 3276.705811 + 1
-gr.promoters$chip_signal_max = log(scale_fac + gr.promoters$chip_signal_max)
-gr.promoters$chip_signal_mean = log(scale_fac + gr.promoters$chip_signal_mean)
-gr.promoters$IDR_max = log(scale_fac + gr.promoters$IDR_max)
-gr.promoters$IDR_mean = log(scale_fac + gr.promoters$IDR_mean)
-gr.promoters
 
-```
-```{r save-file}
-write.table(as.data.frame(gr.promoters), "promoter_signal_embryo.df", row.names=F,
-            col.names=T,
-            quote=F,
-            sep="\t")
-```
