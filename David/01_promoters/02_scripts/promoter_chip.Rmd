@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ParasiteXML)
 library(biomaRt)
 library(GenomicRanges)
+
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
@@ -51,10 +52,9 @@ sprintf("There are %d unambiguous promoters.", length(filtered.promoters))
 ```
 
 ```{r write-promoters-bed}
-dest = normalizePath("../DATA") # expected for this Rmarkdown to be run in David or another user directory
-fname = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", dest, UPSTREAM, DOWNSTREAM)
-path = (sprintf("../DATA/%s",fname))
-write.table(filtered.promoters, fname, sep="\t", quote=F, row.names=F, col.names=F)
+OUTPUT_03 = normalizePath("../03_output") 
+PROMOTOR_BED_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", OUTPUT_03, UPSTREAM, DOWNSTREAM)
+write.table(filtered.promoters, PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
 ```
 
 # Setup a conda environment in your shell
@@ -67,10 +67,11 @@ The same can be done for the IDR peaks.
 
 `$ wiggletools apply_paste LE_IDR_peaks.df meanI maxI ELT2_LE_combined.IDR.bed ELT2_LE_combined_subtracted.bw`
 ```{r read-data, warning=FALSE}
-promoters.agg = read.table("../DATA/filtered.promoters.minus1000_plus200.df")
+PROMOTOR_DF_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.df", OUTPUT_03, UPSTREAM, DOWNSTREAM)
+promoters.agg = read.table(PROMOTOR_DF_PATH)
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
-IDR_peaks.agg = read.table("../DATA/LE_IDR_peaks.df")
+IDR_peaks.agg = read.table(file.path(OUTPUT_03,"LE_IDR_peaks.df"))
 IDR_peaks.agg$V4 = NULL
 IDR_peaks.agg$V5 = NULL
 IDR_peaks.agg$V6 = NULL
@@ -95,7 +96,9 @@ chipmax.log = log(-chipmax.minval + 1 + gr.promoters$chip_signal_max,base=2)
 gr.promoters$log_chip_signal_mean = chipmean.log
 gr.promoters$log_chip_signal_max = chipmax.log
 head(gr.promoters)
-write.table(as.data.frame(gr.promoters), file = "../DATA/log_filtered.promoters.minus1000_plus200.df",quote=F, row.names=F,sep="\t")
+
+LOG_PROMOTOR_DF_PATH = sprintf("%s/log_filtered.promoters.minus%d_plus%d.df", OUTPUT_03, UPSTREAM, DOWNSTREAM)
+write.table(as.data.frame(gr.promoters), file = LOG_PROMOTOR_DF_PATH,quote=F, row.names=F,sep="\t")
 ```
 
 ```{r merge-promoters-peaks}
