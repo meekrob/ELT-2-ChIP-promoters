@@ -6,7 +6,7 @@ output:
     df_print: paged
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 #install.packages("devtools")
@@ -14,12 +14,12 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ParasiteXML)
 library(biomaRt)
 library(GenomicRanges)
-
+library(ggplot2)
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
 
-```{r get-promoters}
+```{r get-promoters,warning=FALSE,message=FALSE}
 library(biomaRt)
 mart = getParamart()
 UPSTREAM=1000
@@ -102,29 +102,145 @@ write.table(as.data.frame(gr.promoters), file = LOG_PROMOTOR_DF_PATH,quote=F, ro
 ```
 
 ```{r merge-promoters-peaks}
-laps = findOverlaps(gr.promoters,gr.IDR)
+laps = findOverlaps(gr.promoters,gr.IDR, ignore.strand=T,minoverlap = 100)
 length(laps)
 head(laps)
 
 gr.promoters$IDR_mean = NaN
 gr.promoters$IDR_max = NaN
+gr.promoters$IDR_value = NaN
+gr.promoters$nlogq = NaN
 gr.promoters[from(laps)]$IDR_max = gr.IDR[to(laps)]$signal.max
 gr.promoters[from(laps)]$IDR_mean = gr.IDR[to(laps)]$signal.mean
+gr.promoters[from(laps)]$IDR_value = gr.IDR[to(laps)]$intensity
+gr.promoters[from(laps)]$nlogq = gr.IDR[to(laps)]$nlogq
+print("Number of promoters overlapping an IDR peak:")
+sum(!is.nan(gr.promoters$IDR_max))
+
 ```
 
-(base) Cumbernauld:ELT-2-ChIP-promoters david$ bigWigInfo ELT2_LE_combined_subtracted.bw 
-version: 4
-isCompressed: yes
-isSwapped: 0
-primaryDataSize: 7,724,199
-primaryIndexSize: 38,660
-zoomLevels: 9
-chromCount: 7
-basesCovered: 35,608,464
-mean: 0.350340
-min: -3276.705811
-max: 5699.461426
-std: 46.132783
+```{r rob-combine}
+datapath = normalizePath('../../../Rob/02_embryo_intestine_RNAseq/03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv')
+x = read.csv(datapath)
+rownames(x) <- x$WBGeneID
 
-```{r}
+# look at the number filtered by DESeq2
+# as described by https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#pvaluesNA
+baseMean_is_zero = x$baseMean == 0
+pval_na = is.na(x$pvalue)
+padj_na = is.na(x$padj)
+# case one
+sum(baseMean_is_zero & pval_na & padj_na)
+# case two
+sum(!baseMean_is_zero & pval_na & padj_na)
+# case three
+sum(!pval_na & padj_na)
+head(x)
 
+#x %>% filter(WBGeneID %in% gr.promoters$wbps_gene_id) -> x.coherent
+mcols(gr.promoters) <- mcols(gr.promoters) %>% cbind(x[gr.promoters$wbps_gene_id,2:6])  %>% as.data.frame() %>% rename(IDR_nlogq = nlogq)
+head(gr.promoters)
+names(gr.promoters) <- gr.promoters$wbps_gene_id
+
+# sort promoters high to low by log2FC
+gr.promoters = gr.promoters[order(gr.promoters$log2FoldChange,decreasing=T)]
+
+# divide groups by peak and padj
+enriched_intestine = gr.promoters$padj<.05 & !is.na(gr.promoters$padj)
+has_peak = !is.nan(gr.promoters$IDR_max)
+classA = enriched_intestine & has_peak
+classB = !enriched_intestine & has_peak
+classC = enriched_intestine & !has_peak
+classD = !enriched_intestine & !has_peak
+
+
+gr.promoters$class = "classA"
+gr.promoters$class[classB] <- "classB"
+gr.promoters$class[classC] <- "classC"
+gr.promoters$class[classD] <- "classD"
+
+promoters.hilo = as.data.frame(gr.promoters)
+
+# BED format
+write.table(promoters.hilo, file.path(OUTPUT_03, "promoters.hilo.bed"), quote=F, sep="\t", row.names=F, col.names=F)
+
+# Matrix format readable into R
+write.table(promoters.hilo, file.path(OUTPUT_03, "promoters.hilo.tsv"), quote=F, sep="\t", row.names=T, col.names=T)
+
+
+write.table(promoters.hilo[classA,], 
+            file.path(OUTPUT_03, "promoters.hilo.classA.bed"), quote=F, sep="\t", row.names=F, col.names=F)
+write.table(promoters.hilo[classB,], 
+            file.path(OUTPUT_03, "promoters.hilo.classB.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(promoters.hilo[classC,], 
+            file.path(OUTPUT_03, "promoters.hilo.classC.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(promoters.hilo[classD,], 
+            file.path(OUTPUT_03, "promoters.hilo.classD.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+```
+
+To produce the deeptools output, execute DEEPTOOLS.bash.
+
+It will compute promoters.hilo.mx and promoters.hilo.pdf.
+
+Deeptools PDFs indicate a font called dejavu, if you're tired of replacing it in Illustrator, install it from: https://sourceforge.net/projects/dejavu/
+
+
+```{r gene-centric-to-appease-derptools, echo = FALSE, eval = FALSE}
+# this code chunk is deactivated because the promoter-only visualization is better
+classA.genes = promoters.hilo[classA]$wbps_gene_id
+classB.genes = promoters.hilo[classB]$wbps_gene_id
+classC.genes = promoters.hilo[classC]$wbps_gene_id
+classD.genes = promoters.hilo[classD]$wbps_gene_id
+genes = getCElegansGeneLocs(mart, gene_list=NULL, WBID=c(classA.genes,classB.genes,classC.genes,classD.genes))
+
+names(genes) = genes$wbps_gene_id
+gr.classA.genes = genes[classA.genes]
+gr.classB.genes = genes[classB.genes]
+gr.classC.genes = genes[classC.genes]
+gr.classD.genes = genes[classD.genes]
+
+
+write.table(as.data.frame(gr.classA.genes), 
+            file.path(OUTPUT_03, "genes.classA.bed"), quote=F, sep="\t", row.names=F, col.names=F)
+write.table(as.data.frame(gr.classB.genes), 
+            file.path(OUTPUT_03, "genes.classB.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(as.data.frame(gr.classC.genes), 
+            file.path(OUTPUT_03, "genes.classC.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(as.data.frame(gr.classD.genes), 
+            file.path(OUTPUT_03, "genes.classD.bed"), quote=F, sep="\t", 
+row.names=F, col.names=F)
+```
+
+```{r signal-vs-expression plots}
+gr.promoters.classA = gr.promoters[classA]
+
+# scatter plot with linear mods on logFC up and down separately
+gr.promoters.classA %>% as.data.frame() %>% 
+  ggplot(
+    aes(x=log_chip_signal_max, 
+        y=log2FoldChange,
+        group=log2FoldChange>0)) + geom_point() +
+        geom_smooth(method='lm', formula= y~x) +
+        ggtitle("Peak + Intestine Enriched") 
+
+classA.up = promoters.hilo %>% as.data.frame() %>% filter(classA & log2FoldChange > 0)
+up.table = classA.up[,c('log2FoldChange',
+                      'chip_signal_mean',
+                      'chip_signal_max',
+                      'log_chip_signal_mean', 
+                      'log_chip_signal_max',  
+                      'IDR_mean',   'IDR_max', 'IDR_value')]
+
+cor.up.table = cor(up.table)
+knitr::kable(cor.up.table, caption="Pairwise correlations")
+```
+
+```{r cor.tests}
+cor.test(classA.up[,'log2FoldChange'],classA.up[,'IDR_mean'])
+cor.test(classA.up[,'log2FoldChange'],classA.up[,'log_chip_signal_mean'])
+```
