@@ -1,0 +1,476 @@
+---
+title: "embryo_L1_L3_intestine_RNAseq"
+author: "Rtpw"
+date: "2/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-packages, include=FALSE}
+library(DESeq2)
+library(corrplot)
+library(RColorBrewer)
+library(pheatmap)
+library(tidyverse)
+library(apeglm)
+library(ashr)
+library(InterMineR)
+```
+
+```{r}
+# import counts
+countsData <- read.delim(file = "../01_input/all.counts", sep = " ")
+# preview counts
+head(countsData)
+# print samples
+colnames(countsData[6:ncol(countsData)])
+# import metadata and process file
+metadata1 <- read.table(file = "../01_input/RWP27_metadata.tsv", header = FALSE, stringsAsFactors = FALSE) %>% bind_rows(read.table(file = "../01_input/RWP26_metadata.tsv", header = FALSE, stringsAsFactors = FALSE)) %>%
+  bind_rows(read.table(file = "../01_input/RWP30_metadata.tsv", header = FALSE, stringsAsFactors = FALSE))
+
+colnames(metadata1) <- c("Filename.Fwd", "Filename.Rev", "names")
+head(metadata1)
+
+# separate and process sample info
+metadata1 <- metadata1 %>% separate(names, sep = "_", into = c("stage", "sample", "rep"), remove = FALSE)
+metadata1 <- metadata1 %>% mutate(stage = fct_relevel(stage, c("embryo", "L1", "L3")), 
+                     sample = fct_relevel(sample, c("whole", "cells", "GFPplus", "GFPminus")),
+                     rep = fct_relevel(rep, c("rep1", "rep2", "rep3")),
+                     names = fct_relevel(names, metadata1$names)
+                     )
+
+# Order columns according to metadata1 order
+countsData <- countsData  %>% select(chr:length, sort(metadata1$names))
+head(countsData)
+
+# Generate a table called "cts" out of the countsData table. Subset the countsData.
+cts <- as.matrix(countsData %>% select(metadata1$names))
+head(cts)
+
+# Reorganize the metadata table so the names2 column are now headers
+rownames(metadata1)<- metadata1$names
+coldata <- metadata1[,c("names", "stage", "sample", "rep")]
+rownames(coldata) <- as.vector(metadata1$names)
+# make grouping variable
+coldata$group <- factor(paste0(coldata$stage, coldata$sample))
+coldata
+
+# Check that the names match  --> Should be TRUE
+all(rownames(coldata) == colnames(cts))
+
+```
+
+
+# Make DESeqDataSet
+
+Generate the DESeqDataSet. The variables in this design formula will be the type of sample, and the preparation date. This should reduce the variability between the samples based on when they were made.
+
+From the vignette: "In order to benefit from the default settings of the package, you should put the variable of interest at the end of the formula and make sure the control level is the first level."
+
+The variable of interest is the sample `type`.
+
+Using `DESeqDataSetFromMatrix` since I used the program `featureCounts`.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ group)
+```
+
+Visualize read count distribution
+```{r}
+hist(log(rowSums(counts(dds))))
+abline(v = log(10), col = "red", lty = 2)
+```
+
+Filter genes with low read counts
+```{r}
+keep <- rowSums(counts(dds)) >=10
+dds <- dds[keep,]
+dds
+```
+
+Perform Differential Expression
+```{r}
+dds <- DESeq(dds)
+resultsNames(dds)
+```
+
+# Sample-to-sample distance matrix
+
+```{r}
+vsd <- vst(dds, blind = FALSE)
+sampleDists <- dist(t(assay(vsd)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- vsd$names
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors)
+
+```
+
+```{r}
+vsd.corr.per.stage <- function(x, main){
+vsd <- assay(vsd)[,metadata1 %>% filter(grepl(x, names)) %>% pull(names)]
+sampleDists <- dist(t(vsd))
+sampleDistMatrix <- as.matrix(sampleDists)
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors, 
+         main = main)
+}
+```
+
+```{r}
+vsd.corr.per.stage("embryo", "Embryo Stage Intestine FACS RNA-seq Correlation")
+vsd.corr.per.stage("L1", "L1 Stage Intestine FACS RNA-seq Correlation")
+vsd.corr.per.stage("L3", "L3 Stage Intestine FACS RNA-seq Correlation")
+```
+
+# All embryo stage pairwise comparisons
+
+## Code testing, proliminary visualization
+
+```{r}
+#for loop attempt one
+combinations<- data.frame(combos = 1:4, top = c("embryowhole", "embryoGFPplus", "embryoGFPminus", "embryoGFPplus"), bottom = c("embryocells", "embryocells", "embryocells", "embryoGFPminus"))
+
+res_embryowhole_vs_embryocells <- results(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]))
+res_embryowhole_vs_embryocells_shrunk <- lfcShrink(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]), type = "ashr", quiet = TRUE)
+
+res_embryowhole_vs_embryocells <- results(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]))
+res_embryowhole_vs_embryocells_shrunk <- lfcShrink(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]), type = "ashr", quiet = TRUE)
+
+for(i in 1:nrow(combinations)){
+  res.var.name<- paste("res",combinations$top[i], "vs", combinations$bottom[i], sep = "_")
+  res.shrunk.var.name <- paste("res",combinations$top[i], "vs", combinations$bottom[i], "shrunk", sep = "_")
+  print(res.var.name)
+  print(res.shrunk.var.name)
+  assign(res.var.name, results(dds, contrast = c("group", combinations$top[i], combinations$bottom[i])))
+}
+
+# res_embryoGFPplus_vs_embryoGFPminus
+# plotMA(res_embryowhole_vs_embryocells_shrunk, ylim = ylim, main = "whole vs cells")
+# combinations$top[1]
+# class(res_embryowhole_vs_embryocells)
+
+# for loop attempt two
+samples <- paste("embryo", c("whole", "GFPplus", "cells", "GFPminus"), sep = "")
+combos <- combn(samples, 2, simplify = FALSE)
+
+for(i in 1:length(combos)){
+  print(c(combos[[i]][1], combos[[i]][2]))
+  res.var.name<- paste("res",combos[[i]][1], "vs", combos[[i]][2], sep = "_")
+  res.shrunk.var.name <- paste("res",combos[[i]][1], "vs", combos[[i]][2], "shrunk", sep = "_")
+  print(res.var.name)
+  print(res.shrunk.var.name)
+  assign(res.var.name, results(dds, contrast = c("group", combos[[i]][1], combos[[i]][2])))
+  assign(res.shrunk.var.name, lfcShrink(dds, contrast = c("group", combos[[i]][1], combos[[i]][2]), type = "ashr", quiet = TRUE))
+}
+```
+
+```{r}
+combos
+```
+
+
+```{r}
+par(mfrow = c(3, 3), mar=c(2,2,1,1))
+ylim = c(-10,10)
+plotMA(res_embryowhole_vs_embryocells_shrunk, ylim = ylim, main = "whole vs cells")
+plotMA(res_embryowhole_vs_embryoGFPplus_shrunk, ylim = ylim, main = "whole vs GFP+")
+plotMA(res_embryowhole_vs_embryoGFPminus_shrunk, ylim = ylim, main = "whole vs GFP-")
+plotMA(res_embryoGFPplus_vs_embryocells_shrunk, ylim = ylim, main = "GFP+ vs cells")
+plotMA(res_embryoGFPplus_vs_embryoGFPminus_shrunk, ylim = ylim, main = "GFP+ vs GFP-")
+plotMA(res_embryocells_vs_embryoGFPminus_shrunk, ylim = ylim, main = "cells vs GFP-")
+```
+
+# ggplot version of plotting
+
+```{r}
+all_embryo_comparisons <- data.frame()
+for(i in 1:length(combos)){
+tobind <- as.data.frame(lfcShrink(dds, contrast = c("group", combos[[i]][1], combos[[i]][2]), type = "ashr", quiet = TRUE)) %>% 
+  rownames_to_column(var = "WBGeneID") %>% 
+  mutate(comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_")) 
+all_embryo_comparisons <- bind_rows(all_embryo_comparisons, tobind)
+}
+
+
+ggplot(all_embryo_comparisons %>% filter(!is.na(padj)), aes(x = log10(baseMean), y = log2FoldChange, color = padj < 0.1)) +
+  geom_point(shape = 16, alpha = 0.1, stroke = 0, size = 1) +
+  ylim(c(-10,10))+
+  facet_wrap(~comparison) +
+  scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
+  theme_classic()
+
+```
+# Functions
+```{r}
+pairwise_array_df <- function(stage) {
+  samples <- paste(stage, c("whole", "GFPplus", "cells", "GFPminus"), sep = "")
+  combos <- combn(samples, 2, simplify = FALSE)
+  # print(combos)
+  all_pairwise_comparisons <- data.frame()
+  for (i in 1:length(combos)) {
+    tobind <-
+      as.data.frame(lfcShrink(
+        dds,
+        contrast = c("group", combos[[i]][1], combos[[i]][2]),
+        type = "ashr",
+        quiet = TRUE
+      )) %>%
+      rownames_to_column(var = "WBGeneID") %>%
+      mutate(comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"))
+    all_pairwise_comparisons <- bind_rows(all_pairwise_comparisons, tobind)
+  }
+  all_pairwise_comparisons
+}
+
+MA_plot_array <- function(in.df){
+  ggplot(in.df %>% mutate(padj = replace_na(padj, 1)), aes(x = log10(baseMean), y = log2FoldChange, color = padj < 0.1)) +
+  geom_point(shape = 16, alpha = 0.1, stroke = 0, size = 1) +
+  ylim(c(-10,10))+
+  facet_wrap(~comparison) +
+  scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
+  theme_classic()
+}
+
+alt_hyp_res_df <- function(stage){
+samples <- paste(stage, c("whole", "GFPplus", "cells", "GFPminus"), sep = "")
+combos <- combn(samples, 2, simplify = FALSE)
+thresh = 0.5
+sig = 0.01
+hyps = c("greater", "less", "lessAbs")
+df <- data.frame()
+for(i in 1:length(combos)){
+  for(hyp in hyps){
+    thresh_res <- results(dds, contrast = c("group", combos[[i]][1],combos[[i]][2]), lfcThreshold=thresh, altHypothesis = hyp, alpha = sig)
+    tobind<-data.frame(plotMA(thresh_res, returnData = TRUE), 
+                      comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"), 
+                       type = hyp)
+    df <- bind_rows(df, tobind)
+  }
+}
+df
+}
+
+de_category_MA_plot <- function(df){
+df %>% filter(isDE == TRUE) %>%
+  ggplot(aes(x = log10(mean), y = lfc, color = type)) +
+  geom_point(data =df, shape = 16, alpha = 0.01, stroke = 0, size = 1, color = "grey") +
+  geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 1) +
+  ylim(c(-10,10))+
+  facet_wrap(~comparison) +
+  # scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
+  theme_classic()
+}
+
+options(dplyr.summarise.inform = FALSE)
+de_category_bar_plot <- function(df){
+  df %>% filter(isDE == TRUE) %>% group_by(comparison, type) %>% summarize(genes = n()) %>%
+  ggplot(aes(x = type, y = genes, label = genes, fill = type)) +
+  geom_bar(stat = "identity") +
+  geom_text(vjust = -0.25) +
+  facet_wrap(~comparison) +
+    theme_classic()
+}
+```
+
+
+```{r}
+embryo_alt_hyp_res_df <- alt_hyp_res_df("embryo")
+```
+
+
+```{r}
+de_category_MA_plot(embryo_alt_hyp_res_df)
+```
+```{r}
+de_category_bar_plot(embryo_alt_hyp_res_df)
+```
+
+```{r}
+L1_alt_hyp_res_df<- alt_hyp_res_df("L1")
+```
+
+```{r}
+de_category_MA_plot(L1_alt_hyp_res_df)
+```
+```{r}
+de_category_bar_plot(L1_alt_hyp_res_df)
+```
+
+
+```{r}
+L3_alt_hyp_res_df<- alt_hyp_res_df("L3")
+```
+
+```{r}
+de_category_MA_plot(L3_alt_hyp_res_df)
+```
+```{r}
+de_category_bar_plot(L3_alt_hyp_res_df)
+```
+
+
+
+# Embryo Intestine FACS MA plots
+```{r}
+embryo_pairwise_res_shrunk <- pairwise_array_df(stage = "embryo")
+
+MA_plot_array(embryo_pairwise_res_shrunk)
+```
+
+# L1 Intestine FACS MA plots
+```{r}
+L1_pairwise_res_shrunk <- pairwise_array_df(stage = "L1")
+
+MA_plot_array(L1_pairwise_res_shrunk)
+```
+
+# L3 Intestine FACS MA plots
+```{r}
+L3_pairwise_res_shrunk <- pairwise_array_df(stage = "L3")
+MA_plot_array(L3_pairwise_res_shrunk)
+```
+
+# DESeq2 builtin plotting function
+```{r}
+res_embryoGFPplus_vs_embryoGFPminus <- results(dds, contrast = c("group", "embryoGFPplus", "embryoGFPminus"))
+res_L1GFPplus_vs_L1_GFPminus <- results(dds, contrast = c("group", "L1GFPplus", "L1GFPminus"))
+res_L3GFPplus_vs_L3_GFPminus <- results(dds, contrast = c("group", "L3GFPplus", "L3GFPminus"))
+```
+
+```{r fig.width=6, fig.height=2}
+par(mfrow=c(1,3),mar=c(2,2,1,1))
+ylim <- c(-15,15)
+# drawLines <- function() abline(h=c(-2,2),col="dodgerblue",lwd=2)
+sig = 0.01
+plotMA(res_embryoGFPplus_vs_embryoGFPminus, ylim=ylim, main = "Embryo GFP+ vs GFP-", alpha = sig)
+plotMA(res_L1GFPplus_vs_L1_GFPminus, ylim=ylim, main = "L1 GFP+ vs GFP-", alpha = sig)
+plotMA(res_L3GFPplus_vs_L3_GFPminus, ylim=ylim, main = "L3 GFP+ vs GFP-", alpha = sig)
+```
+
+```{r}
+res_embryoGFPplus_vs_embryoGFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "embryoGFPplus", "embryoGFPminus"), type = "ashr")
+res_L1GFPplus_vs_L1GFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "L1GFPplus", "L1GFPminus"), type = "ashr")
+res_L3GFPplus_vs_L3GFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "L3GFPplus", "L3GFPminus"), type = "ashr")
+```
+
+```{r fig.width=6, fig.height=2}
+par(mfrow=c(1,3),mar=c(2,2,1,1))
+ylim <- c(-10,10)
+# drawLines <- function() abline(h=c(-2,2),col="dodgerblue",lwd=2)
+sig = 0.01
+plotMA(res_embryoGFPplus_vs_embryoGFPminus_apeglm, ylim=ylim, main = "Embryo GFP+ vs GFP-", alpha = sig)
+plotMA(res_L1GFPplus_vs_L1GFPminus_apeglm, ylim=ylim, main = "L1 GFP+ vs GFP-", alpha = sig)
+plotMA(res_L3GFPplus_vs_L3GFPminus_apeglm, ylim=ylim, main = "L3 GFP+ vs GFP-", alpha = sig)
+```
+
+```{r fig.width=9, fig.height=4}
+plotCounts(dds, "WBGene00001578", intgroup = "group", main = "ges-1 read counts")
+plotCounts(dds, "WBGene00001578", intgroup = "group", returnData = TRUE) %>% 
+  separate(group, sep = "(?<=embryo)|(?<=L1)|(?<=L3)", into = c("stage", "sample"), remove = FALSE) %>%
+  ggplot(aes(x = sample, y = count)) +
+  geom_boxplot() +
+  geom_point() +
+  facet_grid(~stage) +
+  ggtitle("ges-1 read counts") +
+  theme_classic()
+```
+```{r fig.width=9, fig.height=4}
+plotCounts(dds, "WBGene00001250", intgroup = "group", main = "elt-2 read counts")
+
+plotCounts(dds, "WBGene00001250", intgroup = "group", returnData = TRUE) %>% 
+  separate(group, sep = "(?<=embryo)|(?<=L1)|(?<=L3)", into = c("stage", "sample"), remove = FALSE) %>%
+  ggplot(aes(x = sample, y = count)) +
+  geom_boxplot() +
+  geom_point() +
+  facet_grid(~stage) +
+  ggtitle("elt-2 read counts") +
+  theme_classic()
+```
+# Annotate and quantify tissue specific genes
+
+```{r}
+tissue_specific_genes <- read_csv(file = "../../01_tissue_specific_genes/03_output/tissue_specific_genes_220202.csv", show_col_types = FALSE)
+
+
+tissue_annotated_MA <- function(in_res){
+df <- as.data.frame(in_res) %>% rownames_to_column(var = "WBGeneID") %>%
+  left_join(tissue_specific_genes, by = "WBGeneID") %>%
+  mutate(tissue = replace_na(tissue, "other"))
+
+df %>%
+  ggplot(aes(x = log10(baseMean), y = log2FoldChange, color = tissue)) +
+  geom_point(data =df %>% select(-tissue), shape = 16, alpha = 0.1, stroke = 0, size = 1, color = "grey") +
+  geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 1) +
+  facet_wrap(~tissue) +
+  ylim(c(-10,10)) +
+  theme_classic()
+}
+```
+```{r}
+tissue_annotated_MA(res_embryoGFPplus_vs_embryoGFPminus_shrunk)
+```
+```{r}
+tissue_annotated_MA(res_L1GFPplus_vs_L1GFPminus_apeglm)
+```
+
+```{r}
+tissue_annotated_MA(res_L3GFPplus_vs_L3GFPminus_apeglm)
+```
+```{r}
+L3_apeglm_df <- as.data.frame(res_L3GFPplus_vs_L3GFPminus_apeglm) %>% rownames_to_column(var = "WBGeneID") %>%
+  left_join(tissue_specific_genes, by = "WBGeneID") %>%
+  mutate(tissue = replace_na(tissue, "other"), padj = replace_na(padj, 1))
+
+L3_apeglm_df %>%
+  ggplot(aes(x = log10(baseMean), y = log2FoldChange, color = (log2FoldChange>0.5 & padj < 0.01)|(log2FoldChange<0.5 & padj < 0.01))) +
+  # geom_point(data =df %>% select(-tissue), shape = 16, alpha = 0.1, stroke = 0, size = 1, color = "grey") +
+  geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 1) +
+  # facet_wrap(~tissue) +
+  ylim(c(-10,10)) +
+  theme_classic()
+```
+
+```{r}
+tissue_gene_quant <- function(res, sig = 0.01, thresh = 0.5){
+  my_plot <- as.data.frame(res) %>% rownames_to_column(var = "WBGeneID") %>%
+  left_join(tissue_specific_genes, by = "WBGeneID") %>%
+  mutate(tissue = replace_na(tissue, "other"), padj = replace_na(padj, 1)) %>% mutate(status = case_when(
+  log2FoldChange > thresh & padj < sig ~ "greater",
+  log2FoldChange < thresh & padj < sig ~ "less",
+  TRUE ~ "no_sig_diff"
+)) %>%
+  group_by(tissue, status) %>%
+  summarise(genes = n()) %>%
+  ggplot(aes(x = status, y = genes, label = genes)) +
+  geom_bar(stat = "identity") +
+  geom_text(vjust = -0.25) +
+  facet_wrap(~tissue)+
+  ggtitle(deparse(substitute(res)))
+  my_plot
+}
+```
+
+```{r}
+tissue_gene_quant(res_embryoGFPplus_vs_embryoGFPminus)
+```
+```{r}
+tissue_gene_quant(res_L1GFPplus_vs_L1_GFPminus)
+```
+
+```{r}
+tissue_gene_quant(res_L3GFPplus_vs_L3_GFPminus)
+```
