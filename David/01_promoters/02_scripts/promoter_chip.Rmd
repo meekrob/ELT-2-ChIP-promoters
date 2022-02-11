@@ -237,6 +237,7 @@ up.table = classA.up[,c('log2FoldChange',
                       'IDR_mean',   'IDR_max', 'IDR_value')]
 
 cor.up.table = cor(up.table)
+options(digits=3)
 knitr::kable(cor.up.table, caption="Pairwise correlations")
 ```
 
