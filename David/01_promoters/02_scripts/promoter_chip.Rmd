@@ -179,6 +179,23 @@ row.names=F, col.names=F)
 write.table(promoters.hilo[classD,], 
             file.path(OUTPUT_03, "promoters.hilo.classD.bed"), quote=F, sep="\t", 
 row.names=F, col.names=F)
+
+# deeptooling up versus down only, no other filters
+promoters.hilo.up = promoters.hilo %>% filter(log2FoldChange > 0)
+promoters.hilo.down = promoters.hilo %>% filter(log2FoldChange < 0)
+
+write.table(promoters.hilo.up, 
+            file.path(OUTPUT_03, "promoters.hilo.up.bed"), 
+            quote=F, 
+            sep="\t", 
+row.names=F, col.names=F)
+
+write.table(promoters.hilo.down, 
+            file.path(OUTPUT_03, "promoters.hilo.down.bed"), 
+            quote=F, 
+            sep="\t", 
+row.names=F, col.names=F)
+
 ```
 
 To produce the deeptools output, execute DEEPTOOLS.bash.
