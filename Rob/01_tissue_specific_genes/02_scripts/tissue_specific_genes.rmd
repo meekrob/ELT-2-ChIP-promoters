@@ -69,7 +69,8 @@ lt = list(intestine = filter(gene_tissue_annotations, tissue == "intestine")$WBG
           coelomic.system = filter(gene_tissue_annotations, tissue == "coelomic-system")$WBGeneID,
           epithelial.system = filter(gene_tissue_annotations, tissue == "epithelial-system")$WBGeneID,
           nervous.system = filter(gene_tissue_annotations, tissue == "nervous-system")$WBGeneID,
-          reproductive.system = filter(gene_tissue_annotations, tissue == "reproductive-system")$WBGeneID)
+          reproductive.system = filter(gene_tissue_annotations, tissue == "reproductive-system")$WBGeneID,
+          muscular.system = filter(gene_tissue_annotations, tissue == "muscular-system")$WBGeneID)
 
 m1 <- make_comb_mat(lt)
 UpSet(m1)
@@ -81,7 +82,7 @@ UpSet(m1[comb_degree(m1) <= 2])
 ```
 
 ```{r}
-length(extract_comb(m1, "10000000"))
+# length(extract_comb(m1, "10000000"))
 names(lt)
 m1
 ```
@@ -105,7 +106,8 @@ lt = list(intestine = filter(tissue_specific_genes, tissue == "intestine")$WBGen
           coelomic.system = filter(tissue_specific_genes, tissue == "coelomic-system")$WBGeneID,
           epithelial.system = filter(tissue_specific_genes, tissue == "epithelial-system")$WBGeneID,
           nervous.system = filter(tissue_specific_genes, tissue == "nervous-system")$WBGeneID,
-          reproductive.system = filter(tissue_specific_genes, tissue == "reproductive-system")$WBGeneID)
+          reproductive.system = filter(tissue_specific_genes, tissue == "reproductive-system")$WBGeneID,
+          muscular.system = filter(tissue_specific_genes, tissue == "muscular-system")$WBGeneID)
 
 m1 <- make_comb_mat(lt)
 UpSet(m1)
@@ -114,7 +116,7 @@ UpSet(m1)
 #export the tissue specific gene dataframe
 
 ```{r}
-# write_csv(tissue_specific_genes %>% dplyr::select(-sum_tissues, -Species), file = "../03_output/tissue_specific_genes_220202.csv", col_names = TRUE)
+write_csv(tissue_specific_genes %>% dplyr::select(-sum_tissues, -Species), file = "../03_output/tissue_specific_genes_220202.csv", col_names = TRUE)
 ```
 
 

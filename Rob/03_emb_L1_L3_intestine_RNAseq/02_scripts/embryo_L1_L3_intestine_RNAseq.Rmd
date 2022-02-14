@@ -138,7 +138,7 @@ vsd.corr.per.stage("L3", "L3 Stage Intestine FACS RNA-seq Correlation")
 
 # All embryo stage pairwise comparisons
 
-## Code testing, proliminary visualization
+## Code testing, preliminary visualization
 
 ```{r}
 #for loop attempt one
@@ -230,19 +230,21 @@ pairwise_array_df <- function(stage) {
         quiet = TRUE
       )) %>%
       rownames_to_column(var = "WBGeneID") %>%
-      mutate(comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"))
+      mutate(comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"))  %>% 
+      mutate(label = str_remove_all(comparison, "embryo|L1|L3"))
     all_pairwise_comparisons <- bind_rows(all_pairwise_comparisons, tobind)
   }
   all_pairwise_comparisons
 }
 
-MA_plot_array <- function(in.df){
+MA_plot_array <- function(in.df, title){
   ggplot(in.df %>% mutate(padj = replace_na(padj, 1)), aes(x = log10(baseMean), y = log2FoldChange, color = padj < 0.1)) +
   geom_point(shape = 16, alpha = 0.1, stroke = 0, size = 1) +
   ylim(c(-10,10))+
-  facet_wrap(~comparison) +
+  facet_wrap(~label) +
   scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
-  theme_classic()
+  theme_classic() +
+  ggtitle(title)
 }
 
 alt_hyp_res_df <- function(stage){
@@ -257,32 +259,34 @@ for(i in 1:length(combos)){
     thresh_res <- results(dds, contrast = c("group", combos[[i]][1],combos[[i]][2]), lfcThreshold=thresh, altHypothesis = hyp, alpha = sig)
     tobind<-data.frame(plotMA(thresh_res, returnData = TRUE), 
                       comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"), 
-                       type = hyp)
+                       type = hyp) %>% mutate(label = str_remove_all(comparison, "embryo|L1|L3"))
     df <- bind_rows(df, tobind)
   }
 }
 df
 }
 
-de_category_MA_plot <- function(df){
+de_category_MA_plot <- function(df, title){
 df %>% filter(isDE == TRUE) %>%
   ggplot(aes(x = log10(mean), y = lfc, color = type)) +
   geom_point(data =df, shape = 16, alpha = 0.01, stroke = 0, size = 1, color = "grey") +
   geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 1) +
   ylim(c(-10,10))+
-  facet_wrap(~comparison) +
+  facet_wrap(~label) +
   # scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
-  theme_classic()
+  theme_classic() +
+    ggtitle(title)
 }
 
 options(dplyr.summarise.inform = FALSE)
-de_category_bar_plot <- function(df){
-  df %>% filter(isDE == TRUE) %>% group_by(comparison, type) %>% summarize(genes = n()) %>%
+de_category_bar_plot <- function(df, title){
+  df %>% filter(isDE == TRUE) %>% group_by(label, type) %>% summarize(genes = n()) %>%
   ggplot(aes(x = type, y = genes, label = genes, fill = type)) +
   geom_bar(stat = "identity") +
   geom_text(vjust = -0.25) +
-  facet_wrap(~comparison) +
-    theme_classic()
+  facet_wrap(~label) +
+    theme_classic() +
+    ggtitle(title)
 }
 ```
 
@@ -293,10 +297,12 @@ embryo_alt_hyp_res_df <- alt_hyp_res_df("embryo")
 
 
 ```{r}
-de_category_MA_plot(embryo_alt_hyp_res_df)
+thresh = 0.5
+sig = 0.01
+de_category_MA_plot(embryo_alt_hyp_res_df, paste("Embryo differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 ```{r}
-de_category_bar_plot(embryo_alt_hyp_res_df)
+de_category_bar_plot(embryo_alt_hyp_res_df, paste("Embryo differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 
 ```{r}
@@ -304,10 +310,10 @@ L1_alt_hyp_res_df<- alt_hyp_res_df("L1")
 ```
 
 ```{r}
-de_category_MA_plot(L1_alt_hyp_res_df)
+de_category_MA_plot(L1_alt_hyp_res_df, paste("L1 differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 ```{r}
-de_category_bar_plot(L1_alt_hyp_res_df)
+de_category_bar_plot(L1_alt_hyp_res_df, paste("L1 differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 
 
@@ -316,10 +322,10 @@ L3_alt_hyp_res_df<- alt_hyp_res_df("L3")
 ```
 
 ```{r}
-de_category_MA_plot(L3_alt_hyp_res_df)
+de_category_MA_plot(L3_alt_hyp_res_df, paste("L3 differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 ```{r}
-de_category_bar_plot(L3_alt_hyp_res_df)
+de_category_bar_plot(L3_alt_hyp_res_df, paste("L3 differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
 
 
@@ -328,20 +334,20 @@ de_category_bar_plot(L3_alt_hyp_res_df)
 ```{r}
 embryo_pairwise_res_shrunk <- pairwise_array_df(stage = "embryo")
 
-MA_plot_array(embryo_pairwise_res_shrunk)
+MA_plot_array(embryo_pairwise_res_shrunk, "embryo FACS ashr shrunk")
 ```
 
 # L1 Intestine FACS MA plots
 ```{r}
 L1_pairwise_res_shrunk <- pairwise_array_df(stage = "L1")
 
-MA_plot_array(L1_pairwise_res_shrunk)
+MA_plot_array(L1_pairwise_res_shrunk, "L1 FACS ashr shrunk")
 ```
 
 # L3 Intestine FACS MA plots
 ```{r}
 L3_pairwise_res_shrunk <- pairwise_array_df(stage = "L3")
-MA_plot_array(L3_pairwise_res_shrunk)
+MA_plot_array(L3_pairwise_res_shrunk, "L3 FACS ashr shrunk")
 ```
 
 # DESeq2 builtin plotting function
@@ -455,11 +461,12 @@ tissue_gene_quant <- function(res, sig = 0.01, thresh = 0.5){
 )) %>%
   group_by(tissue, status) %>%
   summarise(genes = n()) %>%
-  ggplot(aes(x = status, y = genes, label = genes)) +
+  ggplot(aes(x = status, y = genes, label = genes, fill = status)) +
   geom_bar(stat = "identity") +
   geom_text(vjust = -0.25) +
   facet_wrap(~tissue)+
-  ggtitle(deparse(substitute(res)))
+  ggtitle(paste("comparison: ",deparse(substitute(res)), "\nlfc = ",thresh," & padj < ",sig, sep = "")) +
+    theme_classic()
   my_plot
 }
 ```
@@ -474,3 +481,88 @@ tissue_gene_quant(res_L1GFPplus_vs_L1_GFPminus)
 ```{r}
 tissue_gene_quant(res_L3GFPplus_vs_L3_GFPminus)
 ```
+
+# Export rlog counts
+
+```{r}
+# all_samples_rld <- rlog(dds)
+# write_rds(all_samples_rld, file = "../03_output/all_samples_rlog_counts.rds")
+all_samples_rld <- read_rds(file = "../03_output/all_samples_rlog_counts.rds")
+all_samples_rld_df <- as.data.frame(assay(all_samples_rld)) %>% rownames_to_column(var = "WBGeneID")
+head(all_samples_rld_df)
+```
+# Average embryo GFP+ sample reads
+
+```{r}
+thresh = 1
+sig = 0.01
+embryo_rlog_status_df <- all_samples_rld_df %>% 
+  select(WBGeneID, embryo_GFPplus_rep1, embryo_GFPplus_rep2, embryo_GFPplus_rep3) %>% 
+  pivot_longer(cols = embryo_GFPplus_rep1:embryo_GFPplus_rep3, values_to = "rlog_counts") %>%
+  separate(name, sep = "_", into = c("stage", "sample", "rep")) %>%
+  group_by(WBGeneID) %>%
+  summarise(mean.rlog.counts = mean(rlog_counts), var.rlog.counts = var(rlog_counts)) %>%
+  left_join(as.data.frame(res_embryoGFPplus_vs_embryoGFPminus) %>% rownames_to_column(var = "WBGeneID"), by = "WBGeneID") %>%
+  mutate(status = case_when(
+    log2FoldChange > thresh & padj < sig ~ "enriched",
+    log2FoldChange < thresh & padj < sig ~ "depleted",
+    TRUE ~ "no_sig_diff",
+  )) %>% 
+  drop_na(padj)
+
+head(embryo_rlog_status_df)
+# write_csv(embryo_rlog_status_df, file = "../03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+```
+# Correlate embryo expression to ELT-2 ChIP-seq 
+
+Import promoter ChIP-seq data
+
+```{r}
+promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
+```
+
+```{r}
+elt2chip_embryo_rlog_status_df <- promoters.hilo %>% full_join(embryo_rlog_status_df, by = "WBGeneID") %>% mutate(status = replace_na(status, "no_sig_diff"))
+head(elt2chip_embryo_rlog_status_df)
+```
+
+```{r}
+elt2chip_embryo_rlog_status_df %>% 
+  ggplot(aes(x = mean.rlog.counts, y = IDR_mean)) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.1) +
+  geom_smooth(method = "lm", formula = y~x) +
+  # stat_summary(fun.data = "mean_cl_boot") +
+  ggpubr::stat_cor(method = "pearson") +
+  facet_grid(~status)
+```
+```{r}
+elt2chip_embryo_rlog_status_df %>% 
+  ggplot(aes(x = mean.rlog.counts, y = log_chip_signal_mean)) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.1) +
+  geom_smooth(method = "lm", formula = y~x) +
+  # stat_summary(fun.data = "mean_cl_boot") +
+  ggpubr::stat_cor(method = "pearson") +
+  facet_grid(~status)
+```
+
+```{r}
+statuses <- c("depleted", "enriched", "no_sig_diff")
+for(i in 1:length(statuses)){
+  print(statuses[i])
+cor.test_result<- cor.test(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
+         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
+         method = "pearson")
+cor_result<- cor(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
+         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
+         method = "pearson",
+         use = "complete.obs")
+print(cor.test_result)  
+print(cor_result)  
+}
+```
+
+```{r}
+yomamam<-lm(log_chip_signal_mean~mean.rlog.counts*status,data = elt2chip_embryo_rlog_status_df)
+summary(yomamam)
+```
+
