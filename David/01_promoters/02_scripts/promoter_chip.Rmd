@@ -15,6 +15,7 @@ library(ParasiteXML)
 library(biomaRt)
 library(GenomicRanges)
 library(ggplot2)
+library(tidyr)
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
@@ -119,6 +120,46 @@ sum(!is.nan(gr.promoters$IDR_max))
 
 ```
 
+```{r IDR-score-values}
+
+idr.nonlog = gather(as.data.frame(gr.promoters)[,c('IDR_value','IDR_mean','IDR_max')], key="dataset")
+ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of log10 transformed IDR NON-Log transformed values")
+
+idr.val.ecdf = ecdf(gr.promoters$IDR_value)
+idr.mean.ecdf = ecdf(gr.promoters$IDR_mean)
+idr.max.ecdf = ecdf(gr.promoters$IDR_max)
+
+plot(idr.val.ecdf)
+lines(idr.mean.ecdf,col="blue")
+lines(idr.max.ecdf,col="red")
+
+# the data currently have all positive values, so no adjustment made for log
+idr.val.log = log10(gr.promoters$IDR_value)
+idr.mean.log = log10(gr.promoters$IDR_mean)
+idr.max.log = log10(gr.promoters$IDR_max)
+
+idr.val.log.ecdf = ecdf(idr.val.log)
+idr.mean.log.ecdf = ecdf(idr.mean.log) 
+idr.max.log.ecdf = ecdf(idr.max.log)
+
+plot(idr.val.log.ecdf)
+lines(idr.mean.log.ecdf,col="blue")
+lines(idr.max.log.ecdf,col="red")
+
+log.vals = data.frame(idr.mean = idr.mean.log, idr.val = idr.val.log, idr.max = idr.max.log)
+
+long.log.vals = gather(log.vals, key="dataset")
+head(long.log.vals)
+ggplot(long.log.vals, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of log10 transformed IDR values")
+
+gr.promoters$IDR_logTEN_max = idr.max.log
+gr.promoters$IDR_logTEN_mean = idr.mean.log
+gr.promoters$IDR_logTEN_value = idr.val.log
+sum(idr.mean.log > 2.5, na.rm=T)
+
+
+```
+
 ```{r rob-combine}
 datapath = normalizePath('../../../Rob/02_embryo_intestine_RNAseq/03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv')
 x = read.csv(datapath)
@@ -138,7 +179,7 @@ sum(!pval_na & padj_na)
 head(x)
 
 #x %>% filter(WBGeneID %in% gr.promoters$wbps_gene_id) -> x.coherent
-mcols(gr.promoters) <- mcols(gr.promoters) %>% cbind(x[gr.promoters$wbps_gene_id,2:6])  %>% as.data.frame() %>% rename(IDR_nlogq = nlogq)
+mcols(gr.promoters) <- mcols(gr.promoters) %>% cbind(x[gr.promoters$wbps_gene_id,2:6])  %>% as.data.frame() %>% dplyr::rename(IDR_nlogq = nlogq)
 head(gr.promoters)
 names(gr.promoters) <- gr.promoters$wbps_gene_id
 
