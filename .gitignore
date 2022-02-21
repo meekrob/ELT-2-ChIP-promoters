@@ -9,3 +9,6 @@
 # No swap files
 .*.swp
 ~*.xlsx
+
+# Bedgraphs are too large
+*.bedGraph
