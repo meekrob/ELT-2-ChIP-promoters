@@ -1,0 +1,169 @@
+---
+title: "binding_expression_correlation"
+author: "Robert Williams"
+date: "2/17/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-packages, include=FALSE}
+library(tidyverse)
+```
+
+
+# Correlate embryo rlog expression to ELT-2 ChIP-seq 
+
+Import intestine expression data
+
+```{r}
+embryo_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+L1_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/L1_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+L3_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/L3_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+```
+
+
+Import promoter ChIP-seq data
+
+```{r}
+promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
+```
+
+```{r}
+elt2chip_embryo_rlog_status_df <- promoters.hilo %>% full_join(embryo_rlog_status_df, by = "WBGeneID") %>% mutate(status = replace_na(status, "no_sig_diff"))
+head(elt2chip_embryo_rlog_status_df)
+```
+
+```{r fig.width=6, fig.height=3}
+elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = mean.rlog.counts, y = log10(IDR_mean))) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  # geom_smooth(method = "lm", formula = y~x) +
+  # stat_summary(fun.data = "mean_cl_boot") +
+  ggpubr::stat_cor(method = "pearson") +
+  facet_grid(~status) + 
+  theme_bw()
+```
+
+
+```{r fig.width=6, fig.height=2.5}
+elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = mean.rlog.counts, y= log10(IDR_mean))) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 3.2) +
+  ggpubr::stat_regline_equation(label.y = 3) +
+  geom_text(x = 4, y = 2.8, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~status) + 
+  theme_classic()
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
+```
+```{r fig.width=3, fig.height=2.5}
+elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = mean.rlog.counts, y= log(IDR_mean))) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 12) +
+  ggpubr::stat_regline_equation(label.y = 11) +
+  # geom_text(x = 1, y = 2.8, label = "hello world") +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean)), sep = "")) +
+  # facet_grid(.~status) + 
+  theme_classic() +
+  ggtitle("correlation with all genes")
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
+```
+
+```{r fig.width=6, fig.height=2.5}
+knitr::opts_chunk$set(dev = 'pdf')
+elt2chip_embryo_rlog_status_df %>% 
+  ggplot(aes(x = mean.rlog.counts, y= log_chip_signal_mean)) +
+  geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 11) +
+  ggpubr::stat_regline_equation(label.y = 10) +
+  geom_text(x = 5, y = 9, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~status) + 
+  theme_classic()
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_All_Promoters.pdf", width = 6, height = 3, dpi = 300)
+```
+
+```{r fig.width=3, fig.height=2.5}
+elt2chip_embryo_rlog_status_df %>% 
+  ggplot(aes(x = mean.rlog.counts, y= log_chip_signal_mean)) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 12) +
+  ggpubr::stat_regline_equation(label.y = 11) +
+  # geom_text(x = 1, y = 2.8, label = "hello world") +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(elt2chip_embryo_rlog_status_df), sep = "")) +
+  # facet_grid(.~status) + 
+  theme_classic() +
+  ggtitle("correlation with all genes")
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
+```
+
+```{r fig.width=5, fig.height=2}
+elt2chip_embryo_rlog_status_df %>% 
+  ggplot(aes(x = mean.rlog.counts)) +
+  geom_histogram() +
+  # geom_point(shape = 19, size = 0.5, alpha = 0.1) +
+  # geom_smooth(method = "lm", formula = y~x) +
+  # stat_summary(fun.data = "mean_cl_boot") +
+  # ggpubr::stat_cor(method = "pearson") +
+  facet_grid(~status)
+```
+
+```{r}
+statuses <- c("depleted", "enriched", "no_sig_diff")
+for(i in 1:length(statuses)){
+  print(statuses[i])
+cor.test_result<- cor.test(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
+         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
+         method = "pearson")
+cor_result<- cor(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
+         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
+         method = "pearson",
+         use = "complete.obs")
+print(cor.test_result)  
+print(cor_result)  
+}
+```
+
+```{r}
+yomamam<-lm(log_chip_signal_mean~mean.rlog.counts*status,data = elt2chip_embryo_rlog_status_df)
+summary(yomamam)
+```
+
+# Correlate embryo log2FoldChange to to ELT-2 ChIP-seq
+
+```{r}
+embryo_all_pairwise_res <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/embryo_all_pairwise_res.csv")
+
+embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange > -10, !is.na(padj)) %>% 
+  left_join(promoters.hilo, by = "WBGeneID") %>%
+  ggplot(aes(x = log2FoldChange, y = log_chip_signal_mean)) +
+  geom_point(alpha = 0.1, size = 0.25) +
+  ggpubr::
+```
+
+```{r}
+embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange > -10, !is.na(padj)) %>% 
+  left_join(promoters.hilo, by = "WBGeneID") %>%
+  ggplot(aes(x = log2FoldChange, y = log(IDR_mean))) +
+  geom_point(alpha = 0.1, size = 0.25)
+```
+
+
+```{r}
+embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange < -1, padj < 0.01, !is.na(padj)) %>% 
+  left_join(promoters.hilo, by = "WBGeneID") %>%
+  ggplot(aes(x = log2FoldChange, y = log_chip_signal_mean)) +
+  geom_point()
+```
+

@@ -18,6 +18,7 @@ library(tidyverse)
 library(apeglm)
 library(ashr)
 library(InterMineR)
+library(ComplexHeatmap)
 ```
 
 ```{r}
@@ -213,6 +214,8 @@ ggplot(all_embryo_comparisons %>% filter(!is.na(padj)), aes(x = log10(baseMean),
   scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") +
   theme_classic()
 
+
+# write_csv(all_embryo_comparisons, file = "../03_output/embryo_all_pairwise_res.csv")
 ```
 # Functions
 ```{r}
@@ -514,89 +517,91 @@ head(embryo_rlog_status_df)
 # write_csv(embryo_rlog_status_df, file = "../03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
 embryo_rlog_status_df <- read_csv(file = "../03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
 ```
-# Correlate embryo expression to ELT-2 ChIP-seq 
 
-Import promoter ChIP-seq data
+# Average embryo GFP+ sample reads
 
+Make function
 ```{r}
-promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
-```
-
-```{r}
-elt2chip_embryo_rlog_status_df <- promoters.hilo %>% full_join(embryo_rlog_status_df, by = "WBGeneID") %>% mutate(status = replace_na(status, "no_sig_diff"))
-head(elt2chip_embryo_rlog_status_df)
-```
-
-```{r fig.width=5, fig.height=2}
-elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
-  ggplot(aes(x = mean.rlog.counts, y = log10(IDR_mean))) +
-  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
-  # geom_smooth(method = "lm", formula = y~x) +
-  # stat_summary(fun.data = "mean_cl_boot") +
-  ggpubr::stat_cor(method = "pearson") +
-  facet_grid(~status) + 
-  theme_bw()
-```
-
-
-```{r fig.width=5, fig.height=2}
-elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
-  ggplot(aes(x = mean.rlog.counts, y= log10(IDR_mean))) +
-  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
-  geom_smooth(method = "lm", formula = y~x) +
-  ggpubr::stat_cor(method = "pearson", label.y = 3.1) +
-  ggpubr::stat_regline_equation(label.y = 3) +
-  geom_text(x = 4, y = 2.9, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
-  facet_grid(.~status) + 
-  theme_classic()
-
-# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
-```
-```{r fig.width=5, fig.height=2}
-
-elt2chip_embryo_rlog_status_df %>% 
-  ggplot(aes(x = mean.rlog.counts, y= log_chip_signal_mean)) +
-  geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
-  geom_smooth(method = "lm", formula = y~x) +
-  ggpubr::stat_cor(method = "pearson", label.y = 11) +
-  ggpubr::stat_regline_equation(label.y = 10) +
-  geom_text(x = 5, y = 9, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
-  facet_grid(.~status) + 
-  theme_classic()
-
-ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_All_Promoters.pdf", width = 6, height = 3, dpi = 300)
-```
-
-
-```{r fig.width=5, fig.height=2}
-elt2chip_embryo_rlog_status_df %>% 
-  ggplot(aes(x = mean.rlog.counts)) +
-  geom_histogram() +
-  # geom_point(shape = 19, size = 0.5, alpha = 0.1) +
-  # geom_smooth(method = "lm", formula = y~x) +
-  # stat_summary(fun.data = "mean_cl_boot") +
-  # ggpubr::stat_cor(method = "pearson") +
-  facet_grid(~status)
-```
-
-```{r}
-statuses <- c("depleted", "enriched", "no_sig_diff")
-for(i in 1:length(statuses)){
-  print(statuses[i])
-cor.test_result<- cor.test(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
-         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
-         method = "pearson")
-cor_result<- cor(x = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(mean.rlog.counts), 
-         y = elt2chip_embryo_rlog_status_df %>% filter(status == statuses[i]) %>% pull(log_chip_signal_mean),
-         method = "pearson",
-         use = "complete.obs")
-print(cor.test_result)  
-print(cor_result)  
+thresh = 1
+sig = 0.01
+stage = "L1"
+rlog_status <- function(thresh, sig, stage, res){
+all_samples_rld_df %>% 
+  select(WBGeneID, contains(paste(stage,"GFPplus", sep = "_"))) %>% 
+  pivot_longer(cols = contains("GFPplus"), values_to = "rlog_counts") %>%
+  separate(name, sep = "_", into = c("stage", "sample", "rep")) %>%
+  group_by(WBGeneID) %>%
+  summarise(mean.rlog.counts = mean(rlog_counts), var.rlog.counts = var(rlog_counts)) %>%
+  left_join(as.data.frame(res) %>% rownames_to_column(var = "WBGeneID"), by = "WBGeneID") %>%
+  mutate(status = case_when(
+    log2FoldChange > thresh & padj < sig ~ "enriched",
+    log2FoldChange < thresh & padj < sig ~ "depleted",
+    TRUE ~ "no_sig_diff",
+  )) %>% 
+  drop_na(padj)
 }
 ```
 
+
 ```{r}
-yomamam<-lm(log_chip_signal_mean~mean.rlog.counts*status,data = elt2chip_embryo_rlog_status_df)
-summary(yomamam)
+embryo_rlog_status_df <- rlog_status(thresh = thresh, sig = sig, stage = "embryo", res = res_embryoGFPplus_vs_embryoGFPminus)
+head(embryo_rlog_status_df)
+# write_csv(embryo_rlog_status_df, file = "../03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+embryo_rlog_status_df <- read_csv(file = "../03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
 ```
+```{r}
+L1_rlog_status_df <- rlog_status(thresh = thresh, sig = sig, stage = "L1", res = res_L1GFPplus_vs_L1_GFPminus)
+head(L1_rlog_status_df)
+# write_csv(L1_rlog_status_df, file = "../03_output/L1_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+```
+```{r}
+L3_rlog_status_df <- rlog_status(thresh = thresh, sig = sig, stage = "L3", res = res_L3GFPplus_vs_L3_GFPminus)
+head(L3_rlog_status_df)
+# write_csv(L3_rlog_status_df, file = "../03_output/L3_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+```
+# Intesinte expression across development
+
+# UpSet Plot
+```{r}
+
+
+intestine_enriched_genes <- data.frame(embryo_rlog_status_df, stage = "embryo") %>% bind_rows(data.frame(L1_rlog_status_df, stage = "L1"), data.frame(L3_rlog_status_df, stage = "L3")) %>%filter(status == "enriched") %>% select(WBGeneID, stage)
+
+stage_list<- list(embryo = filter(intestine_enriched_genes, stage == "embryo")$WBGeneID,
+     L1 = filter(intestine_enriched_genes, stage == "L1")$WBGeneID,
+     L3 = filter(intestine_enriched_genes, stage == "L3")$WBGeneID)
+comb_mat <-make_comb_mat(stage_list)
+UpSet(comb_mat)
+```
+```{r}
+comb_size(comb_mat)
+```
+
+# heatmap
+
+```{r}
+gfpplus_matrix <- all_samples_rld_df %>% select(WBGeneID, contains("GFPplus")) %>% filter(WBGeneID %in% c(embryo_rlog_status_df[embryo_rlog_status_df$status == "enriched",]$WBGeneID, L1_rlog_status_df[L1_rlog_status_df$status == "enriched",]$WBGeneID, L3_rlog_status_df[L3_rlog_status_df$status == "enriched",]$WBGeneID)) %>% column_to_rownames(var = "WBGeneID") %>% as.matrix()
+```
+
+```{r}
+hist(rowMeans(gfpplus_matrix), main = "GFPplus sample rlog row means")
+abline(v = mean_thresh, col = "red", lty = 2)
+```
+
+
+```{r}
+hist(rowSds(gfpplus_matrix), main = "GFPplus sample rlog row standard deviations")
+abline(v = sd_thresh, col = "red", lty = 2)
+```
+
+```{r}
+gfpplus_matrix_row_zscore <- (gfpplus_matrix - rowMeans(gfpplus_matrix))/rowSds(gfpplus_matrix)
+sd_thresh <- 1.5
+mean_thresh <- 6
+pheatmap(gfpplus_matrix_row_zscore[rowSds(gfpplus_matrix) >= sd_thresh & rowMeans(gfpplus_matrix) >= mean_thresh,], 
+         cluster_cols = TRUE, 
+         show_rownames = FALSE, 
+         main = paste0("Intestine Development Clustered Heatmap\n thresholds: row mean >= ", mean_thresh, ", row SD >= ", sd_thresh))
+```
+
 
