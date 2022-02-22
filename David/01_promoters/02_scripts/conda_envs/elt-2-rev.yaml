@@ -1,0 +1,47 @@
+name: elt-2-rev
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - conda
+  - ucsc-bedpileups
+  - ucsc-bigbedinfo
+  - ucsc-fetchchromsizes
+  - ucsc-bigwigsummary
+  - ucsc-bedrestricttopositions
+  - ucsc-bedsort
+  - ucsc-bigwigcluster
+  - ucsc-bedtogenepred
+  - ucsc-bigwigtobedgraph
+  - ucsc-beditemoverlapcount
+  - ucsc-bedgraphpack
+  - ucsc-bigwiginfo
+  - ucsc-bedtopsl
+  - ucsc-bedjointaboffset
+  - ucsc-bigwigtowig
+  - ucsc-bigpsltopsl
+  - wiggletools
+  - ucsc-bedgraphtobigwig
+  - ucsc-bedintersect
+  - ucsc-bigwigaverageoverbed
+  - ucsc-bigwigcorrelate
+  - ucsc-bigmaftomaf
+  - ucsc-wigtobigwig
+  - ucsc-bedextendranges
+  - ucsc-bedcoverage
+  - ucsc-wigcorrelate
+  - ucsc-bedgeneparts
+  - ucsc-bedremoveoverlap
+  - ucsc-bedcommonregions
+  - ucsc-bedtobigbed
+  - ucsc-bigbedtobed
+  - ucsc-bigwigcat
+  - ucsc-bigbedsummary
+  - ucsc-bedclip
+  - ucsc-bedweedoverlapping
+  - ucsc-bigbednameditems
+  - ucsc-bigwigmerge
+  - r-base=4.1.2
+  - r-readxl
+prefix: /Users/david/opt/miniconda3/envs/elt-2-rev

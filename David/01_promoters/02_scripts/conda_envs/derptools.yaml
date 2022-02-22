@@ -1,0 +1,17 @@
+name: derptools
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - ucsc-fetchchromsizes
+  - ucsc-bigwiginfo
+  - ucsc-wigtobigwig
+  - ucsc-bigbedtobed
+  - deeptools
+  - r-base=4.1.2
+  - wiggletools
+  - ucsc-wigcorrelate
+  - r-readxl
+  - ucsc-bigbedinfo
+prefix: /Users/david/opt/miniconda3/envs/derptools
