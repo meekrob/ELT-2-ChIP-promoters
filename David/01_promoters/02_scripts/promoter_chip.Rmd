@@ -8,6 +8,48 @@ output:
   html_document:
     df_print: paged
 ---
+```{r input-files-params}
+RNASEQ=params$rob.data
+
+UPSTREAM=1000
+DOWNSTREAM=200
+IDR_BED = sprintf("../01_input/ELT2_%s_combined_IDR.bed", params$stage) # peaks input file
+OUTPUT_03 = normalizePath("../03_output") 
+
+# output files from genomic ranges
+PROMOTOR_BED_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", 
+                            OUTPUT_03, 
+                            UPSTREAM, 
+                            DOWNSTREAM)
+# colliding promoters removed
+NR_PROMOTOR_BED_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.bed",
+                               OUTPUT_03, 
+                               UPSTREAM, 
+                               DOWNSTREAM)
+
+# input signal file for wiggle tool step
+SIGNAL_BW = sprintf("../01_input/ELT2_%s_combined_subtracted.bw", params$stage)
+# input signal file for deeptools (e.g. ELT2_L1_combined_subtracted.interp.bw)
+INTERP_SIGNAL_BW = sprintf("../01_input/ELT2_%s_combined_subtracted.interp.bw", params$stage)
+
+# output files from wiggle tool step
+PROMOTOR_DF_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.df", 
+                           OUTPUT_03, 
+                           UPSTREAM, 
+                           DOWNSTREAM)
+
+NR_PROMOTOR_DF_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.df", 
+                           OUTPUT_03, 
+                           UPSTREAM, 
+                           DOWNSTREAM)
+
+IDR_DF = sprintf("../01_input/ELT2_%s_combined_IDR.df", params$stage) # peaks with signal agg
+
+#################
+
+
+
+```
 
 ```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -26,8 +68,7 @@ library(tidyr)
 ```{r get-promoters,warning=FALSE,message=FALSE}
 library(biomaRt)
 mart = getParamart()
-UPSTREAM=1000
-DOWNSTREAM=200
+
 promoters = getCElegansPromoters(mart, upstream = UPSTREAM, downstream = DOWNSTREAM) 
 promoters = trim(sort(promoters, ignore.strand=T)) # trim because one interval is chrIV:-359-840 at -1000/+200
 head(promoters)
@@ -58,16 +99,6 @@ sprintf("There are %d unambiguous promoters.", length(nr.promoters))
 # -1000,+200
 #"There are 8008 overlaps between 6749 promoters."
 #"There are 13246 unambiguous promoters."
-OUTPUT_03 = normalizePath("../03_output") 
-PROMOTOR_BED_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", 
-                            OUTPUT_03, 
-                            UPSTREAM, 
-                            DOWNSTREAM)
-
-NR_PROMOTOR_BED_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.bed",
-                               OUTPUT_03, 
-                               UPSTREAM, 
-                               DOWNSTREAM)
 
 write.table(filtered.promoters, PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
 write.table(nr.promoters, NR_PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
@@ -77,45 +108,23 @@ write.table(nr.promoters, NR_PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, 
 Install a conda environment containing wiggletools and ucsc user apps via 
 `root/David/01_promoters/02_scripts/conda_envs/elt-2-rev.yaml`
 
-`$ wiggletools apply_paste filtered.promoters.minus1000_plus200.df meanI maxI filtered.promoters.minus1000_plus200.bed ELT2_LE_combined_subtracted.bw`
 
-The same can be done for the IDR peaks.
-
-`$ wiggletools apply_paste LE_IDR_peaks.df meanI maxI ELT2_LE_combined.IDR.bed ELT2_LE_combined_subtracted.bw`
-
-To pass variable names to a *bash* chunk, set them in the environment with `Sys.setenv`.
+To pass variable names to the *bash* chunk by setting them in the environment with `Sys.setenv`.
 ```{r set-up-bash}
-PROMOTOR_DF_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.df", 
-                           OUTPUT_03, 
-                           UPSTREAM, 
-                           DOWNSTREAM)
-
-NR_PROMOTOR_DF_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.df", 
-                           OUTPUT_03, 
-                           UPSTREAM, 
-                           DOWNSTREAM)
-
 
 Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
            NR_PROMOTOR_BED_PATH = NR_PROMOTOR_BED_PATH, # overlapping removed
-           IDR_BED = sprintf("../01_input/ELT2_%s_combined_IDR.bed", params$stage), # peaks input file
-           IDR_DF = sprintf("../01_input/ELT2_%s_combined_IDR.df", params$stage), # peaks with signal agg
-           SIGNAL_BW = sprintf("../01_input/ELT2_%s_combined_subtracted.bw", params$stage),
+           IDR_BED = IDR_BED, 
+           IDR_DF = IDR_DF, 
+           SIGNAL_BW = SIGNAL_BW,
            PROMOTOR_DF_PATH = PROMOTOR_DF_PATH,
            NR_PROMOTOR_DF_PATH = NR_PROMOTOR_DF_PATH,
            STAGE=params$stage
            )
 ```
 
-```{r getwd}
-getwd()
-sprintf("../01_input/ELT2_%s_combined.IDR.bed", params$stage)
-file.exists(sprintf("../01_input/ELT2_%s_combined.IDR.bed", params$stage))
-print(Sys.getenv('IDR_BED'))
-file.exists(Sys.getenv('IDR_BED'))
-```
-
-```{bash wiggle-tools}
+Run wiggletools in a bash session.
+```{bash run-wiggle-tools}
 source $HOME/.bash_profile
 conda activate elt-2-rev
 
@@ -142,14 +151,13 @@ echo $IDR_DF
 head -5 $IDR_DF
 ```
 
-
-
-```{r read-data, warning=FALSE}
+Read in the results of the wiggletools commands.
+```{r read-calculated-data, warning=FALSE}
 
 promoters.agg = read.table(PROMOTOR_DF_PATH)
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
-IDR_peaks.agg = read.table(sprintf("%s/%s_IDR_peaks.df",OUTPUT_03, params$stage))
+IDR_peaks.agg = read.table(IDR_DF)
 
 IDR_peaks.agg$V4 = NULL
 IDR_peaks.agg$V5 = NULL
@@ -164,6 +172,7 @@ gr.promoters = makeGRangesFromDataFrame(promoters.agg,keep.extra.columns = T)
 seqinfo(gr.promoters) <- Seqinfo(genome="ce11")
 ```
 
+Attach log scale promoter signal values.
 ```{r promoter-signal-values, warning=FALSE}
 chipmean.minval = min(gr.promoters$chip_signal_mean,na.rm=T)
 chipmean.minval
@@ -181,6 +190,7 @@ LOG_PROMOTOR_DF_PATH = sprintf("%s/log_filtered.promoters.minus%d_plus%d.df", OU
 write.table(as.data.frame(gr.promoters), file = LOG_PROMOTOR_DF_PATH,quote=F, row.names=F,sep="\t")
 ```
 
+Find overlaps between promoters and IDR peaks. Populate IDR signal fields when a peak exists, leave NaN otherwise.
 ```{r merge-promoters-peaks}
 laps = findOverlaps(gr.promoters,gr.IDR, ignore.strand=T,minoverlap = 100)
 
@@ -235,40 +245,46 @@ gr.promoters$IDR_logTEN_max = idr.max.log
 gr.promoters$IDR_logTEN_mean = idr.mean.log
 gr.promoters$IDR_logTEN_value = idr.val.log
 sum(idr.mean.log > 2.5, na.rm=T)
-
-
 ```
 
+Read in RNA-seq data, join promoters by wbps geneid, and then sort logFoldChange high to low.
 ```{r rob-combine}
 # input file
-#ROB_APEGLM_SHRINK
-datapath = normalizePath('../../../Rob/02_embryo_intestine_RNAseq/03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv')
-x = read.csv(datapath)
-rownames(x) <- x$WBGeneID
+rnaseq = read.csv(RNASEQ)
+rownames(rnaseq) <- rnaseq$WBGeneID
 
-# look at the number filtered by DESeq2
-# as described by https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#pvaluesNA
-baseMean_is_zero = x$baseMean == 0
-pval_na = is.na(x$pvalue)
-padj_na = is.na(x$padj)
-# case one
-sum(baseMean_is_zero & pval_na & padj_na)
-# case two
-sum(!baseMean_is_zero & pval_na & padj_na)
-# case three
-sum(!pval_na & padj_na)
-head(x)
+mcols(gr.promoters) <- mcols(gr.promoters) %>% 
+  cbind(rnaseq[gr.promoters$wbps_gene_id,2:6])  %>% 
+  as.data.frame() %>% 
+  dplyr::rename(IDR_nlogq = nlogq)
 
-#x %>% filter(WBGeneID %in% gr.promoters$wbps_gene_id) -> x.coherent
-mcols(gr.promoters) <- mcols(gr.promoters) %>% cbind(x[gr.promoters$wbps_gene_id,2:6])  %>% as.data.frame() %>% dplyr::rename(IDR_nlogq = nlogq)
-head(gr.promoters)
 names(gr.promoters) <- gr.promoters$wbps_gene_id
 
 # sort promoters high to low by log2FC
 gr.promoters = gr.promoters[order(gr.promoters$log2FoldChange,decreasing=T)]
 
+head(gr.promoters)
+```
+
+```{r rnaseq-pvalue-na}
+# look at the number filtered by DESeq2
+# as described by https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#pvaluesNA
+baseMean_is_zero = rnaseq$baseMean == 0
+pval_na = is.na(rnaseq$pvalue)
+padj_na = is.na(rnaseq$padj)
+# case one
+sum(baseMean_is_zero & pval_na & padj_na)
+
+# case two
+sum(!baseMean_is_zero & pval_na & padj_na)
+
+# case three
+sum(!pval_na & padj_na)
+```
+
+```{r make-classes-ABCD}
 # divide groups by peak and padj
-enriched_intestine = gr.promoters$padj<.05 & !is.na(gr.promoters$padj)
+enriched_intestine = gr.promoters$padj<.05 & !is.na(gr.promoters$padj) & gr.promoters$log2FoldChange > 0
 has_peak = !is.nan(gr.promoters$IDR_max)
 classA = enriched_intestine & has_peak
 classB = !enriched_intestine & has_peak
@@ -285,7 +301,9 @@ gr.promoters$class = "classA"
 gr.promoters$class[classB] <- "classB"
 gr.promoters$class[classC] <- "classC"
 gr.promoters$class[classD] <- "classD"
+```
 
+```{r make-classes-hilo}
 promoters.hilo = as.data.frame(gr.promoters)
 
 # BED format
@@ -295,30 +313,41 @@ write.table(promoters.hilo, file.path(OUTPUT_03, "promoters.hilo.bed"), quote=F,
 write.table(promoters.hilo, file.path(OUTPUT_03, "promoters.hilo.tsv"), quote=F, sep="\t", row.names=T, col.names=T)
 
 
+PROMOTERS_HILO_BED_PATH = file.path(OUTPUT_03, "promoters.hilo.bed")
+PROMOTERS_HILO_BED_PATH_A = file.path(OUTPUT_03, "promoters.hilo.classA.bed")
+PROMOTERS_HILO_BED_PATH_B = file.path(OUTPUT_03, "promoters.hilo.classB.bed")
+PROMOTERS_HILO_BED_PATH_C = file.path(OUTPUT_03, "promoters.hilo.classC.bed")
+PROMOTERS_HILO_BED_PATH_D = file.path(OUTPUT_03, "promoters.hilo.classD.bed")
+
+
 write.table(promoters.hilo[classA,], 
-            file.path(OUTPUT_03, "promoters.hilo.classA.bed"), quote=F, sep="\t", row.names=F, col.names=F)
+            PROMOTERS_HILO_BED_PATH_A, quote=F, sep="\t", row.names=F, col.names=F)
 write.table(promoters.hilo[classB,], 
-            file.path(OUTPUT_03, "promoters.hilo.classB.bed"), quote=F, sep="\t", 
+            PROMOTERS_HILO_BED_PATH_B, quote=F, sep="\t", 
 row.names=F, col.names=F)
 write.table(promoters.hilo[classC,], 
-            file.path(OUTPUT_03, "promoters.hilo.classC.bed"), quote=F, sep="\t", 
+            PROMOTERS_HILO_BED_PATH_C, quote=F, sep="\t", 
 row.names=F, col.names=F)
 write.table(promoters.hilo[classD,], 
-            file.path(OUTPUT_03, "promoters.hilo.classD.bed"), quote=F, sep="\t", 
+            PROMOTERS_HILO_BED_PATH_D, quote=F, sep="\t", 
 row.names=F, col.names=F)
 
-# deeptooling up versus down only, no other filters
+#### deeptooling up versus down only, no other filters
 promoters.hilo.up = promoters.hilo %>% filter(log2FoldChange > 0)
 promoters.hilo.down = promoters.hilo %>% filter(log2FoldChange < 0)
 
+PROMOTERS_HILO_BED_PATH_UP = file.path(OUTPUT_03, "promoters.hilo.up.bed")
+PROMOTERS_HILO_BED_PATH_DOWN = file.path(OUTPUT_03, "promoters.hilo.down.bed")
+
+
 write.table(promoters.hilo.up, 
-            file.path(OUTPUT_03, "promoters.hilo.up.bed"), 
+            PROMOTERS_HILO_BED_PATH_UP, 
             quote=F, 
             sep="\t", 
 row.names=F, col.names=F)
 
 write.table(promoters.hilo.down, 
-            file.path(OUTPUT_03, "promoters.hilo.down.bed"), 
+            PROMOTERS_HILO_BED_PATH_DOWN, 
             quote=F, 
             sep="\t", 
 row.names=F, col.names=F)
@@ -331,8 +360,70 @@ It will compute promoters.hilo.mx and promoters.hilo.pdf.
 
 Deeptools PDFs indicate a font called dejavu, if you're tired of replacing it in Illustrator, install it from: https://sourceforge.net/projects/dejavu/
 
-```{bash deeptools}
+```{r set-deeptools-shell-vars}
 
+Sys.setenv(UPSTREAM=UPSTREAM,
+           DOWNSTREAM=DOWNSTREAM,
+           INTERP_SIGNAL_BW=INTERP_SIGNAL_BW,
+            PROMOTERS_HILO_BED_PATH=PROMOTERS_HILO_BED_PATH,
+            PROMOTERS_HILO_BED_PATH_A=PROMOTERS_HILO_BED_PATH_A,
+            PROMOTERS_HILO_BED_PATH_B=PROMOTERS_HILO_BED_PATH_B,
+            PROMOTERS_HILO_BED_PATH_C=PROMOTERS_HILO_BED_PATH_C,
+            PROMOTERS_HILO_BED_PATH_D=PROMOTERS_HILO_BED_PATH_D,
+            PROMOTERS_HILO_BED_PATH_UP=PROMOTERS_HILO_BED_PATH_UP,
+            PROMOTERS_HILO_BED_PATH_DOWN=PROMOTERS_HILO_BED_PATH_DOWN)
+```
+
+
+```{bash deeptools-ABCD}
+source $HOME/.bash_profile
+conda activate derptools # yaml environ in 02_scripts/conda_envs
+
+set -ue # exit 1 if any vars are not set (using Sys.setenv in prev chunks)
+BODYLENGTH=$(($UPSTREAM + $DOWNSTREAM))
+
+# real	1m59.354s
+# user	3m47.980s
+# sys	0m2.663s
+time computeMatrix scale-regions --regionBodyLength $BODYLENGTH \
+                                --startLabel 'up-1Kb' \
+                                --endLabel down+200 \
+                                --beforeRegionStartLength $UPSTREAM\
+                                --afterRegionStartLength $DOWNSTREAM\
+                                -R $PROMOTERS_HILO_BED_PATH_A $PROMOTERS_HILO_BED_PATH_B $PROMOTERS_HILO_BED_PATH_C $PROMOTERS_HILO_BED_PATH_D\
+                                -S $INTERP_SIGNAL_BW\
+                                -p 4 -o promoters.olap100.hilo.mx
+
+plotHeatmap  --matrixFile promoters.olap100.hilo.mx\
+             -out promoters.olap100.hilo.pdf\
+             --sortRegions no\
+             --colorMap RdYlBu_r\
+             --startLabel '' --endLabel ''\
+             --regionsLabel 'peak+int. enrich.' 'peak+ NOT int. enrich.' 'NO peak + int. enrich.' 'NO peak + NOT int. enrich.'\
+             --samplesLabel 'ELT-2 signal (reps. combined subtracted)'
+```
+
+```{bash deeptools-hilo}
+source $HOME/.bash_profile
+conda activate derptools # yaml environ in 02_scripts/conda_envs
+BODYLENGTH=$(($UPSTREAM + $DOWNSTREAM))
+set -ue # exit 1 if any vars are not set (using Sys.setenv in prev chunks)
+time computeMatrix scale-regions --regionBodyLength $BODYLENGTH \
+                            --startLabel 'up-1Kb' \
+                            --endLabel down+200 \
+                            --beforeRegionStartLength $UPSTREAM\
+                            --afterRegionStartLength $DOWNSTREAM\
+                            -R $PROMOTERS_HILO_BED_PATH_UP $PROMOTERS_HILO_BED_PATH_DOWN\
+                            -S $INTERP_SIGNAL_BW\
+                            -p 4 -o promoters.hilo.updown.mx
+
+plotHeatmap  --matrixFile promoters.hilo.updown.mx\
+             -out promoters.updown.pdf\
+             --sortRegions no\
+             --colorMap RdYlBu_r\
+             --startLabel '' --endLabel ''\
+             --regionsLabel 'log2FC > 0' 'log2FC < 0'\
+             --samplesLabel 'ELT-2 signal (reps. combined subtracted)'
 ```
 
 
