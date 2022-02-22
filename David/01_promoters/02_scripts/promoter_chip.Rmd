@@ -1,5 +1,8 @@
 ---
 title: "promoter_comparison"
+params:
+  stage: 'LE'
+  rob.data: '../../../Rob/02_embryo_intestine_RNAseq/03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv'
 output:
   pdf_document: default
   html_document:
@@ -28,6 +31,9 @@ DOWNSTREAM=200
 promoters = getCElegansPromoters(mart, upstream = UPSTREAM, downstream = DOWNSTREAM) 
 promoters = trim(sort(promoters, ignore.strand=T)) # trim because one interval is chrIV:-359-840 at -1000/+200
 head(promoters)
+```
+
+```{r filter-collisions}
 selfOverlaps = findOverlaps(promoters, ignore.strand=T)
 #head(selfOverlaps)
 
@@ -38,9 +44,12 @@ collisions = selfOverlaps[!isSelfHit(selfOverlaps)]
 overlappingPromoterRows = unique(c( from(collisions), to(collisions)))
 length(overlappingPromoterRows)
 sprintf("There are %d overlaps between %d promoters.", length(collisions), length(overlappingPromoterRows))
-filtered.promoters = promoters[-overlappingPromoterRows]
-filtered.promoters = filtered.promoters[-which(seqnames(filtered.promoters) == 'chrM')]
-sprintf("There are %d unambiguous promoters.", length(filtered.promoters))
+
+filtered.promoters = promoters[-which(seqnames(promoters) == 'chrM')]
+
+# to remove overlapping promoters, uncomment below
+nr.promoters = filtered.promoters[-overlappingPromoterRows]
+sprintf("There are %d unambiguous promoters.", length(nr.promoters))
 
 # -500,+200
 # "There are 4256 overlaps between 4067 promoters."
@@ -49,26 +58,81 @@ sprintf("There are %d unambiguous promoters.", length(filtered.promoters))
 # -1000,+200
 #"There are 8008 overlaps between 6749 promoters."
 #"There are 13246 unambiguous promoters."
-
-```
-
-```{r write-promoters-bed}
 OUTPUT_03 = normalizePath("../03_output") 
-PROMOTOR_BED_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", OUTPUT_03, UPSTREAM, DOWNSTREAM)
+PROMOTOR_BED_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.bed", 
+                            OUTPUT_03, 
+                            UPSTREAM, 
+                            DOWNSTREAM)
+
+NR_PROMOTOR_BED_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.bed",
+                               OUTPUT_03, 
+                               UPSTREAM, 
+                               DOWNSTREAM)
+
 write.table(filtered.promoters, PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
+write.table(nr.promoters, NR_PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
 ```
 
 # Setup a conda environment in your shell
-I had to call my local setup script .zshrc, where I have initialized conda,
-to have access to the "base" environment, where I have installed wiggletools and ucsc user apps.
+Install a conda environment containing wiggletools and ucsc user apps via 
+`root/David/01_promoters/02_scripts/conda_envs/elt-2-rev.yaml`
 
 `$ wiggletools apply_paste filtered.promoters.minus1000_plus200.df meanI maxI filtered.promoters.minus1000_plus200.bed ELT2_LE_combined_subtracted.bw`
 
 The same can be done for the IDR peaks.
 
 `$ wiggletools apply_paste LE_IDR_peaks.df meanI maxI ELT2_LE_combined.IDR.bed ELT2_LE_combined_subtracted.bw`
+
+To pass variable names to a *bash* chunk, set them in the environment with `Sys.setenv`.
+```{r set-up-bash}
+PROMOTOR_DF_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.df", 
+                           OUTPUT_03, 
+                           UPSTREAM, 
+                           DOWNSTREAM)
+
+NR_PROMOTOR_DF_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.df", 
+                           OUTPUT_03, 
+                           UPSTREAM, 
+                           DOWNSTREAM)
+
+
+Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
+           NR_PROMOTOR_BED_PATH = NR_PROMOTOR_BED_PATH, # overlapping removed
+           IDR_BED = sprintf("ELT2_%s_combined.IDR.bed", params$stage), # peaks
+           IDR_DF = sprintf("ELT2_%s_combined.IDR.df", params$stage), # peaks
+           SIGNAL_BW = sprintf("../01_input/ELT2_%s_combined_subtracted.bw", params$stage),
+           PROMOTOR_DF_PATH = PROMOTOR_DF_PATH,
+           NR_PROMOTOR_DF_PATH = NR_PROMOTOR_DF_PATH,
+           STAGE=params$stage
+           )
+```
+
+
+```{bash wiggle-tools}
+source $HOME/.bash_profile
+conda activate elt-2-rev
+
+set -ue # exit 1 if any vars are not set (above)
+echo PROMOTOR_BED_PATH $PROMOTOR_BED_PATH
+echo NR_PROMOTOR_BED_PATH $NR_PROMOTOR_BED_PATH
+echo NR_PROMOTOR_DF_PATH $NR_PROMOTOR_DF_PATH
+echo IDR_BED $IDR_BED
+echo IDR_DF $IDR_DF
+echo SIGNAL_BW $SIGNAL_BW
+echo STAGE $STAGE
+
+#wiggletools
+wiggletools apply_paste - meanI maxI $PROMOTOR_BED_PATH $SIGNAL_BW > $PROMOTOR_DF_PATH
+head $PROMOTOR_DF_PATH
+
+wiggletools apply_paste - meanI maxI $NR_PROMOTOR_BED_PATH $SIGNAL_BW > $NR_PROMOTOR_DF_PATH
+head $NR_PROMOTOR_DF_PATH
+```
+
+
+
 ```{r read-data, warning=FALSE}
-PROMOTOR_DF_PATH = sprintf("%s/filtered.promoters.minus%d_plus%d.df", OUTPUT_03, UPSTREAM, DOWNSTREAM)
+
 promoters.agg = read.table(PROMOTOR_DF_PATH)
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
@@ -98,13 +162,14 @@ gr.promoters$log_chip_signal_mean = chipmean.log
 gr.promoters$log_chip_signal_max = chipmax.log
 head(gr.promoters)
 
+# output file
 LOG_PROMOTOR_DF_PATH = sprintf("%s/log_filtered.promoters.minus%d_plus%d.df", OUTPUT_03, UPSTREAM, DOWNSTREAM)
 write.table(as.data.frame(gr.promoters), file = LOG_PROMOTOR_DF_PATH,quote=F, row.names=F,sep="\t")
 ```
 
 ```{r merge-promoters-peaks}
 laps = findOverlaps(gr.promoters,gr.IDR, ignore.strand=T,minoverlap = 100)
-length(laps)
+
 head(laps)
 
 gr.promoters$IDR_mean = NaN
@@ -161,6 +226,8 @@ sum(idr.mean.log > 2.5, na.rm=T)
 ```
 
 ```{r rob-combine}
+# input file
+#ROB_APEGLM_SHRINK
 datapath = normalizePath('../../../Rob/02_embryo_intestine_RNAseq/03_output/DE_Results_GFPplus-vs-GFPminus_apeglmShrink_220202.csv')
 x = read.csv(datapath)
 rownames(x) <- x$WBGeneID
@@ -194,6 +261,11 @@ classB = !enriched_intestine & has_peak
 classC = enriched_intestine & !has_peak
 classD = !enriched_intestine & !has_peak
 
+m = matrix( c(sum(classA),
+            sum(classB),
+            sum(classC),
+            sum(classD)), ncol = 2)
+m.chisq = chisq.test(m)
 
 gr.promoters$class = "classA"
 gr.promoters$class[classB] <- "classB"
@@ -244,6 +316,10 @@ To produce the deeptools output, execute DEEPTOOLS.bash.
 It will compute promoters.hilo.mx and promoters.hilo.pdf.
 
 Deeptools PDFs indicate a font called dejavu, if you're tired of replacing it in Illustrator, install it from: https://sourceforge.net/projects/dejavu/
+
+```{bash deeptools}
+
+```
 
 
 ```{r gene-centric-to-appease-derptools, echo = FALSE, eval = FALSE}
@@ -302,4 +378,16 @@ knitr::kable(cor.up.table, caption="Pairwise correlations")
 ```{r cor.tests}
 cor.test(classA.up[,'log2FoldChange'],classA.up[,'IDR_mean'])
 cor.test(classA.up[,'log2FoldChange'],classA.up[,'log_chip_signal_mean'])
+```
+
+```{r set-vars-for-shell}
+Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH,
+           NR_PROMOTOR_BED_PATH=NR_PROMOTOR_BED_PATH)
+```
+
+```{bash }
+source $HOME/.bash_profile
+conda activate elt-2-rev
+wiggletools
+
 ```
