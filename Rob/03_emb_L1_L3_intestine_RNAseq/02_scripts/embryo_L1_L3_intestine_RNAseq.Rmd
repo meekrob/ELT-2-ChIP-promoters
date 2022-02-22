@@ -374,6 +374,16 @@ plotMA(res_L3GFPplus_vs_L3_GFPminus, ylim=ylim, main = "L3 GFP+ vs GFP-", alpha 
 res_embryoGFPplus_vs_embryoGFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "embryoGFPplus", "embryoGFPminus"), type = "ashr")
 res_L1GFPplus_vs_L1GFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "L1GFPplus", "L1GFPminus"), type = "ashr")
 res_L3GFPplus_vs_L3GFPminus_apeglm <- lfcShrink(dds, contrast = c("group", "L3GFPplus", "L3GFPminus"), type = "ashr")
+
+
+# write_csv(as.data.frame(res_embryoGFPplus_vs_embryoGFPminus_apeglm) %>% rownames_to_column(var = "WBGeneID"), 
+#           file = "../03_output/res_embryoGFPplus_vs_embryoGFPminus_apeglm.csv")
+# 
+# write_csv(as.data.frame(res_L1GFPplus_vs_L1GFPminus_apeglm) %>% rownames_to_column(var = "WBGeneID"), 
+#           file = "../03_output/res_L1GFPplus_vs_L1GFPminus_apeglm.csv")
+# 
+# write_csv(as.data.frame(res_L3GFPplus_vs_L3GFPminus_apeglm) %>% rownames_to_column(var = "WBGeneID"), 
+#           file = "../03_output/res_L3GFPplus_vs_L3GFPminus_apeglm.csv")
 ```
 
 ```{r fig.width=6, fig.height=2}
