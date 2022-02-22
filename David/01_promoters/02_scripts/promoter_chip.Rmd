@@ -98,8 +98,8 @@ NR_PROMOTOR_DF_PATH = sprintf("%s/nr.promoters.minus%d_plus%d.df",
 
 Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
            NR_PROMOTOR_BED_PATH = NR_PROMOTOR_BED_PATH, # overlapping removed
-           IDR_BED = sprintf("ELT2_%s_combined.IDR.bed", params$stage), # peaks
-           IDR_DF = sprintf("ELT2_%s_combined.IDR.df", params$stage), # peaks
+           IDR_BED = sprintf("../01_input/ELT2_%s_combined_IDR.bed", params$stage), # peaks input file
+           IDR_DF = sprintf("../01_input/ELT2_%s_combined_IDR.df", params$stage), # peaks with signal agg
            SIGNAL_BW = sprintf("../01_input/ELT2_%s_combined_subtracted.bw", params$stage),
            PROMOTOR_DF_PATH = PROMOTOR_DF_PATH,
            NR_PROMOTOR_DF_PATH = NR_PROMOTOR_DF_PATH,
@@ -107,12 +107,19 @@ Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
            )
 ```
 
+```{r getwd}
+getwd()
+sprintf("../01_input/ELT2_%s_combined.IDR.bed", params$stage)
+file.exists(sprintf("../01_input/ELT2_%s_combined.IDR.bed", params$stage))
+print(Sys.getenv('IDR_BED'))
+file.exists(Sys.getenv('IDR_BED'))
+```
 
 ```{bash wiggle-tools}
 source $HOME/.bash_profile
 conda activate elt-2-rev
 
-set -ue # exit 1 if any vars are not set (above)
+set -ue # exit 1 if any vars are not set (using Sys.setenv above)
 echo PROMOTOR_BED_PATH $PROMOTOR_BED_PATH
 echo NR_PROMOTOR_BED_PATH $NR_PROMOTOR_BED_PATH
 echo NR_PROMOTOR_DF_PATH $NR_PROMOTOR_DF_PATH
@@ -123,10 +130,16 @@ echo STAGE $STAGE
 
 #wiggletools
 wiggletools apply_paste - meanI maxI $PROMOTOR_BED_PATH $SIGNAL_BW > $PROMOTOR_DF_PATH
-head $PROMOTOR_DF_PATH
+echo $PROMOTOR_DF_PATH
+head -5 $PROMOTOR_DF_PATH
 
 wiggletools apply_paste - meanI maxI $NR_PROMOTOR_BED_PATH $SIGNAL_BW > $NR_PROMOTOR_DF_PATH
-head $NR_PROMOTOR_DF_PATH
+echo $NR_PROMOTOR_DF_PATH
+head -5 $NR_PROMOTOR_DF_PATH
+
+wiggletools apply_paste - meanI maxI $IDR_BED $SIGNAL_BW > $IDR_DF
+echo $IDR_DF
+head -5 $IDR_DF
 ```
 
 
@@ -136,7 +149,8 @@ head $NR_PROMOTOR_DF_PATH
 promoters.agg = read.table(PROMOTOR_DF_PATH)
 colnames(promoters.agg) <- c("chrom", "start","end","len", "strand", "wbps_gene_id", "gene_name", "chip_signal_mean", "chip_signal_max")
 
-IDR_peaks.agg = read.table(file.path(OUTPUT_03,"LE_IDR_peaks.df"))
+IDR_peaks.agg = read.table(sprintf("%s/%s_IDR_peaks.df",OUTPUT_03, params$stage))
+
 IDR_peaks.agg$V4 = NULL
 IDR_peaks.agg$V5 = NULL
 IDR_peaks.agg$V6 = NULL
