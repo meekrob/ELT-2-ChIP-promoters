@@ -75,6 +75,7 @@ library(biomaRt)
 library(GenomicRanges)
 library(ggplot2)
 library(tidyr)
+#install.packages("kableExtra")
 library(kableExtra)
 ```
 
