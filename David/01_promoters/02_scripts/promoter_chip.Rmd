@@ -226,42 +226,47 @@ gr.promoters$IDR_mean = NaN
 gr.promoters$IDR_max = NaN
 gr.promoters$IDR_value = NaN
 gr.promoters$nlogq = NaN
+gr.promoters$IDR_sum = NaN
 gr.promoters[from(laps)]$IDR_max = gr.IDR[to(laps)]$signal.max
 gr.promoters[from(laps)]$IDR_mean = gr.IDR[to(laps)]$signal.mean
 gr.promoters[from(laps)]$IDR_value = gr.IDR[to(laps)]$intensity
+gr.promoters[from(laps)]$IDR_sum = gr.IDR[to(laps)]$signal.sum
 gr.promoters[from(laps)]$nlogq = gr.IDR[to(laps)]$nlogq
 print("Number of promoters overlapping an IDR peak:")
 sum(!is.nan(gr.promoters$IDR_max))
+
+
 
 ```
 
 ```{r IDR-score-values}
 
-idr.nonlog = gather(as.data.frame(gr.promoters)[,c('IDR_value','IDR_mean','IDR_max')], key="dataset")
-ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of log10 transformed IDR NON-Log transformed values")
+idr.nonlog = gather(as.data.frame(gr.promoters)[,c('IDR_value','IDR_mean','IDR_max','IDR_sum')], key="dataset")
+ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of NON-Log transformed ChIP signal values in peaks")
 
-idr.val.ecdf = ecdf(gr.promoters$IDR_value)
-idr.mean.ecdf = ecdf(gr.promoters$IDR_mean)
-idr.max.ecdf = ecdf(gr.promoters$IDR_max)
-
-plot(idr.val.ecdf)
-lines(idr.mean.ecdf,col="blue")
-lines(idr.max.ecdf,col="red")
+# idr.val.ecdf = ecdf(gr.promoters$IDR_value)
+# idr.mean.ecdf = ecdf(gr.promoters$IDR_mean)
+# idr.max.ecdf = ecdf(gr.promoters$IDR_max)
+# 
+# plot(idr.val.ecdf)
+# lines(idr.mean.ecdf,col="blue")
+# lines(idr.max.ecdf,col="red")
 
 # the data currently have all positive values, so no adjustment made for log
 idr.val.log = log10(gr.promoters$IDR_value)
 idr.mean.log = log10(gr.promoters$IDR_mean)
 idr.max.log = log10(gr.promoters$IDR_max)
+idr.sum.log = log10(gr.promoters$IDR_sum)
 
-idr.val.log.ecdf = ecdf(idr.val.log)
-idr.mean.log.ecdf = ecdf(idr.mean.log) 
-idr.max.log.ecdf = ecdf(idr.max.log)
+# idr.val.log.ecdf = ecdf(idr.val.log)
+# idr.mean.log.ecdf = ecdf(idr.mean.log) 
+# idr.max.log.ecdf = ecdf(idr.max.log)
+# 
+# plot(idr.val.log.ecdf)
+# lines(idr.mean.log.ecdf,col="blue")
+# lines(idr.max.log.ecdf,col="red")
 
-plot(idr.val.log.ecdf)
-lines(idr.mean.log.ecdf,col="blue")
-lines(idr.max.log.ecdf,col="red")
-
-log.vals = data.frame(idr.mean = idr.mean.log, idr.val = idr.val.log, idr.max = idr.max.log)
+log.vals = data.frame(idr.mean = idr.mean.log, idr.val = idr.val.log, idr.max = idr.max.log, idr.sum = idr.sum.log)
 
 long.log.vals = gather(log.vals, key="dataset")
 head(long.log.vals)
@@ -270,7 +275,7 @@ ggplot(long.log.vals, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + la
 gr.promoters$IDR_logTEN_max = idr.max.log
 gr.promoters$IDR_logTEN_mean = idr.mean.log
 gr.promoters$IDR_logTEN_value = idr.val.log
-
+gr.promoters$IDR_logTEN_sum = idr.sum.log
 ```
 
 Read in RNA-seq data, join promoters by wbps geneid, and then sort logFoldChange high to low.
