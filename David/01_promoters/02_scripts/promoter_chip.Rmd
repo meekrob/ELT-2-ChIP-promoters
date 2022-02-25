@@ -1,13 +1,15 @@
 ---
-title: "promoter_comparison"
+title: "ChIP signal in promoters"
 params:
-  stage: 'L3'
+  stage: 'L1'
 output:
   html_document:
     df_print: paged
   pdf_document: default
-
 ---
+
+Configure all file paths based on the Rmarkdown parameter `stage` .
+
 ```{r input-files-params}
 rob.dir = normalizePath('~/work/ELT-2-ChIP-revision/Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
 
@@ -73,6 +75,7 @@ library(biomaRt)
 library(GenomicRanges)
 library(ggplot2)
 library(tidyr)
+library(kableExtra)
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
@@ -116,13 +119,10 @@ write.table(filtered.promoters, PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=
 write.table(nr.promoters, NR_PROMOTOR_BED_PATH, sep="\t", quote=F, row.names=F, col.names=F)
 ```
 
-# Setup a conda environment in your shell
-Install a conda environment containing wiggletools and ucsc user apps via 
+# Aggregate signal using wiggletools
 
-`root/David/01_promoters/02_scripts/conda_envs/elt-2-rev.yaml`
+Install a conda environment containing wiggletools and ucsc user apps via `root/David/01_promoters/02_scripts/conda_envs/elt-2-rev.yaml`
 
-
-To pass variable names to the *bash* chunk by setting them in the environment with `Sys.setenv`.
 ```{r set-up-bash}
 
 Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
@@ -137,6 +137,7 @@ Sys.setenv(PROMOTOR_BED_PATH=PROMOTOR_BED_PATH, # all promoters
 ```
 
 Run wiggletools in a bash session.
+
 ```{bash run-wiggle-tools, eval=FALSE, echo=FALSE}
 source $HOME/.bash_profile
 conda activate elt-2-rev
@@ -164,7 +165,10 @@ echo $IDR_DF
 head -5 $IDR_DF
 ```
 
+# Read-in aggregated signal data
+
 Read in the results of the wiggletools commands.
+
 ```{r read-calculated-data, warning=FALSE}
 
 promoters.agg = read.table(PROMOTOR_DF_PATH)
@@ -180,12 +184,15 @@ colnames(IDR_peaks.agg) <- c("chrom", "start","end","intensity","nlogq","offset"
 
 gr.IDR = makeGRangesFromDataFrame(IDR_peaks.agg,keep.extra.columns = T)
 seqinfo(gr.IDR) <- Seqinfo(genome="ce11")
+gr.IDR$signal.sum = width(gr.IDR )*gr.IDR$signal.mean
+
 
 gr.promoters = makeGRangesFromDataFrame(promoters.agg,keep.extra.columns = T)
 seqinfo(gr.promoters) <- Seqinfo(genome="ce11")
 ```
 
 Attach log scale promoter signal values.
+
 ```{r promoter-signal-values, warning=FALSE}
 chipmean.minval = min(gr.promoters$chip_signal_mean,na.rm=T)
 chipmean.minval
@@ -204,10 +211,15 @@ write.table(as.data.frame(gr.promoters), file = LOG_PROMOTOR_DF_PATH,quote=F, ro
 ```
 
 Find overlaps between promoters and IDR peaks. Populate IDR signal fields when a peak exists, leave NaN otherwise.
+
 ```{r merge-promoters-peaks}
 laps = findOverlaps(gr.promoters,gr.IDR, ignore.strand=T,minoverlap = 100)
 
-head(laps)
+sprintf("%d/%d (%.1f) promoters have a peak.", length(unique(from(laps))), laps@nLnode,
+                                               length(unique(from(laps)))/ laps@nLnode)
+
+sprintf("%d/%d (%.1f) peaks are in promoters", length(unique(to(laps))), laps@nRnode,
+                                               length(unique(to(laps)))/ laps@nRnode)
 
 gr.promoters$IDR_mean = NaN
 gr.promoters$IDR_max = NaN
@@ -261,6 +273,7 @@ gr.promoters$IDR_logTEN_value = idr.val.log
 ```
 
 Read in RNA-seq data, join promoters by wbps geneid, and then sort logFoldChange high to low.
+
 ```{r rob-combine}
 # input file
 rnaseq = read.csv(RNASEQ)
@@ -276,7 +289,7 @@ names(gr.promoters) <- gr.promoters$wbps_gene_id
 # sort promoters high to low by log2FC
 gr.promoters = gr.promoters[order(gr.promoters$log2FoldChange,decreasing=T)]
 
-head(gr.promoters)
+gr.promoters[,2:5]
 ```
 
 ```{r rnaseq-pvalue-na}
@@ -308,19 +321,32 @@ m = matrix( c(sum(classA),
             sum(classB),
             sum(classC),
             sum(classD)), ncol = 2, byrow = F)
-rownames(m) <- c("IDR peak YES","IDR peak NO")
-colnames(m) <- c("Int. enriched YES","Int. enriched NO")
+colnames(m) <- c("Peak","NO peak")
+rownames(m) <- c("Int. enriched YES","Int. enriched NO")
 m
 m.chisq = chisq.test(m)
 m.chisq
-knitr::kable(m, caption="Promoter Breakdown",format.args=list(big.mark = ','))
-knitr::kable(m.chisq$expected, caption="Expected Values",digits=1, format.args=list(big.mark = ','))
+
+display_table = rbind(m,m.chisq$expected)
+pval.label=ifelse(m.chisq$p.value <2e-16, "<2e-16", sprintf("%.3f", .chisq$p.value))
+knitr::kable(display_table, 
+             
+             format.args=list(big.mark = ','),
+             caption=sprintf("%s: Chi-sq p-val: %s",
+                                params$stage, 
+                                pval.label)) %>% 
+      pack_rows(index = c("Observed" = 2, "Expected" = 2)) %>%
+      kable_styling(latex_options = "scale_down")
+
+
 
 gr.promoters$class = "classA"
 gr.promoters$class[classB] <- "classB"
 gr.promoters$class[classC] <- "classC"
 gr.promoters$class[classD] <- "classD"
 ```
+
+
 
 ```{r make-classes-hilo}
 promoters.hilo = as.data.frame(gr.promoters)
@@ -374,11 +400,34 @@ row.names=F, col.names=F)
 
 ```
 
+```{r make-wtf-classes}
+wtf.wbid = read.table('../01_input/wtf3.wbid')[[1]]
+in_WTF = gr.promoters$wbps_gene_id %in% wtf.wbid 
+
+PROMOTERS_HILO_BED_PATH_A_TF = file.path(OUTPUT_03, sprintf("%s.promoters.hilo.classA.TF.bed", params$stage))
+PROMOTERS_HILO_BED_PATH_B_TF = file.path(OUTPUT_03, sprintf("%s.promoters.hilo.classB.TF.bed", params$stage))
+PROMOTERS_HILO_BED_PATH_C_TF = file.path(OUTPUT_03, sprintf("%s.promoters.hilo.classC.TF.bed", params$stage))
+PROMOTERS_HILO_BED_PATH_D_TF = file.path(OUTPUT_03, sprintf("%s.promoters.hilo.classD.TF.bed", params$stage))
+
+write.table(promoters.hilo[classA&in_WTF,], 
+            PROMOTERS_HILO_BED_PATH_A_TF, quote=F, sep="\t", row.names=F, col.names=F)
+write.table(promoters.hilo[classB&in_WTF,], 
+            PROMOTERS_HILO_BED_PATH_B_TF, quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(promoters.hilo[classC&in_WTF,], 
+            PROMOTERS_HILO_BED_PATH_C_TF, quote=F, sep="\t", 
+row.names=F, col.names=F)
+write.table(promoters.hilo[classD&in_WTF,], 
+            PROMOTERS_HILO_BED_PATH_D_TF, quote=F, sep="\t", 
+row.names=F, col.names=F)
+
+```
+
 To produce the deeptools output, execute DEEPTOOLS.bash.
 
 It will compute promoters.hilo.mx and promoters.hilo.pdf.
 
-Deeptools PDFs indicate a font called dejavu, if you're tired of replacing it in Illustrator, install it from: https://sourceforge.net/projects/dejavu/
+Deeptools PDFs indicate a font called dejavu, if you're tired of replacing it in Illustrator, install it from: <https://sourceforge.net/projects/dejavu/>
 
 ```{r set-deeptools-shell-vars}
 
@@ -390,27 +439,75 @@ Sys.setenv(UPSTREAM=UPSTREAM,
             PROMOTERS_HILO_BED_PATH_A=PROMOTERS_HILO_BED_PATH_A,
             PROMOTERS_HILO_BED_PATH_B=PROMOTERS_HILO_BED_PATH_B,
             PROMOTERS_HILO_BED_PATH_C=PROMOTERS_HILO_BED_PATH_C,
-            PROMOTERS_HILO_BED_PATH_D=PROMOTERS_HILO_BED_PATH_D)
+            PROMOTERS_HILO_BED_PATH_D=PROMOTERS_HILO_BED_PATH_D,
+            PROMOTERS_HILO_BED_PATH_A_TF=PROMOTERS_HILO_BED_PATH_A_TF,
+            PROMOTERS_HILO_BED_PATH_B_TF=PROMOTERS_HILO_BED_PATH_B_TF,
+            PROMOTERS_HILO_BED_PATH_C_TF=PROMOTERS_HILO_BED_PATH_C_TF,
+            PROMOTERS_HILO_BED_PATH_D_TF=PROMOTERS_HILO_BED_PATH_D_TF)
 
 # output files
 PROMOTERS_HILO_UPDOWN_MX = file.path(OUTPUT_03,
-                                     sprintf("%s.promoters.hilo.updown.mx",params$stage))
+                    sprintf("%s.promoters.hilo.updown.mx",params$stage))
 PROMOTERS_CLASSES_UPDOWN_MX = file.path(OUTPUT_03,
-                                        sprintf("%s.promoters.hilo.CLASSES.mx",params$stage))
+                    sprintf("%s.promoters.hilo.CLASSES.mx",params$stage))
+PROMOTERS_TF_CLASSES_UPDOWN_MX = file.path(OUTPUT_03,
+                    sprintf("%s.promoters.hilo.TF.CLASSES.mx",params$stage))
 PROMOTERS_HILO_UPDOWN_PDF = file.path(OUTPUT_03,
-                                      sprintf("%s.promoters.hilo.updown.pdf",params$stage))
+                    sprintf("%s.promoters.hilo.updown.pdf",params$stage))
 
-PROMOTERS_CLASSES_UPDOWN_PDF = file.path(OUTPUT_03,
-                                         sprintf("%s.promoters.hilo.CLASSES.pdf",params$stage))
+PROMOTERS_CLASSES_UPDOWN_PDF = file.path(OUTPUT_03,                                                       sprintf("%s.promoters.hilo.CLASSES.pdf",params$stage))
+PROMOTERS_TF_CLASSES_UPDOWN_PDF = file.path(OUTPUT_03,                                                       sprintf("%s.promoters.hilo.TF.CLASSES.pdf",params$stage))
 
 Sys.setenv(PROMOTERS_HILO_BED_PATH_UP=PROMOTERS_HILO_BED_PATH_UP,
             PROMOTERS_HILO_BED_PATH_DOWN=PROMOTERS_HILO_BED_PATH_DOWN,
             PROMOTERS_HILO_UPDOWN_MX=PROMOTERS_HILO_UPDOWN_MX,
             PROMOTERS_CLASSES_UPDOWN_MX=PROMOTERS_CLASSES_UPDOWN_MX,
             PROMOTERS_HILO_UPDOWN_PDF=PROMOTERS_HILO_UPDOWN_PDF,
-            PROMOTERS_CLASSES_UPDOWN_PDF=PROMOTERS_CLASSES_UPDOWN_PDF)
+            PROMOTERS_CLASSES_UPDOWN_PDF=PROMOTERS_CLASSES_UPDOWN_PDF,
+           PROMOTERS_TF_CLASSES_UPDOWN_MX=PROMOTERS_TF_CLASSES_UPDOWN_MX,
+           PROMOTERS_TF_CLASSES_UPDOWN_PDF=PROMOTERS_TF_CLASSES_UPDOWN_PDF
+           )
 ```
 
+```{bash deeptools-ABCD-wtf}
+source $HOME/.bash_profile
+conda activate derptools # yaml environ in 02_scripts/conda_envs
+pwd
+
+set -ue # exit 1 if any vars are not set (using Sys.setenv in prev chunks)
+echo PROMOTERS_HILO_BED_PATH $PROMOTERS_HILO_BED_PATH
+echo PROMOTERS_HILO_BED_PATH_A_TF $PROMOTERS_HILO_BED_PATH_A_TF
+echo PROMOTERS_HILO_BED_PATH_B_TF $PROMOTERS_HILO_BED_PATH_B_TF
+echo PROMOTERS_HILO_BED_PATH_C_TF $PROMOTERS_HILO_BED_PATH_C_TF
+echo PROMOTERS_HILO_BED_PATH_D_TF $PROMOTERS_HILO_BED_PATH_D_TF
+echo PROMOTERS_TF_CLASSES_UPDOWN_MX $PROMOTERS_TF_CLASSES_UPDOWN_MX
+echo PROMOTERS_TF_CLASSES_UPDOWN_PDF $PROMOTERS_TF_CLASSES_UPDOWN_PDF
+BODYLENGTH=$(($UPSTREAM + $DOWNSTREAM))
+
+# real	1m59.354s
+# user	3m47.980s
+# sys	0m2.663s
+if true
+then
+time computeMatrix scale-regions --regionBodyLength $BODYLENGTH \
+                                --startLabel 'up-1Kb' \
+                                --endLabel down+200 \
+                                --beforeRegionStartLength $UPSTREAM\
+                                --afterRegionStartLength $DOWNSTREAM\
+                                -R $PROMOTERS_HILO_BED_PATH_A_TF $PROMOTERS_HILO_BED_PATH_B_TF $PROMOTERS_HILO_BED_PATH_C_TF $PROMOTERS_HILO_BED_PATH_D_TF\
+                                -S $INTERP_SIGNAL_BW\
+                                -p 4 -o $PROMOTERS_TF_CLASSES_UPDOWN_MX
+fi
+plotHeatmap --plotTitle "WTF class A-D regions sorted by logFC expression high to low for ${STAGE}"\
+            --matrixFile $PROMOTERS_TF_CLASSES_UPDOWN_MX\
+             -out $PROMOTERS_TF_CLASSES_UPDOWN_PDF\
+             --sortRegions no\
+             --colorMap RdYlBu_r\
+             --startLabel '' --endLabel ''\
+             --regionsLabel 'peak+int. enrich.' 'peak+ NOT int. enrich.' 'NO peak + int. enrich.' 'NO peak + NOT int. enrich.'\
+             --samplesLabel 'ELT-2 signal (reps. combined subtracted)'\
+
+```
 
 ```{bash deeptools-ABCD}
 source $HOME/.bash_profile
@@ -487,7 +584,6 @@ plotHeatmap  --plotTitle "Promoter ChIP signal, regions sorted by logFC expressi
              --zMax 200
 ```
 
-
 ```{r gene-centric-to-appease-derptools, echo = FALSE, eval = FALSE}
 # this code chunk is deactivated because the promoter-only visualization is better
 classA.genes = promoters.hilo[classA]$wbps_gene_id
@@ -546,4 +642,6 @@ cor.test(classA.up[,'log2FoldChange'],classA.up[,'IDR_mean'])
 cor.test(classA.up[,'log2FoldChange'],classA.up[,'log_chip_signal_mean'])
 ```
 
-
+```{r session-info}
+sessionInfo()
+```
