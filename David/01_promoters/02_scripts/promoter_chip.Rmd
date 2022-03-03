@@ -353,7 +353,7 @@ gr.promoters$class[classC] <- "classC"
 gr.promoters$class[classD] <- "classD"
 ```
 
-```{r GO-terms}
+```{r GO-terms, warning=FALSE,message=FALSE}
 source('GOfxns.R')
 genes = gr.promoters$wbps_gene_id
 
@@ -362,6 +362,54 @@ classA.go = runGO(genes[classA], genes, WORMGO)
 classB.go = runGO(genes[classB], genes, WORMGO)
 classC.go = runGO(genes[classC], genes, WORMGO)
 classD.go = runGO(genes[classD], genes, WORMGO)
+```
+
+
+```{r look-for-specific-terms}
+# innate immunity
+classA.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='D',stage=params$stage)) 
+
+# GO:0009792	- embryo development ending in birth or eg...
+classA.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='D',stage=params$stage)) 
+
+# determination of adult lifespan
+classA.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='D',stage=params$stage)) 
+
+# GO:0045892	negative regulation of transcription, DN…
+go.term = 'GO:0045892'
+classA.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='D',stage=params$stage)) 
+
+# GO:0048557	embryonic digestive tract morphogenesis
+go.term = 'GO:0048557'
+classA.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='D',stage=params$stage)) 
+
+# GO:0000981	DNA-binding transcription factor activity, RNA polymerase II-specific
+go.term = 'GO:0000981'
+classA.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='D',stage=params$stage)) 
+# GO:0003700 DNA-binding transcription factor activity
+go.term = 'GO:0003700'
+classA.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classD.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='D',stage=params$stage)) 
 ```
 
 ```{r go-kable, results="asis"}
@@ -444,8 +492,6 @@ ggplot(dataset[11:(nrow(dataset)-10),], aes(x=log_chip_signal_mean, y=enriched))
 
 
 ```{r logistic-regression-chip-peak}
-
-
 
 dataset = as.data.frame(mcols(gr.promoters[classA|classB]) )
 dataset = dataset[order(dataset$IDR_logTEN_sum),]
@@ -681,7 +727,7 @@ plotHeatmap --plotTitle "WTF class A-D regions sorted by logFC expression high t
 
 ```
 
-```{bash deeptools-ABCD, eval=FALSE}
+```{bash deeptools-ABCD, echo = FALSE, eval=FALSE}
 source $HOME/.bash_profile
 conda activate derptools # yaml environ in 02_scripts/conda_envs
 pwd
@@ -724,7 +770,7 @@ plotHeatmap --plotTitle "Promoter ChIP signal, class A-D regions sorted by logFC
              --zMin 0\
 ```
 
-```{bash deeptools-hilo}
+```{bash deeptools-hilo, echo = FALSE, eval=FALSE}
 source $HOME/.bash_profile
 conda activate derptools # yaml environ in 02_scripts/conda_envs
 BODYLENGTH=$(($UPSTREAM + $DOWNSTREAM))
