@@ -1,7 +1,7 @@
 ---
 title: "ChIP signal in promoters"
 params:
-  stage: 'L1'
+  stage: 'LE'
 output:
   html_document:
     df_print: paged
@@ -77,11 +77,12 @@ library(ggplot2)
 library(tidyr)
 #install.packages("kableExtra")
 library(kableExtra)
+library(dplyr)
 ```
 
 ## Promoters are upstream regions of all protein-coding genes
 
-```{r get-promoters,warning=FALSE,message=FALSE, echo=FALSE, eval=FALSE}
+```{r get-promoters,warning=FALSE,message=FALSE, echo=FALSE, eval=TRUE}
 library(biomaRt)
 mart = getParamart()
 
@@ -326,9 +327,9 @@ classD = !enriched_intestine & !has_peak
 m = matrix( c(sum(classA),
             sum(classB),
             sum(classC),
-            sum(classD)), ncol = 2, byrow = F)
+            sum(classD)), ncol = 2, byrow = T)
 colnames(m) <- c("Peak","NO peak")
-rownames(m) <- c("Int. enriched YES","Int. enriched NO")
+rownames(m) <- c("Int. expressed","NOT Int. expressed")
 m
 m.chisq = chisq.test(m)
 m.chisq
@@ -336,7 +337,7 @@ m.chisq
 display_table = rbind(m,m.chisq$expected)
 pval.label=ifelse(m.chisq$p.value <2e-16, "<2e-16", sprintf("%.3f", .chisq$p.value))
 knitr::kable(display_table, 
-             
+             digits = 1,
              format.args=list(big.mark = ','),
              caption=sprintf("%s: Chi-sq p-val: %s",
                                 params$stage, 
@@ -352,7 +353,172 @@ gr.promoters$class[classC] <- "classC"
 gr.promoters$class[classD] <- "classD"
 ```
 
+```{r GO-terms}
+source('GOfxns.R')
+genes = gr.promoters$wbps_gene_id
 
+WORMGO = C_elegans_query(mart)
+classA.go = runGO(genes[classA], genes, WORMGO) 
+classB.go = runGO(genes[classB], genes, WORMGO)
+classC.go = runGO(genes[classC], genes, WORMGO)
+classD.go = runGO(genes[classD], genes, WORMGO)
+```
+
+```{r go-kable, results="asis"}
+GOresults = list(classA=classA.go,classB=classB.go,classC=classC.go,classD=classD.go)
+
+kabs = lapply(GOresults, function(compClass){
+  results = list(BP=compClass$BP.result, MF=compClass$MF.result, CC=compClass$CC.result)
+  lapply(results, function(section){
+    section %>%
+    filter(elim < .05) %>%
+      filter(Significant >= 10) %>%
+             arrange(`Rank in elim`) %>%
+             head(15) 
+  })
+})
+
+for (cls in c('classA', 'classB', 'classC', 'classD')){
+  for(sect in c('BP','MF','CC')) {
+    kabs[[cls]][[sect]] %>% 
+      dplyr::select(-classicFisher) %>%
+      dplyr::select(!("Rank in elim")) %>%
+      kable( label = cls, caption = sprintf("%s/%s", cls, sect), digits = 2) -> k
+      print(k)
+      cat('\n\n<!-- -->\n\n') # https://stackoverflow.com/questions/39650166/r-why-kable-doesnt-print-inside-a-for-loop
+  }
+}
+
+```
+
+
+
+
+```{r logistic-regression-chip}
+sigmoid = function(z) {1 / (1 + exp(-z))}
+
+dataset = as.data.frame(mcols(gr.promoters))
+dataset$enriched = ifelse( dataset$padj < .05, 1, 0)
+dataset = dataset %>% dplyr::filter(is.finite(enriched)) %>% arrange(log_chip_signal_mean)
+
+#dataset = dataset[11:(nrow(dataset)-10),]
+
+
+mod = glm(enriched ~ log_chip_signal_max, data=dataset[11:(nrow(dataset)-10),], family = "binomial")
+dataset$prediction = sigmoid(predict(mod,newdata=dataset))
+
+curve = data.frame(
+  log_chip_signal_max=seq(
+    min(dataset$log_chip_signal_max),
+    max(dataset$log_chip_signal_max),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+
+dataset=dataset %>% arrange(log_chip_signal_max)
+ggplot(dataset[11:(nrow(dataset)-10),], aes(x=log_chip_signal_max, y=enriched)) + 
+  geom_jitter(alpha=.1) + 
+  geom_line(data=curve, aes(x=log_chip_signal_max, y=y),inherit.aes=F) +
+  labs(title=sprintf("%s: Does promoter signal max predict intestine expression?",params$stage),
+       y="pr(intestine enriched)")
+
+
+mod = glm(enriched ~ log_chip_signal_mean, data=dataset[11:(nrow(dataset)-10),], family = "binomial")
+dataset$prediction = sigmoid(predict(mod,newdata=dataset))
+
+curve = data.frame(
+  log_chip_signal_mean=seq(
+    min(dataset$log_chip_signal_mean),
+    max(dataset$log_chip_signal_mean),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+dataset=dataset %>% arrange(log_chip_signal_mean)
+ggplot(dataset[11:(nrow(dataset)-10),], aes(x=log_chip_signal_mean, y=enriched)) + 
+  geom_point(alpha=.1) + 
+  geom_line(data=curve, aes(x=log_chip_signal_mean, y=y),inherit.aes=F) +
+  labs(title=sprintf("%s: Does promoter signal mean/sum predict intestine expression?",params$stage),y="pr(intestine enriched)") 
+
+```
+
+
+
+```{r logistic-regression-chip-peak}
+
+
+
+dataset = as.data.frame(mcols(gr.promoters[classA|classB]) )
+dataset = dataset[order(dataset$IDR_logTEN_sum),]
+
+dataset$enriched = ifelse( dataset$padj < .05, 1, 0)
+
+dataset = dataset %>% filter(is.finite(enriched)) %>% arrange(IDR_logTEN_sum)
+
+mod = glm(enriched ~ IDR_logTEN_sum, data=dataset[11:(nrow(dataset)-10),], family = "binomial")
+
+curve = data.frame(
+  IDR_logTEN_sum=seq(
+    min(dataset$IDR_logTEN_sum),
+    max(dataset$IDR_logTEN_sum),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+dataset$prediction = sigmoid(predict(mod, newdata=dataset))
+dataset=dataset %>% arrange(IDR_logTEN_sum)
+ggplot(dataset, aes(x=IDR_logTEN_sum, y=enriched)) + 
+  geom_point(alpha=.3) + 
+  geom_line(data=curve, aes(x=IDR_logTEN_sum, y=y),inherit.aes=F) +  labs(title=sprintf("%s: Does peak signal sum predict intestine expression?",params$stage), y="pr(intestine enriched)")
+
+
+mod = glm(enriched ~ IDR_logTEN_mean, data=dataset[11:(nrow(dataset)-10),], family = "binomial")
+
+curve = data.frame(
+  IDR_logTEN_mean=seq(
+    min(dataset$IDR_logTEN_mean),
+    max(dataset$IDR_logTEN_mean),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+dataset$prediction = sigmoid(predict(mod,newdata=dataset))
+dataset=dataset %>% arrange(IDR_logTEN_mean)
+ggplot(dataset, aes(x=IDR_logTEN_mean, y=enriched)) + 
+  geom_point(alpha=.3) + 
+  geom_line(data=curve, aes(x=IDR_logTEN_mean, y=y),inherit.aes=F) + 
+  labs(title=sprintf("%s: Does peak signal mean predict intestine expression?",params$stage),y="pr(intestine enriched)")
+
+mod = glm(enriched ~ IDR_logTEN_max, data=dataset, family = "binomial")
+
+curve = data.frame(
+  IDR_logTEN_max=seq(
+    min(dataset$IDR_logTEN_max),
+    max(dataset$IDR_logTEN_max),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+dataset$prediction = sigmoid(predict(mod))
+dataset=dataset %>% arrange(IDR_logTEN_max)
+ggplot(dataset, aes(x=IDR_logTEN_max, y=enriched)) + 
+  geom_point(alpha=.3) + 
+    geom_line(data=curve, aes(x=IDR_logTEN_max, y=y),inherit.aes=F) + 
+  labs(title=sprintf("%s: Does peak signal max predict intestine expression?",params$stage),y="pr(intestine enriched)")
+
+mod = glm(enriched ~ IDR_logTEN_value, data=dataset, family = "binomial")
+
+curve = data.frame(
+  IDR_logTEN_value=seq(
+    min(dataset$IDR_logTEN_value),
+    max(dataset$IDR_logTEN_value),
+    length.out=50))
+curve$y = sigmoid(predict(mod, newdata=curve))
+
+dataset$prediction = sigmoid(predict(mod))
+dataset=dataset %>% arrange(IDR_logTEN_value)
+ggplot(dataset, aes(x=IDR_logTEN_value, y=enriched)) + 
+  geom_point(alpha=.3) + 
+      geom_line(data=curve, aes(x=IDR_logTEN_value, y=y),inherit.aes=F) +
+  labs(title=sprintf("%s: Does peak IDR value predict intestine expression?",params$stage), y="pr(intestine enriched)")
+
+```
 
 ```{r make-classes-hilo}
 promoters.hilo = as.data.frame(gr.promoters)
@@ -475,7 +641,7 @@ Sys.setenv(PROMOTERS_HILO_BED_PATH_UP=PROMOTERS_HILO_BED_PATH_UP,
            )
 ```
 
-```{bash deeptools-ABCD-wtf}
+```{bash deeptools-ABCD-wtf, eval=FALSE}
 source $HOME/.bash_profile
 conda activate derptools # yaml environ in 02_scripts/conda_envs
 pwd
@@ -515,7 +681,7 @@ plotHeatmap --plotTitle "WTF class A-D regions sorted by logFC expression high t
 
 ```
 
-```{bash deeptools-ABCD}
+```{bash deeptools-ABCD, eval=FALSE}
 source $HOME/.bash_profile
 conda activate derptools # yaml environ in 02_scripts/conda_envs
 pwd

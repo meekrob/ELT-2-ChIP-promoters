@@ -6,6 +6,13 @@
 #                           -bs 100\
 #                           -R genes.classA.bed genes.classB.bed genes.classC.bed genes.classD.bed\
 
+# For the class A,B,C,D breakdown
+
+UPSTREAM=$1     # i.e. 1000
+DOWNSTREAM=$2   # i.e. 200
+SIGNAL=$3       # i.e. ELT2_LE_combined_subtracted.interp.bigWig
+
+
 if false
 then
     computeMatrix scale-regions --regionBodyLength 1200 \
@@ -26,6 +33,7 @@ then
                  --samplesLabel 'ELT-2 signal (reps. combined subtracted)'
 fi
 
+# For hi versus lo
 set -x
 if true
 then
