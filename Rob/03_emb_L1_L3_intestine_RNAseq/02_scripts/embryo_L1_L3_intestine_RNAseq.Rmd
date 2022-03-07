@@ -824,8 +824,8 @@ res_to_df <- function(in_res){
 
 # per stage GFP+ vs GFP- differential expression
 write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus), file = "../03_output/res_embryoGFPplus_vs_embryoGFPminus.csv")
-write_csv(res_to_df(res_L1GFPplus_vs_L1_GFPminus), file = "../03_output/res_L1GFPplus_vs_L1_GFPminus.csv")
-write_csv(res_to_df(res_L3GFPplus_vs_L3_GFPminus), file = "../03_output/res_L3GFPplus_vs_L3_GFPminus.csv")
+write_csv(res_to_df(res_L1GFPplus_vs_L1_GFPminus), file = "../03_output/res_L1GFPplus_vs_L1GFPminus.csv")
+write_csv(res_to_df(res_L3GFPplus_vs_L3_GFPminus), file = "../03_output/res_L3GFPplus_vs_L3GFPminus.csv")
 
 # per stage GFP+ vs GFP- differential expression with log2FC shrink (visualization, ranking)
 write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr), file = "../03_output/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv")
@@ -833,8 +833,8 @@ write_csv(res_to_df(res_L1GFPplus_vs_L1GFPminus_ashr), file = "../03_output/res_
 write_csv(res_to_df(res_L3GFPplus_vs_L3GFPminus_ashr), file = "../03_output/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
 
 # per stage enrichment annotation
-write_csv(embryo_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "embryo_GFPplus_vs_GFPminus_alt_hyp_res.csv")
-write_csv(L1_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "L1_GFPplus_vs_GFPminus_alt_hyp_res.csv")
-write_csv(L3_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "L3_GFPplus_vs_GFPminus_alt_hyp_res.csv")
+write_csv(embryo_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/embryo_GFPplus_vs_GFPminus_alt_hyp_res.csv")
+write_csv(L1_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/L1_GFPplus_vs_GFPminus_alt_hyp_res.csv")
+write_csv(L3_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/L3_GFPplus_vs_GFPminus_alt_hyp_res.csv")
 ```
 
