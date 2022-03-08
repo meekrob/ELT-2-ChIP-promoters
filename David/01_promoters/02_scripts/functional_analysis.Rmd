@@ -1,0 +1,81 @@
+---
+title: "Functional gene classes"
+params:
+  stage: 'LE'
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r read-classes}
+classA = read.table("../03_output/LE.promoters.hilo.classA.bed")[[8]]
+classB = read.table("../03_output/LE.promoters.hilo.classB.bed")[[8]]
+classC = read.table("../03_output/LE.promoters.hilo.classC.bed")[[8]]
+classD = read.table("../03_output/LE.promoters.hilo.classD.bed")[[8]]
+```
+
+```{r read-gene-list}
+metabolo = read.table('../01_input/functional_gene_lists/GO_metabolic_process.txt')[[2]]
+
+locomotion = read.table('../01_input/functional_gene_lists/GO_locomotion.txt')[[2]]
+
+behavior = read.table('../01_input/functional_gene_lists/GO_behavior.txt')[[2]]
+
+immune = read.table('../01_input/functional_gene_lists/GO_immune_system_process.txt')[[2]]
+
+aging = read.table('../01_input/functional_gene_lists/GO_aging.txt')[[2]]
+
+txn_repress = read.table('../01_input/functional_gene_lists/GO_DNA_binding_transcription_repression.txt')[[2]]
+
+
+txn_reg = read.table('../01_input/functional_gene_lists/GO_transcriptional_regulator_activity.txt')[[2]]
+
+```
+
+```{r}
+all = union(c(classA,classB),c(classC,classD))
+metabolo = metabolo[metabolo %in% all]
+locomotion = locomotion[locomotion %in% all]
+
+behavior = behavior[behavior %in% all]
+immune = immune[immune %in% all]
+aging = aging[aging %in% all]
+
+txn_repress = txn_repress[txn_repress %in% all]
+txn_reg = txn_reg[txn_reg %in% all]
+```
+
+```{r}
+termset = txn_reg
+classX = classC
+
+q=sum(termset %in% classX)
+m=length(classX)
+n=length(all)
+k=length(termset)
+
+
+options(digits=4)
+cat("observed:",q)
+cat(" out of", m)
+cat(" (", q/m,") \n", sep='')
+
+cat(k, " out of ", n, " (", k/n, "), ", "expected: ", m*(k/n), sep="","\n")
+
+cat("observed/expected:",  q / (m*(k/n)), "\n" )
+
+cat("p of depletion:", phyper(q,m,n-k,k), "\n") # depletion
+cat("p of enrichment:", phyper(q,m,n-k,k,lower.tail = FALSE)) # enrichment
+```
+
+```{r}
+sum(locomotion %in% classA)
+length(classA)
+length(all)
+length(locomotion)
+```

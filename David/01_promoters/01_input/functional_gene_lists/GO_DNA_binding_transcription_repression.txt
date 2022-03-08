@@ -1,0 +1,4 @@
+WBGene00003909	pag-3	Caenorhabditis elegans
+WBGene00012578	ccct-1	Caenorhabditis elegans
+WBGene00016905	ztf-3	Caenorhabditis elegans
+WBGene00001210	egl-46	Caenorhabditis elegans
