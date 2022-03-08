@@ -10,6 +10,8 @@ output:
 
 ```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyr)
 ```
 
 ```{r read-classes}
@@ -51,8 +53,8 @@ txn_reg = txn_reg[txn_reg %in% all]
 ```
 
 ```{r}
-termset = txn_reg
-classX = classC
+termset = metabolo
+classX = classB
 
 q=sum(termset %in% classX)
 m=length(classX)
@@ -68,9 +70,29 @@ cat(" (", q/m,") \n", sep='')
 cat(k, " out of ", n, " (", k/n, "), ", "expected: ", m*(k/n), sep="","\n")
 
 cat("observed/expected:",  q / (m*(k/n)), "\n" )
-
+cat("HyperGeometric:\n")
 cat("p of depletion:", phyper(q,m,n-k,k), "\n") # depletion
-cat("p of enrichment:", phyper(q,m,n-k,k,lower.tail = FALSE)) # enrichment
+cat("p of enrichment:", phyper(q,m,n-k,k,lower.tail = FALSE),"\n") # enrichment
+
+N = 5000
+cat(sprintf("\nEmpirical.\nRandom samples (%d) of class size out of all:\n",N))
+set.seed(0)
+empirical = replicate(N,sum(termset %in% sample(all,length(classX), replace=FALSE)))
+cat("Empirical distribution:")
+summary(empirical)
+cat(
+  sprintf("Number of times random samples contained %d hits (observed) or higher: %d", q, sum(empirical >= q)),"\n")
+
+cat("empirical p of depletion:", sum(empirical < q)/N, "\n") # depletion
+cat("empircal p of enrichment:", sum(empirical >= q)/N, "\n") # enrichment
+
+bootstrap = replicate(N, sum(sample(classX %in% termset, length(classX), replace=T)))
+summary(bootstrap)
+
+df = data.frame(count=empirical, simulation="empirical (null)")
+df = rbind(df, data.frame(count=bootstrap, simulation="bootstrap (observed)"))
+
+ggplot(df, aes(x=count, color=simulation)) + geom_boxplot()
 ```
 
 ```{r}
