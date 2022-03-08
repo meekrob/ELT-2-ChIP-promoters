@@ -19,12 +19,30 @@ classA = read.table("../03_output/LE.promoters.hilo.classA.bed")[[8]]
 classB = read.table("../03_output/LE.promoters.hilo.classB.bed")[[8]]
 classC = read.table("../03_output/LE.promoters.hilo.classC.bed")[[8]]
 classD = read.table("../03_output/LE.promoters.hilo.classD.bed")[[8]]
+
+classes = list(classA=classA,
+               classB=classB,
+               classC=classC,
+               classD=classD)
+
+all = union(c(classA,classB),c(classC,classD))
 ```
 
 ```{r read-gene-list}
 metabolo = read.table('../01_input/functional_gene_lists/GO_metabolic_process.txt')[[2]]
 
 locomotion = read.table('../01_input/functional_gene_lists/GO_locomotion.txt')[[2]]
+
+descriptions = list(metabolo = "Metabolic process",
+                    locomotion = "Locomotion",
+                    behavior = "Behavior",
+                    immune = "Immune System Process",
+                    aging = "Aging",
+                    txn_repress = "DNA Binding Transcriptional Repression",
+                    txn_reg = "Transcriptional regulator activity"
+                    
+)
+            
 
 behavior = read.table('../01_input/functional_gene_lists/GO_behavior.txt')[[2]]
 
@@ -39,8 +57,10 @@ txn_reg = read.table('../01_input/functional_gene_lists/GO_transcriptional_regul
 
 ```
 
+
+
 ```{r}
-all = union(c(classA,classB),c(classC,classD))
+
 metabolo = metabolo[metabolo %in% all]
 locomotion = locomotion[locomotion %in% all]
 
@@ -52,8 +72,130 @@ txn_repress = txn_repress[txn_repress %in% all]
 txn_reg = txn_reg[txn_reg %in% all]
 ```
 
+```{r wrapping-fxn}
+func = function(classes, pop, termset, descript,N=500) {
+  termname=substitute(termset)
+  popname = as.character(substitute(pop))
+  cat("classes versus", popname, "|", termname, "\n")
+  cat(descript[[termname]])
+  
+  classNames = list()
+  for (n in  names(classes)) { classNames[[n]] = n}
+  simulations = base::lapply(classNames, FUN=function(className){
+    classX = classes[[className]]
+    q=sum(termset %in% classX)
+    m=length(classX)
+    n=length(pop)
+    k=length(termset)
+    
+    null.expected = m*(k/n)
+    
+    # options(digits=4)
+    # cat("observed:",q)
+    # cat(" out of", m)
+    # cat(" (", q/m,") \n", sep='')
+    # 
+    # cat(k, " out of ", n, " (", k/n, "), ", "expected: ", m*(k/n), sep="","\n")
+    # 
+    # cat("observed/expected:",  q / (m*(k/n)), "\n" )
+    # cat("HyperGeometric:\n")
+    # cat("p of depletion:", phyper(q,m,n-k,k), "\n") # depletion
+    # cat("p of enrichment:", phyper(q,m,n-k,k,lower.tail = FALSE),"\n") # enrichment
+    
+    #N = 500
+    #cat(sprintf("\nEmpirical.\nRandom samples (%d) of class size out of all:\n",N))
+    set.seed(0)
+    empirical = replicate(N,sum(termset %in% sample(all,length(classX), replace=FALSE)))
+    #cat("Empirical distribution:")
+    summary(empirical)
+    #cat(
+      #sprintf("Number of times random samples contained %d hits (observed) or higher: %d", q, sum(empirical >= q)),"\n")
+    
+    #cat("empirical p of depletion:", sum(empirical < q)/N, "\n") # depletion
+    #cat("empircal p of enrichment:", sum(empirical >= q)/N, "\n") # enrichment
+    
+    bootstrap = replicate(N, sum(sample(classX %in% termset, length(classX), replace=T)))
+    #summary(bootstrap)
+    
+    df = data.frame(count=empirical, simulation="empirical (null)")
+    df = rbind(df, data.frame(count=bootstrap, simulation="bootstrap (observed)"))
+    df = data.frame(count=bootstrap, class=className)
+    return(list(df=df,null.expected=null.expected))
+
+  })
+  bigdf = rbind(simulations$classA$df,
+                simulations$classB$df,
+                simulations$classC$df,
+                simulations$classD$df
+                )
+  
+  plt = ggplot(bigdf,aes(x=count, y=class, fill=class)) + 
+   geom_boxplot() +
+    #stat_summary(fun.data = "mean_se",geom = "errorbar")+
+    # scale_y_discrete(breaks = c("classA","classB","classC","classD"),
+    #                  labels = c("classA","classB","classC","classD"))
+
+  ggtitle(descript[[termname]], subtitle=sprintf("versus %s", popname))
+
+  
+  for (yval in 1:length(names(classNames))) {
+    plt = plt + geom_point(inherit.aes=F, data=data.frame(
+                                  x=simulations[[yval]]$null.expected, 
+                                  y=yval), mapping=aes(x=x,y=y),color="red")
+  }
+  
+  # geom_point(inherit.aes=F, data=data.frame(
+  #                                 class="classA",
+  #                                 x=simulations$classA$null.expected, 
+  #                                 y=1), mapping=aes(x=x,y=y),color="red") +
+  #       geom_point(inherit.aes=F, data=data.frame(
+  #                                 class="classB",
+  #                                 x=simulations$classB$null.expected, 
+  #                                 y=2), mapping=aes(x=x,y=y),color="red") +
+  #           geom_point(inherit.aes=F, data=data.frame(
+  #                                 class="classC",
+  #                                 x=simulations$classC$null.expected, 
+  #                                 y=3), mapping=aes(x=x,y=y),color="red") +
+  #           geom_point(inherit.aes=F, data=data.frame(
+  #                                 class="classD",
+  #                                 x=simulations$classD$null.expected, 
+  #                                 y=4), mapping=aes(x=x,y=y),color="red") +
+  
+  return(plt)
+}
+```
+
+```{r run-aging}
+notD = classes
+notD$classD = NULL
+aging.output = func(classes, all, aging, descriptions)
+print(aging.output)
+```
+
+```{r run-metabolo}
+metabolo.output = func(notD, all, metabolo, descriptions)
+print(metabolo.output)
+```
+```{r run-locomotion}
+locomotion.output = func(notD, all, locomotion, descriptions)
+print(locomotion.output)
+```
+```{r run-behavior}
+behavior.output = func(notD, all, behavior, descriptions)
+print(behavior.output)
+```
+```{r run-txn}
+txn_reg.output = func(notD, all, txn_reg, descriptions)
+print(txn_reg.output)
+```
+
+
 ```{r}
+
+
+
 termset = metabolo
+
 classX = classB
 
 q=sum(termset %in% classX)
