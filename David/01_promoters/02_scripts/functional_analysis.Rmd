@@ -114,7 +114,7 @@ func = function(classes, pop, termset, descript,N=500) {
     #cat("empirical p of depletion:", sum(empirical < q)/N, "\n") # depletion
     #cat("empircal p of enrichment:", sum(empirical >= q)/N, "\n") # enrichment
     
-    bootstrap = replicate(N, sum(sample(classX %in% termset, length(classX), replace=T)))
+    bootstrap = replicate(N, sum(sample(classX %in% termset, length(classX), replace=T))) #/null.expected
     #summary(bootstrap)
     
     df = data.frame(count=empirical, simulation="empirical (null)")
@@ -131,16 +131,17 @@ func = function(classes, pop, termset, descript,N=500) {
   
   plt = ggplot(bigdf,aes(x=count, y=class, fill=class)) + 
    geom_boxplot() +
-    #stat_summary(fun.data = "mean_se",geom = "errorbar")+
+   # stat_summary(fun.data = "mean_se", fun.args=list(mult=4), geom="crossbar")+
     # scale_y_discrete(breaks = c("classA","classB","classC","classD"),
     #                  labels = c("classA","classB","classC","classD"))
 
-  ggtitle(descript[[termname]], subtitle=sprintf("versus %s", popname))
+  ggtitle(descript[[termname]], subtitle=sprintf("versus %s", popname)) +
+    xlab("count")
 
   
   for (yval in 1:length(names(classNames))) {
     plt = plt + geom_point(inherit.aes=F, data=data.frame(
-                                  x=simulations[[yval]]$null.expected, 
+                                  x=simulations[[yval]]$null.expected,
                                   y=yval), mapping=aes(x=x,y=y),color="red")
   }
   
@@ -168,7 +169,7 @@ func = function(classes, pop, termset, descript,N=500) {
 ```{r run-aging}
 notD = classes
 notD$classD = NULL
-aging.output = func(classes, all, aging, descriptions)
+aging.output = func(notD, all, aging, descriptions)
 print(aging.output)
 ```
 
@@ -187,6 +188,11 @@ print(behavior.output)
 ```{r run-txn}
 txn_reg.output = func(notD, all, txn_reg, descriptions)
 print(txn_reg.output)
+```
+
+```{r run-txn_repress}
+txn_repress.output = func(notD, all, txn_repress, descriptions)
+print(txn_repress.output)
 ```
 
 
