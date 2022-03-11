@@ -242,9 +242,13 @@ sum(!is.nan(gr.promoters$IDR_max))
 
 ```{r IDR-score-values}
 
-idr.nonlog = gather(as.data.frame(gr.promoters)[,c('IDR_value','IDR_mean','IDR_max','IDR_sum')], key="dataset")
-ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of NON-Log transformed ChIP signal values in peaks")
+# the density/distribution of the non-transformed values is too thin to
+# show on the graph, so this is commented out. If you want to see the distribution, 
+# uncomment the ecdf plots.
+idr.nonlog = as.data.frame(gr.promoters) %>% filter(is.finite(IDR_value)) %>% select('IDR_value','IDR_mean','IDR_max','IDR_sum') %>% gather(key="dataset") 
 
+# ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of NON-Log transformed ChIP signal values in peaks")
+# 
 # idr.val.ecdf = ecdf(gr.promoters$IDR_value)
 # idr.mean.ecdf = ecdf(gr.promoters$IDR_mean)
 # idr.max.ecdf = ecdf(gr.promoters$IDR_max)
@@ -277,6 +281,14 @@ gr.promoters$IDR_logTEN_max = idr.max.log
 gr.promoters$IDR_logTEN_mean = idr.mean.log
 gr.promoters$IDR_logTEN_value = idr.val.log
 gr.promoters$IDR_logTEN_sum = idr.sum.log
+
+
+
+extremes = gr.promoters$IDR_logTEN_sum > 5
+extremes[is.na(extremes)] <- FALSE
+gr.extremes = gr.promoters[extremes]
+gr.extremes = gr.extremes[order(gr.extremes$IDR_logTEN_sum, decreasing = T)]
+head(gr.extremes)
 ```
 
 Read in RNA-seq data, join promoters by wbps geneid, and then sort logFoldChange high to low.
