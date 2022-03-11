@@ -1,7 +1,7 @@
 ---
 title: "Functional gene classes"
 params:
-  stage: 'LE'
+  stage: 'L1'
 output:
   html_document:
     df_print: paged
@@ -15,10 +15,11 @@ library(tidyr)
 ```
 
 ```{r read-classes}
-classA = read.table("../03_output/LE.promoters.hilo.classA.bed")[[8]]
-classB = read.table("../03_output/LE.promoters.hilo.classB.bed")[[8]]
-classC = read.table("../03_output/LE.promoters.hilo.classC.bed")[[8]]
-classD = read.table("../03_output/LE.promoters.hilo.classD.bed")[[8]]
+setwd("~/work/ELT-2-ChIP-revision/David/01_promoters/02_scripts/")
+classA = read.table(sprintf("../03_output/%s.promoters.hilo.classA.bed",params$stage))[[8]]
+classB = read.table(sprintf("../03_output/%s.promoters.hilo.classB.bed",params$stage))[[8]]
+classC = read.table(sprintf("../03_output/%s.promoters.hilo.classC.bed",params$stage))[[8]]
+classD = read.table(sprintf("../03_output/%s.promoters.hilo.classD.bed",params$stage))[[8]]
 
 classes = list(classA=classA,
                classB=classB,
@@ -33,18 +34,6 @@ metabolo = read.table('../01_input/functional_gene_lists/GO_metabolic_process.tx
 
 locomotion = read.table('../01_input/functional_gene_lists/GO_locomotion.txt')[[2]]
 
-descriptions = list(metabolo = "Metabolic process",
-                    repro = "Reproductive process",
-                    locomotion = "Locomotion",
-                    behavior = "Behavior",
-                    immune = "Immune System Process",
-                    aging = "Aging",
-                    txn_repress = "DNA Binding Transcriptional Repression",
-                    txn_reg = "Transcriptional regulator activity"
-                    
-)
-            
-
 behavior = read.table('../01_input/functional_gene_lists/GO_behavior.txt')[[2]]
 
 immune = read.table('../01_input/functional_gene_lists/GO_immune_system_process.txt')[[2]]
@@ -52,11 +41,28 @@ immune = read.table('../01_input/functional_gene_lists/GO_immune_system_process.
 aging = read.table('../01_input/functional_gene_lists/GO_aging.txt')[[2]]
 
 repro = read.table('../01_input/functional_gene_lists/GO_reproductive_process.txt')[[2]]
+devel = read.table('../01_input/functional_gene_lists/GO_developmental_process.txt')[[2]]
+
+neuro = read.table('../01_input/functional_gene_lists/GO_nervous_system_process.txt')[[2]]
 
 txn_repress = read.table('../01_input/functional_gene_lists/GO_DNA_binding_transcription_repression.txt')[[2]]
 
-
 txn_reg = read.table('../01_input/functional_gene_lists/GO_transcriptional_regulator_activity.txt')[[2]]
+
+descriptions = list(metabolo = "Metabolic process",
+                    repro = "Reproductive process",
+                    locomotion = "Locomotion",
+                    behavior = "Behavior",
+                    immune = "Immune System Process",
+                    aging = "Aging",
+                    txn_repress = "DNA Binding Transcriptional Repression",
+                    txn_reg = "Transcriptional regulator activity",
+                    neuro = "Nervous System Process",
+                    devel = "Developmental Process"
+)
+for (desc in names(descriptions)){
+  descriptions[[desc]] = base::paste(params$stage,  descriptions[[desc]],sep=" ")
+}
 
 ```
 
@@ -73,6 +79,7 @@ aging = aging[aging %in% all]
 repro = repro[repro %in% all]
 txn_repress = txn_repress[txn_repress %in% all]
 txn_reg = txn_reg[txn_reg %in% all]
+neuro = neuro[neuro %in% all]
 ```
 
 ```{r wrapping-fxns}
@@ -203,6 +210,11 @@ notD$classD = NULL
 aging.output = func(classes, all, aging, descriptions)
 print(aging.output)
 ```
+```{r run-devel}
+devel.output = func(classes, all, devel, descriptions)
+print(devel.output)
+```
+
 ```{r run-reproductive}
 repro.output = func(classes, all, repro, descriptions)
 print(repro.output)
@@ -236,9 +248,13 @@ print(txn_reg.output)
 txn_repress.output = func(classes, all, txn_repress, descriptions)
 print(txn_repress.output)
 ```
+```{r run-neuro}
+neuro.output = func(classes, all, neuro, descriptions)
+print(neuro.output)
+```
 
 
-```{r}
+```{r eval=FALSE}
 
 
 
