@@ -14,6 +14,18 @@ library(ggplot2)
 library(tidyr)
 ```
 
+```{r cmd-to-knit, eval=FALSE, echo=FALSE}
+
+stages = list(LE="LE",L1="L1",L3="L3")
+for (stage in names(stages))
+{
+  rmarkdown::render(input = "functional_analysis.Rmd",
+                    output_file = sprintf("%s_functional_analysis.html", stage), 
+                    output_format = "html_document", 
+                    params = list(stage=stage))
+  }
+```
+
 ```{r read-classes}
 setwd("~/work/ELT-2-ChIP-revision/David/01_promoters/02_scripts/")
 classA = read.table(sprintf("../03_output/%s.promoters.hilo.classA.bed",params$stage))[[8]]
@@ -27,6 +39,9 @@ classes = list(classA=classA,
                classD=classD)
 
 all = union(c(classA,classB),c(classC,classD))
+
+notD = classes
+notD$classD = NULL
 ```
 
 ```{r read-gene-list}
@@ -43,11 +58,15 @@ aging = read.table('../01_input/functional_gene_lists/GO_aging.txt')[[2]]
 repro = read.table('../01_input/functional_gene_lists/GO_reproductive_process.txt')[[2]]
 devel = read.table('../01_input/functional_gene_lists/GO_developmental_process.txt')[[2]]
 
+lipid = read.table('../01_input/functional_gene_lists/GO_lipid_biosynthetic_process.txt')[[2]]
+
 neuro = read.table('../01_input/functional_gene_lists/GO_nervous_system_process.txt')[[2]]
 
 txn_repress = read.table('../01_input/functional_gene_lists/GO_DNA_binding_transcription_repression.txt')[[2]]
 
 txn_reg = read.table('../01_input/functional_gene_lists/GO_transcriptional_regulator_activity.txt')[[2]]
+
+signaling = read.table('../01_input/functional_gene_lists/GO_signaling.txt')[[2]]
 
 descriptions = list(metabolo = "Metabolic process",
                     repro = "Reproductive process",
@@ -58,8 +77,12 @@ descriptions = list(metabolo = "Metabolic process",
                     txn_repress = "DNA Binding Transcriptional Repression",
                     txn_reg = "Transcriptional regulator activity",
                     neuro = "Nervous System Process",
-                    devel = "Developmental Process"
+                    devel = "Developmental Process",
+                    lipid = "Lipid Biosynthetic Process",
+                    signaling = "Signaling"
 )
+
+# add the param$stage name to descriptions so they are in every plot
 for (desc in names(descriptions)){
   descriptions[[desc]] = base::paste(params$stage,  descriptions[[desc]],sep=" ")
 }
@@ -80,6 +103,10 @@ repro = repro[repro %in% all]
 txn_repress = txn_repress[txn_repress %in% all]
 txn_reg = txn_reg[txn_reg %in% all]
 neuro = neuro[neuro %in% all]
+signaling = signaling[signaling %in% all]
+devel = devel[devel %in% all]
+lipid = lipid[lipid %in% all]
+
 ```
 
 ```{r wrapping-fxns}
@@ -204,52 +231,85 @@ func = function(classes, pop, termset, descript,N=500) {
 }
 ```
 
+## Aging
+
 ```{r run-aging}
-notD = classes
-notD$classD = NULL
-aging.output = func(classes, all, aging, descriptions)
+
+aging.output = func(notD, all, aging, descriptions)
 print(aging.output)
 ```
+
+## Signaling
+
+```{r run-signaling}
+signaling.output = func(notD, all, signaling, descriptions)
+print(signaling.output)
+```
+
+## Lipid
+
+```{r run-lipid}
+lipid.output = func(notD, all, lipid, descriptions)
+print(lipid.output)
+```
+
+## Development
+
 ```{r run-devel}
-devel.output = func(classes, all, devel, descriptions)
+devel.output = func(notD, all, devel, descriptions)
 print(devel.output)
 ```
 
+## Reproductive
+
 ```{r run-reproductive}
-repro.output = func(classes, all, repro, descriptions)
+repro.output = func(notD, all, repro, descriptions)
 print(repro.output)
 ```
 
+## Immune Process
+
 ```{r run-immune}
-immune.output = func(classes, all, immune, descriptions)
+immune.output = func(notD, all, immune, descriptions)
 print(immune.output)
 ```
 
-
+## Metabolism
 
 ```{r run-metabolo}
-metabolo.output = func(classes, all, metabolo, descriptions)
+metabolo.output = func(notD, all, metabolo, descriptions)
 print(metabolo.output)
 ```
+
+## Locomotion
+
 ```{r run-locomotion}
-locomotion.output = func(classes, all, locomotion, descriptions)
+locomotion.output = func(notD, all, locomotion, descriptions)
 print(locomotion.output)
 ```
+
+## Behavior
+
 ```{r run-behavior}
-behavior.output = func(classes, all, behavior, descriptions)
+behavior.output = func(notD, all, behavior, descriptions)
 print(behavior.output)
 ```
+
+## Transcriptional Regulation
+
 ```{r run-txn}
-txn_reg.output = func(classes, all, txn_reg, descriptions)
+txn_reg.output = func(notD, all, txn_reg, descriptions)
 print(txn_reg.output)
 ```
 
 ```{r run-txn_repress}
-txn_repress.output = func(classes, all, txn_repress, descriptions)
+txn_repress.output = func(notD, all, txn_repress, descriptions)
 print(txn_repress.output)
 ```
+
+
 ```{r run-neuro}
-neuro.output = func(classes, all, neuro, descriptions)
+neuro.output = func(notD, all, neuro, descriptions)
 print(neuro.output)
 ```
 
