@@ -376,19 +376,60 @@ gr.promoters$class[classC] <- "classC"
 gr.promoters$class[classD] <- "classD"
 ```
 
-```{r GO-terms, warning=FALSE,message=FALSE}
+```{r GO-terms, warning=FALSE,message=TRUE}
 source('GOfxns.R')
 genes = gr.promoters$wbps_gene_id
 
-WORMGO = C_elegans_query(mart)
-classA.go = runGO(genes[classA], genes, WORMGO) 
-classB.go = runGO(genes[classB], genes, WORMGO)
-classC.go = runGO(genes[classC], genes, WORMGO)
-classD.go = runGO(genes[classD], genes, WORMGO)
+WORMGO_RDS_PATH = file.path("bioMart_saved_queries","WORMGO.rds")
+
+#WORMGO#
+if(file.exists(WORMGO_RDS_PATH)) {
+  message("Using WORMGO saved query")
+  WORMGO=readRDS(WORMGO_RDS_PATH)
+}else
+{
+  
+  WORMGO=C_elegans_query(mart)
+  saveRDS(WORMGO, WORMGO_RDS_PATH)
+}
+
+```
+
+```{r runGO, message=F}
+CLASSA_GO_RDS = file.path("topGO_saved_objects",stage, "classA.rds")
+if (file.exists(CLASSA_GO_RDS)) {
+  WORMGO=readRDS(CLASSA_GO_RDS)
+}else{
+  classA.go = runGO(genes[classA], genes, WORMGO)
+  saveRDS(classA.go, CLASSA_GO_RDS)
+} 
+
+CLASSB_GO_RDS = file.path("topGO_saved_objects",stage, "classB.rds")
+if (file.exists(CLASSB_GO_RDS)) {
+  WORMGO=readRDS(CLASSB_GO_RDS)
+}else{
+  classB.go = runGO(genes[classB], genes, WORMGO)
+  saveRDS(classB.go, CLASSB_GO_RDS)
+} 
+
+CLASSC_GO_RDS = file.path("topGO_saved_objects",stage, "classC.rds")
+if (file.exists(CLASSC_GO_RDS)) {
+  WORMGO=readRDS(CLASSC_GO_RDS)
+}else{
+  classC.go = runGO(genes[classC], genes, WORMGO)
+  saveRDS(classC.go, CLASSC_GO_RDS)
+} 
+CLASSD_GO_RDS = file.path("topGO_saved_objects",stage, "classD.rds")
+if (file.exists(CLASSD_GO_RDS)) {
+  WORMGO=readRDS(CLASSD_GO_RDS)
+}else{
+  classD.go = runGO(genes[classD], genes, WORMGO)
+  saveRDS(classD.go, CLASSD_GO_RDS)
+} 
 ```
 
 
-```{r look-for-specific-terms}
+```{r look-for-specific-terms, eval=F}
 # innate immunity
 classA.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='A',stage=params$stage) %>% 
   rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='B',stage=params$stage)) %>%
@@ -445,7 +486,7 @@ kabs = lapply(GOresults, function(compClass){
     filter(elim < .05) %>%
       filter(Significant >= 10) %>%
              arrange(`Rank in elim`) %>%
-             head(15) 
+             head(30) 
   })
 })
 
