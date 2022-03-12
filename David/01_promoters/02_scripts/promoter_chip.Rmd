@@ -1,7 +1,7 @@
 ---
 title: "ChIP signal in promoters"
 params:
-  stage: 'LE'
+  stage: 'L1'
 output:
   html_document:
     df_print: paged
@@ -82,12 +82,23 @@ library(dplyr)
 
 ## Promoters are upstream regions of all protein-coding genes
 
-```{r get-promoters,warning=FALSE,message=FALSE, echo=FALSE, eval=TRUE}
-library(biomaRt)
-mart = getParamart()
+```{r get-promoters,warning=FALSE, message=T, echo=FALSE, eval=TRUE}
 
-promoters = getCElegansPromoters(mart, upstream = UPSTREAM, downstream = DOWNSTREAM) 
-promoters = trim(sort(promoters, ignore.strand=T)) # trim because one interval is chrIV:-359-840 at -1000/+200
+PROMOTERS_RDS_PATH = file.path("bioMart_saved_queries", "promoters.rds")
+
+if (! file.exists(PROMOTERS_RDS_PATH)) {
+  library(biomaRt)
+  mart = getParamart()
+  
+  promoters = getCElegansPromoters(mart, upstream = UPSTREAM, downstream = DOWNSTREAM) 
+  promoters = trim(sort(promoters, ignore.strand=T)) # trim because one interval is chrIV:-359-840 at -1000/+200
+  
+  saveRDS(promoters, PROMOTERS_RDS_PATH)
+}else { 
+  message("Using saved promoter query.")
+  promoters = readRDS(PROMOTERS_RDS_PATH)
+}
+
 head(promoters)
 ```
 
