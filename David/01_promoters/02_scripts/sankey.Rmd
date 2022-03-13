@@ -106,22 +106,26 @@ setSizes = setSizes %>%
 setSizes %>% head()
 setSizes$stage = factor(setSizes$stage, levels=c("LE","L1","L3"))
 setSizes$class = factor(setSizes$class, levels=c("classA","classB","classC","classD"))
-ggplot(setSizes, aes(y=geneCount,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack())
+ggplot(setSizes, aes(y=geneCount,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral")
 ```
 
 ```{r simulate-LE-L1}
 
 probs=c(0.1114342, 0.2360872, 0.266887, 0.3855915) #setCounts[1,]/(setCounts[1,] %>% sum()) 
 # sum(setCounts[2,])
-randTrials <- rmultinom(100,100,prob = probs)
+
+NTRIALS=1e6
+NGENES=40#sum(setCounts[2,])
+set.seed(0)
+randTrials <- rmultinom(NTRIALS,NGENES,prob = probs)
 colnames(randTrials) <- 1:ncol(randTrials)
 rownames(randTrials) <- c("classA","classB","classC","classD")
 randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
 
-ggplot(randTrials.lng, aes(y=geneCount,x=trial)) + geom_bar(aes(fill=class),stat="identity",position=position_stack(),width=.9) +
+ggplot(randTrials.lng, aes(y=geneCount,x=trial)) + geom_bar(aes(fill=class),stat="identity",position=position_stack(),width=.95) +
   theme(axis.text.x=element_blank(),
         axis.ticks.x=element_blank() 
-        ) + scale_fill_brewer(palette="Spectral")
+        ) + scale_fill_brewer(palette="Spectral") + ggtitle(sprintf("Simulated null distribution (using LE class proportions) for %d genes", NGENES), subtitle = sprintf("%d trials",NTRIALS)) + xlab("simulated null distribution") + ylab("number of genes")
 ```
 
 ```{r make-links}
