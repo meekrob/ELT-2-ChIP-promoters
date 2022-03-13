@@ -1,14 +1,30 @@
 ---
 title: "ChIP signal in promoters"
 params:
-  stage: 'L1'
+  stage: 'L3'
 output:
   html_document:
     df_print: paged
   pdf_document: default
 ---
 
+```{r cmd-to-knit, eval=FALSE, echo=FALSE}
+
+stages = list(LE="LE",L1="L1",L3="L3")
+for (stage in names(stages))
+{
+  rmarkdown::render(input = "promoter_chip.Rmd",
+                    output_file = sprintf("%s_promoter_chip.html", stage), 
+                    output_format = "html_document", 
+                    params = list(stage=stage))
+  }
+```
+
+
 Configure all file paths based on the Rmarkdown parameter `stage` .
+
+
+
 
 ```{r input-files-params}
 rob.dir = normalizePath('~/work/ELT-2-ChIP-revision/Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
@@ -256,7 +272,7 @@ sum(!is.nan(gr.promoters$IDR_max))
 # the density/distribution of the non-transformed values is too thin to
 # show on the graph, so this is commented out. If you want to see the distribution, 
 # uncomment the ecdf plots.
-idr.nonlog = as.data.frame(gr.promoters) %>% filter(is.finite(IDR_value)) %>% select('IDR_value','IDR_mean','IDR_max','IDR_sum') %>% gather(key="dataset") 
+idr.nonlog = as.data.frame(gr.promoters) %>% filter(is.finite(IDR_value)) %>% dplyr::select('IDR_value','IDR_mean','IDR_max','IDR_sum') %>% gather(key="dataset") 
 
 # ggplot(idr.nonlog, aes(x=value, fill=dataset))  + geom_density(alpha=.5) + labs(title="Distributions of NON-Log transformed ChIP signal values in peaks")
 # 
@@ -396,7 +412,7 @@ if(file.exists(WORMGO_RDS_PATH)) {
 ```
 
 ```{r runGO, message=F}
-CLASSA_GO_RDS = file.path("topGO_saved_objects",stage, "classA.rds")
+CLASSA_GO_RDS = file.path("topGO_saved_objects",params$stage, "classA.rds")
 if (file.exists(CLASSA_GO_RDS)) {
   WORMGO=readRDS(CLASSA_GO_RDS)
 }else{
