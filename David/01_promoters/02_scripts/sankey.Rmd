@@ -1,0 +1,204 @@
+```{r setup}
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(networkD3)
+library(htmlwidgets) # saveWidget
+library(webshot)
+library(ggplot2)
+```
+
+```{r example, eval=F, echo=F}
+set.seed(1)
+data <- matrix(sample( seq(0,40), 49, replace=T ), 7, 7)
+data[data < 35] <- 0
+colnames(data) = rownames(data) = c("group_A", "group_B", "group_C", "group_D", "group_E", "group_F", "group_G")
+
+# Transform it to connection data frame with tidyr from the tidyverse:
+links <- data %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var="source") %>% 
+  gather(key="target", value="value", -1) %>%
+  filter(value != 0)
+ 
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(
+  name=c(as.character(links$source), as.character(links$target)) %>% 
+    unique()
+  )
+ 
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+ 
+# Make the Network
+p <- sankeyNetwork(Links = links, Nodes = nodes,
+                     Source = "IDsource", Target = "IDtarget",
+                     Value = "value", NodeID = "name", 
+                     sinksRight=FALSE)
+
+p
+
+```
+
+```{r read-classes}
+
+L= list()
+
+L$LE = list()
+L[['LE']]$classA = read.table("../03_output/LE.promoters.hilo.classA.bed")[[7]]
+L[['LE']]$classB = read.table("../03_output/LE.promoters.hilo.classB.bed")[[7]]
+L[['LE']]$classC = read.table("../03_output/LE.promoters.hilo.classC.bed")[[7]]
+L[['LE']]$classD = read.table("../03_output/LE.promoters.hilo.classD.bed")[[7]]
+
+L$L1 = list()
+L[['L1']]$classA = read.table("../03_output/L1.promoters.hilo.classA.bed")[[7]]
+L[['L1']]$classB = read.table("../03_output/L1.promoters.hilo.classB.bed")[[7]]
+L[['L1']]$classC = read.table("../03_output/L1.promoters.hilo.classC.bed")[[7]]
+L[['L1']]$classD = read.table("../03_output/L1.promoters.hilo.classD.bed")[[7]]
+
+L$L3 = list()
+L[['L3']]$classA = read.table("../03_output/L3.promoters.hilo.classA.bed")[[7]]
+L[['L3']]$classB = read.table("../03_output/L3.promoters.hilo.classB.bed")[[7]]
+L[['L3']]$classC = read.table("../03_output/L3.promoters.hilo.classC.bed")[[7]]
+L[['L3']]$classD = read.table("../03_output/L3.promoters.hilo.classD.bed")[[7]]
+
+# the 3-way intersection of classD never becomes enriched or bound
+L[["LE"]][["classD"]] %>% 
+  intersect(L[["L1"]][["classD"]]) %>% 
+  intersect(L[["L3"]][["classD"]]) -> neverEnriched
+
+# remove the 'never' group from all stages
+L[["LE"]][["classD"]] <- L[["LE"]][["classD"]] %>% setdiff(neverEnriched) 
+L[["L1"]][["classD"]] <- L[["L1"]][["classD"]] %>% setdiff(neverEnriched) 
+L[["L3"]][["classD"]] <- L[["L3"]][["classD"]] %>% setdiff(neverEnriched) 
+
+setCounts = data.frame(classA=length(L[["LE"]][["classA"]]),
+                       classB=length(L[["LE"]][["classB"]]),
+                       classC=length(L[["LE"]][["classC"]]),
+                       classD=length(L[["LE"]][["classD"]])) %>%
+                       rbind(data.frame(classA=length(L[["L1"]][["classA"]]),
+                       classB=length(L[["L1"]][["classB"]]),
+                       classC=length(L[["L1"]][["classC"]]),
+                       classD=length(L[["L1"]][["classD"]]))) %>%
+                       rbind(data.frame(classA=length(L[["L3"]][["classA"]]),
+                       classB=length(L[["L3"]][["classB"]]),
+                       classC=length(L[["L3"]][["classC"]]),
+                       classD=length(L[["L3"]][["classD"]])))
+
+rownames(setCounts) <- c("LE","L1","L3")
+
+setSizes = data.frame(stage="LE",class="classA",geneCount=length(L[["LE"]][["classA"]]))
+
+setSizes = setSizes %>% 
+  rbind( data.frame(stage="LE",class="classB",geneCount=length(L[["LE"]][["classB"]]))) %>%
+  rbind( data.frame(stage="LE",class="classC",geneCount=length(L[["LE"]][["classC"]]))) %>%
+  rbind( data.frame(stage="LE",class="classD",geneCount=length(L[["LE"]][["classD"]]))) %>% 
+  rbind( data.frame(stage="L1",class="classA",geneCount=length(L[["L1"]][["classA"]]))) %>%
+  rbind( data.frame(stage="L1",class="classB",geneCount=length(L[["L1"]][["classB"]]))) %>%
+  rbind( data.frame(stage="L1",class="classC",geneCount=length(L[["L1"]][["classC"]]))) %>%
+  rbind( data.frame(stage="L1",class="classD",geneCount=length(L[["L1"]][["classD"]]))) %>%
+  rbind( data.frame(stage="L3",class="classA",geneCount=length(L[["L3"]][["classA"]]))) %>%
+  rbind( data.frame(stage="L3",class="classB",geneCount=length(L[["L3"]][["classB"]]))) %>%
+  rbind( data.frame(stage="L3",class="classC",geneCount=length(L[["L3"]][["classC"]]))) %>%
+  rbind( data.frame(stage="L3",class="classD",geneCount=length(L[["L3"]][["classD"]]))) 
+
+setSizes %>% head()
+setSizes$stage = factor(setSizes$stage, levels=c("LE","L1","L3"))
+setSizes$class = factor(setSizes$class, levels=c("classA","classB","classC","classD"))
+ggplot(setSizes, aes(y=geneCount,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack())
+```
+
+```{r simulate-LE-L1}
+
+probs=c(0.1114342, 0.2360872, 0.266887, 0.3855915) #setCounts[1,]/(setCounts[1,] %>% sum()) 
+# sum(setCounts[2,])
+randTrials <- rmultinom(100,100,prob = probs)
+colnames(randTrials) <- 1:ncol(randTrials)
+rownames(randTrials) <- c("classA","classB","classC","classD")
+randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
+
+ggplot(randTrials.lng, aes(y=geneCount,x=trial)) + geom_bar(aes(fill=class),stat="identity",position=position_stack(),width=.9) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank() 
+        ) + scale_fill_brewer(palette="Spectral")
+```
+
+```{r make-links}
+df = data.frame()
+stage.from="LE"
+stage.to="L1"
+for(cl.from in c("classA","classB","classC","classD")){
+    for(cl.to in c("classA","classB","classC","classD"))
+    {
+      from.key = sprintf("%s.%s", stage.from, cl.from)
+      to.key = sprintf("%s.%s", stage.to, cl.to)
+      df = rbind(df, data.frame(source = from.key, 
+                              target = to.key, 
+                              value = length(intersect(L[[stage.from]][[cl.from]],
+                                                   L[[stage.to]][[cl.to]]))
+                              )
+      )
+    }
+}
+
+stage.from="L1"
+stage.to="L3"
+for(cl.from in c("classA","classB","classC","classD")){
+    for(cl.to in c("classA","classB","classC","classD"))
+    {
+      from.key = sprintf("%s.%s", stage.from, cl.from)
+      to.key = sprintf("%s.%s", stage.to, cl.to)
+      df = rbind(df, data.frame(source = from.key, 
+                              target = to.key, 
+                              value = length(intersect(L[[stage.from]][[cl.from]],
+                                                   L[[stage.to]][[cl.to]]))
+                              )
+      )
+    }
+}
+```
+
+
+
+```{r rename-links-object}
+links=df
+
+links[links == 'LE.classA'] <- 'LE bound/enriched'
+links[links == 'LE.classB'] <- 'LE bound/not enriched'
+links[links == 'LE.classC'] <- 'LE not bound/enriched'
+links[links == 'LE.classD'] <- 'LE not bound/not enriched'
+links[links == 'L1.classA'] <- 'L1 bound/enriched'
+links[links == 'L1.classB'] <- 'L1 bound/not enriched'
+links[links == 'L1.classC'] <- 'L1 not bound/enriched'
+links[links == 'L1.classD'] <- 'L1 not bound/not enriched'
+links[links == 'L3.classA'] <- 'L3 bound/enriched'
+links[links == 'L3.classB'] <- 'L3 bound/not enriched'
+links[links == 'L3.classC'] <- 'L3 not bound/enriched'
+links[links == 'L3.classD'] <- 'L3 not bound/not enriched'
+
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(
+  name=c(as.character(links$source), as.character(links$target)) %>% 
+    unique()
+  )
+ 
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+ 
+# Make the Network
+p <- sankeyNetwork(Links = links, Nodes = nodes,
+                     Source = "IDsource", Target = "IDtarget",
+                     Value = "value", NodeID = "name", fontSize = 16,
+                     sinksRight=FALSE)
+
+p
+
+# save an html
+saveWidget(p, file=paste0( getwd(), "/geneflow_relabelled.html"))
+
+# save a pdf that should be editable in illustrator
+webshot(paste0( getwd(), "/geneflow_relabelled.html"), "geneflow_relabelled.pdf", delay=.2)
+getwd()
+```
