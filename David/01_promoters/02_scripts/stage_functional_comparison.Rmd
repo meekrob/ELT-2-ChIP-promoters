@@ -1,0 +1,168 @@
+---
+title: "Comparison of functional terms between stages"
+author: "David C. King"
+date: "3/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(GenomicRanges)
+library(parallel)
+library(tidyr)
+library(dplyr)
+stat <- function(obsvd, exptd) {
+    sum((obsvd - exptd)^2 / exptd)
+}
+
+```
+
+## Read data
+
+
+```{r read-data}
+# things that never become expressed or bound
+# grep -f L3.classD.wbid L1.classD.wbid  > L1L3.class.wbid
+# grep -f L1L3.class.wbid LE.classD.wbid  > LEL1L3.classQ.wbid
+classQ.wbid = read.table("../03_output/LEL1L3.classQ.wbid")[[1]]
+
+LE_promoter_tsv = "../03_output/LE.promoters.hilo.tsv"
+LE_tsv = read.table(LE_promoter_tsv, header=T)
+LE.promoters = makeGRangesFromDataFrame(LE_tsv, keep.extra.columns = T, starts.in.df.are.0based = T)
+LE_Q = LE.promoters$wbps_gene_id %in% classQ.wbid
+
+L1_promoter_tsv = "../03_output/L1.promoters.hilo.tsv"
+L1_tsv = read.table(L1_promoter_tsv, header=T)
+L1.promoters = makeGRangesFromDataFrame(L1_tsv, keep.extra.columns = T, starts.in.df.are.0based = T)
+L1_Q = L1.promoters$wbps_gene_id %in% classQ.wbid
+
+L3_promoter_tsv = "../03_output/L3.promoters.hilo.tsv"
+L3_tsv = read.table(L3_promoter_tsv, header=T)
+L3.promoters = makeGRangesFromDataFrame(L3_tsv, keep.extra.columns = T, starts.in.df.are.0based = T)
+L3_Q = L3.promoters$wbps_gene_id %in% classQ.wbid
+
+allGenes = L3.promoters$wbps_gene_id
+```
+
+
+```{r form-classes}
+
+LE.classes = list()
+L1.classes = list()
+L3.classes = list()
+
+class.lng = data.frame()
+
+for (cls in c("classA","classB","classC","classD")) {
+  if(cls == "classD") {
+    cls_filter = (LE.promoters$class == "classD" ) & ! LE_Q
+    LE.classes[[cls]] = LE.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="LE", wbid=LE.classes[[cls]]))
+    
+    cls_filter = (L1.promoters$class == "classD" ) & ! L1_Q
+    L1.classes[[cls]] = L1.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="L1", wbid=L1.classes[[cls]]))
+    
+    cls_filter = (L3.promoters$class == "classD" ) & ! L3_Q
+    L3.classes[[cls]] = L3.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="L3", wbid=L3.classes[[cls]]))
+  
+    } else {
+    cls_filter = (LE.promoters$class == cls)  
+    LE.classes[[cls]] = LE.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="LE", wbid=LE.classes[[cls]]))
+    
+    cls_filter = (L1.promoters$class == cls) 
+    L1.classes[[cls]] = L1.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="L1", wbid=L1.classes[[cls]]))
+    
+    cls_filter = (L3.promoters$class == cls) 
+    L3.classes[[cls]] = L3.promoters[cls_filter]$wbps_gene_id
+    class.lng = class.lng %>% rbind(data.frame(class=cls, stage="L3", wbid=L3.classes[[cls]]))
+  }
+}
+class.lng$stage = factor(class.lng$stage, levels=c("LE","L1","L3"))
+class.lng$class = factor(class.lng$class)
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r synaptic-vesicle}
+synaptic_vesicle = read.table('../01_input/functional_gene_lists/GO_0008021_synaptic_vesicle.txt',
+          sep="\t",
+          col.names=c("wbid","name","species")) %>% 
+  dplyr::filter(wbid %in% allGenes) %>% pull(wbid)
+
+synaptic_vesicle_df = class.lng %>% filter(wbid %in% synaptic_vesicle)
+summ = synaptic_vesicle_df %>% group_by(stage,class) %>% summarize(count=n())
+ggplot(summ, aes(y=count,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral") + ggtitle("Synaptic vesicle")
+
+counts_df = pivot_wider(summ, names_from='class', values_from='count') %>% as.data.frame()
+counts_df[is.na(counts_df)] <- 0
+rownames(counts_df) <- counts_df$stage
+counts_df = counts_df[,-1]
+counts_df
+
+probs_df = counts_df/apply(counts_df, 1, sum)
+probs_df
+
+# L1 versus LE
+NTRIALS=1e4
+NGENES=sum(counts_df['L1',])
+probs = unlist(probs_df['LE',])
+set.seed(0)
+randTrials <- rmultinom(NTRIALS,NGENES,prob = probs)
+
+S0 = apply(randTrials, 2, function(x) stat(x, probs*NGENES))
+obs = stat(unlist(counts_df['L1',]), probs*NGENES)
+pval = sum(S0 >= obs)/NTRIALS
+
+colnames(randTrials) <- 1:ncol(randTrials)
+rownames(randTrials) <- c("classA","classB","classC","classD")
+
+
+# randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
+# 
+# ggplot(randTrials.lng, aes(y=geneCount,x=trial)) + geom_bar(aes(fill=class),stat="identity",position=position_stack(),width=.95) +
+#   theme(axis.text.x=element_blank(),
+#         axis.ticks.x=element_blank() 
+#         ) + scale_fill_brewer(palette="Spectral") + ggtitle(sprintf("Simulated null distribution (using LE class proportions) for %d genes", NGENES), subtitle = sprintf("%d trials",NTRIALS)) + xlab("simulated null distribution") + ylab("number of genes")
+
+# L3 versus L1
+NTRIALS=5e8
+NGENES=sum(counts_df['L3',])
+probs = unlist(probs_df['L1',])
+set.seed(0)
+randTrials <- rmultinom(NTRIALS,NGENES,prob = probs)
+
+expect = probs*NGENES
+system.time(
+{
+  S0 = apply(randTrials, 2, function(x) stat(x, expect))
+#      user  system elapsed 
+#     223.521 178.054 493.711
+})
+# create cluster cl
+
+
+
+cl = makeCluster( detectCores()-1)
+clusterExport(cl, c("randTrials","expect", "stat"), environment())
+system.time({
+  
+  clusterSetRNGStream(cl,0)
+  S0parallel=parApply(cl, randTrials, 2, function(x) { stat(x, expect)})
+  })
+stopCluster(cl)
+
+summary(S0)
+obs = stat(unlist(counts_df['L3',]), probs*NGENES)
+obs
+pval = sum(S0 >= obs)/NTRIALS
+pval
+```
+
+
+

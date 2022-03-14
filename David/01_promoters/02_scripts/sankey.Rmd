@@ -110,17 +110,31 @@ ggplot(setSizes, aes(y=geneCount,x=stage)) + geom_bar(aes(fill=class),stat="iden
 ```
 
 ```{r simulate-LE-L1}
-
+stat <- function(obsvd, exptd) {
+    sum((obsvd - exptd)^2 / exptd)
+}
 probs=c(0.1114342, 0.2360872, 0.266887, 0.3855915) #setCounts[1,]/(setCounts[1,] %>% sum()) 
 # sum(setCounts[2,])
 
-NTRIALS=1e6
-NGENES=40#sum(setCounts[2,])
+NTRIALS=1e7
+NGENES=sum(setCounts[2,])
 set.seed(0)
 randTrials <- rmultinom(NTRIALS,NGENES,prob = probs)
 colnames(randTrials) <- 1:ncol(randTrials)
 rownames(randTrials) <- c("classA","classB","classC","classD")
-randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
+#randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
+
+ex = NGENES * probs
+S0 = apply(randTrials, 2, function(x) {stat(x, ex)}) 
+summary(S0)
+CV = quantile(S0, .95)
+obs = stat(setCounts[2,],ex)
+
+# now take setCounts[2,] and produce an S1 distribution using the 
+# same technique as before with rmultinom. The proportion of times 
+# the distribution is greater than CV (.95 quantile of S0), is the
+# statistical power with sum(setCounts[2,]) number of genes.
+
 
 ggplot(randTrials.lng, aes(y=geneCount,x=trial)) + geom_bar(aes(fill=class),stat="identity",position=position_stack(),width=.95) +
   theme(axis.text.x=element_blank(),
