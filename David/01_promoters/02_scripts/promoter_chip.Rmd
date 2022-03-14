@@ -27,6 +27,11 @@ Configure all file paths based on the Rmarkdown parameter `stage` .
 
 
 ```{r input-files-params}
+# things that never become expressed or bound
+# grep -f L3.classD.wbid L1.classD.wbid  > L1L3.class.wbid
+# grep -f L1L3.class.wbid LE.classD.wbid  > LEL1L3.classQ.wbid
+classQ.wbid = read.table("../03_output/LEL1L3.classQ.wbid")[[1]]
+
 rob.dir = normalizePath('~/work/ELT-2-ChIP-revision/Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
 
 rob.files = list(LE='res_embryoGFPplus_vs_embryoGFPminus_apeglm.csv',
