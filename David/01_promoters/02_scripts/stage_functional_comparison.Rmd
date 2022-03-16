@@ -12,6 +12,9 @@ library(GenomicRanges)
 library(parallel)
 library(tidyr)
 library(dplyr)
+
+# scaled sum of squares for scoring multinomial random variates. 
+# See https://web.stanford.edu/class/bios221/book/Chap-Generative.html#sec:Multinomial
 stat <- function(obsvd, exptd) {
     sum((obsvd - exptd)^2 / exptd)
 }
