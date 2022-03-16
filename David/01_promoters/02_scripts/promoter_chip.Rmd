@@ -470,39 +470,176 @@ ROC = function(scores, truth) {
   }
   # Sensitivity
   Sn = function(i) {
-    TP(i)/(TP(i) + FN(i))
+    TP(i)/(TP(i) + FN(i)) # efficiency of recovering True Positives
   }
   Sp = function(i) {
-    TN(i)/(TN(i) + FP(i))
+    TN(i)/(TN(i) + FP(i)) # success at excluding set B (True Negatives)
   }
   # Positive predictive value
   PPV = function(i) {
-    TP(i)/(TP(i) + FP(i))
+    TP(i)/(TP(i) + FP(i)) # proportion of called positives that are correct
   }
   # False positive rate
   FPR = function(i) {
-    FP(i)/(FP(i)+TN(i))
+    FP(i)/(FP(i)+TN(i)) # failure to exclude set B (True Negatives)
   }
   list(Sp=Sp,Sn=Sn,TP=TP,FP=FP,TN=TN,FN=FN,PPV=PPV,TPR=Sn,FPR=FPR)
 }
-thresholds = seq(min(dataset$IDR_logTEN_max), max(dataset$IDR_logTEN_max), length.out = 50)
-ROC.IDR.max = ROC(dataset$IDR_logTEN_max, dataset$class == 'classA')
-
-data.frame(IDR_max=thresholds, proportion_of_classA=ROC.IDR.max$TPR(thresholds), proportion_of_classB=ROC.IDR.max$FPR(thresholds)) %>%
-  ggplot(aes(x=IDR_max,y=proportion_of_classA)) + geom_line() +
-  geom_line(aes(y=proportion_of_classB),color="red") +
-  geom_segment(x=thresholds[17],xend=thresholds[17],
-               y=TPR(thresholds[17]),yend=FPR(thresholds[17]))
-```
-
-
-```{r discriminative-fractions}
-library(MASS)
 
 dataset = as.data.frame(mcols(gr.promoters[classA|classB]) )
 dataset = dataset[order(dataset$IDR_logTEN_sum),]
-
 dataset$class = factor(dataset$class, levels=c("classA","classB"))
+
+```
+
+```{r ROC-plots-IDR-sum}
+thresholds = seq(min(dataset$IDR_logTEN_sum), max(dataset$IDR_logTEN_sum), length.out = 100)
+
+
+ROC.IDR.sum = ROC(dataset$IDR_logTEN_sum, dataset$class == 'classA')
+TPR=ROC.IDR.sum$TPR
+FPR=ROC.IDR.sum$FPR
+TP = ROC.IDR.sum$TP
+FP = ROC.IDR.sum$FP
+
+TPRvsFPR = TPR(thresholds) - FPR(thresholds)
+best=max(TPRvsFPR)
+best_threshold = thresholds[ which(TPRvsFPR == best)]
+
+ggplot(data.frame(threshold=thresholds,TPRvsFPR=TPRvsFPR), 
+       aes(x=threshold,y=TPRvsFPR)) + 
+  geom_line() +
+  geom_vline(xintercept=best_threshold) +
+  ggtitle(sprintf("%s: Using IDR sum score to recover classA (TPR) \nand exclude classB (FPR) ", params$stage)) + ylab("TPR - FPR")
+
+
+df = data.frame()
+for (funcname in names(ROC.IDR.sum)) {
+  f = ROC.IDR.sum[[funcname]]
+  df = df %>% rbind(  data.frame(threshold=thresholds,measure=funcname,value=f(thresholds)))
+}
+df2 = df %>% filter(measure %in% c("TPR","FPR"))
+df2$measure = factor(df2$measure, levels=c("TPR","FPR"))             
+ggplot(df2, aes(x=threshold,y=value, color=measure)) + geom_line() +
+  scale_color_manual(values=c("black","red")) +
+  geom_segment(x=best_threshold,xend=best_threshold,
+               y=FPR(best_threshold), yend=TPR(best_threshold),color='black') +
+  geom_point(x=best_threshold, y=TPR(best_threshold), color="black", size=.75) +
+  geom_point(x=best_threshold, y=FPR(best_threshold), color="black", size=.75) +
+  ggtitle("Positive predictive value of using peak signal to predict binding") +
+  geom_text(inherit.aes=F,aes(x=best_threshold, y=TPR(best_threshold)), 
+            position=position_nudge(x=.6), label=sprintf("recover: %d/%d classA\nexclude: %d/%d classB", TP(best_threshold),sum(dataset$class == 'classA'), FP(best_threshold),sum(dataset$class == 'classB')))
+
+data.frame(IDR_sum=thresholds, TPR=ROC.IDR.sum$TPR(thresholds), FPR=ROC.IDR.sum$FPR(thresholds)) %>%
+  ggplot(aes(x=FPR,y=TPR)) + geom_line() +
+  geom_point(x=FPR(best_threshold),y=TPR(best_threshold), size=.75) +
+  geom_abline(slope=1) + ggtitle("ROC for IDR sum")
+
+ROC.df = data.frame(TPR=ROC.IDR.sum$TPR(thresholds),FPR=ROC.IDR.sum$FPR(thresholds),score="IDR sum")
+IDR_SUM_BEST = which(thresholds == best_threshold)
+```
+
+```{r ROC-plots-IDR-max}
+thresholds = seq(min(dataset$IDR_logTEN_max), max(dataset$IDR_logTEN_max), length.out = 100)
+
+
+ROC.IDR.max = ROC(dataset$IDR_logTEN_max, dataset$class == 'classA')
+TPR=ROC.IDR.max$TPR
+FPR=ROC.IDR.max$FPR
+TP = ROC.IDR.max$TP
+FP = ROC.IDR.max$FP
+
+TPRvsFPR = TPR(thresholds) - FPR(thresholds)
+best=max(TPRvsFPR)
+best_threshold = thresholds[ which(TPRvsFPR == best)]
+
+ggplot(data.frame(threshold=thresholds,TPRvsFPR=TPRvsFPR), 
+       aes(x=threshold,y=TPRvsFPR)) + 
+  geom_line() +
+  geom_vline(xintercept=best_threshold) +
+  ggtitle(sprintf("%s: Using IDR max score to recover classA (TPR) \nand exclude classB (FPR) ", params$stage)) + ylab("TPR - FPR")
+
+
+df = data.frame()
+for (funcname in names(ROC.IDR.max)) {
+  f = ROC.IDR.max[[funcname]]
+  df = df %>% rbind(  data.frame(threshold=thresholds,measure=funcname,value=f(thresholds)))
+}
+df2 = df %>% filter(measure %in% c("TPR","FPR"))
+df2$measure = factor(df2$measure, levels=c("TPR","FPR"))             
+ggplot(df2, aes(x=threshold,y=value, color=measure)) + geom_line() +
+  scale_color_manual(values=c("black","red")) +
+  geom_segment(x=best_threshold,xend=best_threshold,
+               y=FPR(best_threshold), yend=TPR(best_threshold),color='black') +
+  geom_point(x=best_threshold, y=TPR(best_threshold), color="black", size=.75) +
+  geom_point(x=best_threshold, y=FPR(best_threshold), color="black", size=.75) +
+  ggtitle("Positive predictive value of using peak signal to predict binding") +
+  geom_text(inherit.aes=F,aes(x=best_threshold, y=TPR(best_threshold)), 
+            position=position_nudge(x=.6), label=sprintf("recover: %d/%d classA\nexclude: %d/%d classB", 
+                   round(TP(best_threshold)),
+                   sum(dataset$class == 'classA'), 
+                   round(FP(best_threshold)),
+                   sum(dataset$class == 'classB')))
+
+data.frame(IDR_max=thresholds, TPR=ROC.IDR.max$TPR(thresholds), FPR=ROC.IDR.max$FPR(thresholds)) %>%
+  ggplot(aes(x=FPR,y=TPR)) + geom_line() +
+  geom_point(x=FPR(best_threshold),y=TPR(best_threshold), size=.75) +
+  geom_abline(slope=1)
+
+ROC.df = ROC.df %>% 
+  rbind(data.frame(TPR=ROC.IDR.max$TPR(thresholds),FPR=ROC.IDR.max$FPR(thresholds),score="IDR max"))
+IDR_MAX_BEST = which(thresholds == best_threshold)
+
+ggplot(ROC.df, aes(x=FPR,y=TPR, color=score)) + geom_line() + geom_abline(slope=1)
+```
+```{r ROC-IDR-value}
+thresholds = seq(min(dataset$IDR_logTEN_value), max(dataset$IDR_logTEN_value), length.out = 100)
+
+
+ROC.IDR.value = ROC(dataset$IDR_logTEN_value, dataset$class == 'classA')
+TPR=ROC.IDR.value$TPR
+FPR=ROC.IDR.value$FPR
+TP = ROC.IDR.value$TP
+FP = ROC.IDR.value$FP
+
+TPRvsFPR = TPR(thresholds) - FPR(thresholds)
+best=max(TPRvsFPR)
+best_threshold = thresholds[ which(TPRvsFPR == best)]
+
+ROC.df = ROC.df %>% 
+  rbind(data.frame(TPR=ROC.IDR.value$TPR(thresholds),FPR=ROC.IDR.value$FPR(thresholds),score="IDR value"))
+IDR_VALUE_BEST = which(thresholds == best_threshold)
+
+ggplot(ROC.df, aes(x=FPR,y=TPR, color=score)) + geom_line() + geom_abline(slope=1) + ggtitle(sprintf("%s: ROC predictive power of IDR score to predict intestine expression", params$stage))
+```
+
+
+
+```{r ROC-IDR-mean}
+thresholds = seq(min(dataset$IDR_logTEN_mean), max(dataset$IDR_logTEN_mean), length.out = 100)
+
+
+ROC.IDR.mean = ROC(dataset$IDR_logTEN_mean, dataset$class == 'classA')
+TPR=ROC.IDR.mean$TPR
+FPR=ROC.IDR.mean$FPR
+TP = ROC.IDR.mean$TP
+FP = ROC.IDR.mean$FP
+
+TPRvsFPR = TPR(thresholds) - FPR(thresholds)
+best=max(TPRvsFPR)
+best_threshold = thresholds[ which(TPRvsFPR == best)]
+
+ROC.df = ROC.df %>% 
+  rbind(data.frame(TPR=ROC.IDR.mean$TPR(thresholds),FPR=ROC.IDR.mean$FPR(thresholds),score="IDR mean"))
+IDR_MEAN_best = which(thresholds == best_threshold)
+
+ggplot(ROC.df, aes(x=FPR,y=TPR, color=score)) + geom_line() + geom_abline(slope=1) + ggtitle(sprintf("%s ROC: predictive power of IDR score to predict intestine expression", params$stage))
+
+kable(ROC.df %>% group_by(score) %>% summarize(best = max(TPR-FPR)), caption=sprintf("%s best TPR-FPR", params$stage), digits=3)
+```
+
+```{r discriminative-fractions}
+library(MASS)
 
 # IDR sum in peak
 classAB.lda = lda(as.matrix(dataset$IDR_logTEN_sum), dataset$class)
