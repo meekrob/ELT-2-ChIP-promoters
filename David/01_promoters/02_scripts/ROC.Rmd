@@ -1,0 +1,80 @@
+---
+title: "ROC plots"
+params:
+  stage: 'L3'
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+library(dplyr)
+```
+
+```{r ROC-functions}
+ROC = function(scores, truth) {
+  nPos = sum(truth)
+  nNeg = sum(!truth)
+  
+  # True negatives
+  TN = function(i) {
+    ecdf(scores[!truth])(i) * nNeg
+  }
+  # False negatives
+  FN = function(i) {
+    ecdf(scores[truth])(i) * nPos
+  }
+  # False positives
+  FP = function(i) {
+    nNeg - TN(i)
+  }
+  # True positives
+  TP = function(i) {
+    nPos - FN(i)
+  }
+  # Sensitivity
+  Sn = function(i) {
+    TP(i)/(TP(i) + FN(i)) # efficiency of recovering True Positives
+  }
+  Sp = function(i) {
+    TN(i)/(TN(i) + FP(i)) # success at excluding set B (True Negatives)
+  }
+  # Positive predictive value
+  PPV = function(i) {
+    TP(i)/(TP(i) + FP(i)) # proportion of called positives that are correct
+  }
+  # False positive rate
+  FPR = function(i) {
+    FP(i)/(FP(i)+TN(i)) # failure to exclude set B (True Negatives)
+  }
+  list(Sp=Sp,Sn=Sn,TP=TP,FP=FP,TN=TN,FN=FN,PPV=PPV,TPR=Sn,FPR=FPR)
+}
+
+
+```
+
+```{r read-data, echo=FALSE}
+LE_promoter_tsv = "../03_output/LE.promoters.hilo.tsv"
+LE_tsv = read.table(LE_promoter_tsv, header=T)
+L1_promoter_tsv = "../03_output/L1.promoters.hilo.tsv"
+L1_tsv = read.table(L1_promoter_tsv, header=T)
+L3_promoter_tsv = "../03_output/L3.promoters.hilo.tsv"
+L3_tsv = read.table(L3_promoter_tsv, header=T)
+
+LE_tsv$stage = "LE"
+L1_tsv$stage = "L1"
+L3_tsv$stage = "L3"
+
+dataset = rbind(LE_tsv,L1_tsv,L3_tsv) %>% 
+  filter(class %in% c("classA","classB")) %>% 
+           dplyr::select(stage,class,IDR_logTEN_max,IDR_logTEN_mean, IDR_logTEN_value, IDR_logTEN_sum)
+
+dataset$class = factor(dataset$class, levels=c("classA","classB"))
+dataset$stage = factor(dataset$stage, levels=c("LE","L1","L3"))
+```
