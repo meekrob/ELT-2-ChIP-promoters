@@ -1,7 +1,6 @@
 ---
 title: "ROC plots"
-params:
-  stage: 'L3'
+
 output:
   html_document:
     df_print: paged
@@ -53,7 +52,15 @@ ROC = function(scores, truth) {
   FPR = function(i) {
     FP(i)/(FP(i)+TN(i)) # failure to exclude set B (True Negatives)
   }
-  list(Sp=Sp,Sn=Sn,TP=TP,FP=FP,TN=TN,FN=FN,PPV=PPV,TPR=Sn,FPR=FPR)
+  # Accuracy
+  Acc = function(i) {
+    (TP(i) + TN(i)) / (TP(i) + TN(i) + FP(i) + FN(i))
+  }
+  # False Discovery Rate
+  FDR = function(i) {
+    1 - PPV(i)
+  }
+  list(Sp=Sp,Sn=Sn,TP=TP,FP=FP,TN=TN,FN=FN,PPV=PPV,TPR=Sn,FPR=FPR,Acc=Acc,FDR=FDR)
 }
 
 
