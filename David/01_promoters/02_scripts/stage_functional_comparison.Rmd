@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(ggplot2)
 library(GenomicRanges)
 library(parallel)
@@ -21,7 +21,7 @@ stat <- function(obsvd, exptd) {
 ## Read data
 
 
-```{r read-data}
+```{r read-data, echo=FALSE}
 # things that never become expressed or bound
 # grep -f L3.classD.wbid L1.classD.wbid  > L1L3.class.wbid
 # grep -f L1L3.class.wbid LE.classD.wbid  > LEL1L3.classQ.wbid
@@ -43,6 +43,8 @@ L3.promoters = makeGRangesFromDataFrame(L3_tsv, keep.extra.columns = T, starts.i
 L3_Q = L3.promoters$wbps_gene_id %in% classQ.wbid
 
 allGenes = L3.promoters$wbps_gene_id
+geneNames = L3.promoters$gene_name
+names(geneNames) = L3.promoters$wbps_gene_id
 ```
 
 
@@ -85,10 +87,51 @@ for (cls in c("classA","classB","classC","classD")) {
 class.lng$stage = factor(class.lng$stage, levels=c("LE","L1","L3"))
 class.lng$class = factor(class.lng$class)
 ```
-## Including Plots
 
-You can also embed plots, for example:
+## Gene counts for Axon
+```{r axon}
+synaptic_vesicle = read.table('../01_input/functional_gene_lists/GO_0030424_axon.txt',
+          sep="\t",
+          col.names=c("wbid","name","species")) %>% 
+  dplyr::filter(wbid %in% allGenes) %>% pull(wbid)
 
+synaptic_vesicle_df = class.lng %>% filter(wbid %in% synaptic_vesicle)
+summ = synaptic_vesicle_df %>% group_by(stage,class) %>% summarize(count=n())
+ggplot(summ, aes(y=count,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral") + ggtitle("Axon")
+
+counts_df = pivot_wider(summ, names_from='class', values_from='count') %>% as.data.frame()
+counts_df[is.na(counts_df)] <- 0
+rownames(counts_df) <- counts_df$stage
+counts_df = counts_df[,-1]
+knitr::kable(t(counts_df), caption="Gene counts for Axon")
+
+probs_df = counts_df/apply(counts_df, 1, sum)
+probs_df
+```
+
+## Gene counts for Presynapse
+```{r presynapse}
+synaptic_vesicle = read.table('../01_input/functional_gene_lists/GO_0098793_presynapse.txt',
+          sep="\t",
+          col.names=c("wbid","name","species")) %>% 
+  dplyr::filter(wbid %in% allGenes) %>% pull(wbid)
+
+synaptic_vesicle_df = class.lng %>% filter(wbid %in% synaptic_vesicle)
+summ = synaptic_vesicle_df %>% group_by(stage,class) %>% summarize(count=n())
+ggplot(summ, aes(y=count,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral") + ggtitle("Presynapse")
+
+counts_df = pivot_wider(summ, names_from='class', values_from='count') %>% as.data.frame()
+counts_df[is.na(counts_df)] <- 0
+rownames(counts_df) <- counts_df$stage
+counts_df = counts_df[,-1]
+knitr::kable(t(counts_df), caption="Gene counts for Presynapse")
+
+probs_df = counts_df/apply(counts_df, 1, sum)
+probs_df
+```
+
+ 
+## Gene counts for Synaptic Vesicle
 ```{r synaptic-vesicle}
 synaptic_vesicle = read.table('../01_input/functional_gene_lists/GO_0008021_synaptic_vesicle.txt',
           sep="\t",
@@ -103,13 +146,15 @@ counts_df = pivot_wider(summ, names_from='class', values_from='count') %>% as.da
 counts_df[is.na(counts_df)] <- 0
 rownames(counts_df) <- counts_df$stage
 counts_df = counts_df[,-1]
-counts_df
+knitr::kable(t(counts_df), caption="Gene counts for Synaptic vesicle")
 
 probs_df = counts_df/apply(counts_df, 1, sum)
 probs_df
+```
 
+```{r synaptic-vesicle-L1-versus-LE}
 # L1 versus LE
-NTRIALS=1e4
+NTRIALS=1e5
 NGENES=sum(counts_df['L1',])
 probs = unlist(probs_df['LE',])
 set.seed(0)
@@ -117,11 +162,16 @@ randTrials <- rmultinom(NTRIALS,NGENES,prob = probs)
 
 S0 = apply(randTrials, 2, function(x) stat(x, probs*NGENES))
 obs = stat(unlist(counts_df['L1',]), probs*NGENES)
+obs
 pval = sum(S0 >= obs)/NTRIALS
+pval
 
-colnames(randTrials) <- 1:ncol(randTrials)
-rownames(randTrials) <- c("classA","classB","classC","classD")
+LEL1.pval.str = ifelse(pval ==0, sprintf("< %.1e", 1/NTRIALS),
+                       as.character(pval))
+# colnames(randTrials) <- 1:ncol(randTrials)
+# rownames(randTrials) <- c("classA","classB","classC","classD")
 
+#ggplot(data.frame(S0=S0), aes(x=S0)) + geom_histogram(bins=100) + geom_vline(xintercept = obs)
 
 # randTrials %>% as.data.frame %>% mutate(class=rownames(randTrials)) %>% pivot_longer(cols=1:(ncol(randTrials)-1),names_to = "trial",values_to = "geneCount") -> randTrials.lng
 # 
@@ -129,9 +179,11 @@ rownames(randTrials) <- c("classA","classB","classC","classD")
 #   theme(axis.text.x=element_blank(),
 #         axis.ticks.x=element_blank() 
 #         ) + scale_fill_brewer(palette="Spectral") + ggtitle(sprintf("Simulated null distribution (using LE class proportions) for %d genes", NGENES), subtitle = sprintf("%d trials",NTRIALS)) + xlab("simulated null distribution") + ylab("number of genes")
+```
 
+```{r synaptic-vesicle-L3-versus-L1}
 # L3 versus L1
-NTRIALS=5e8
+NTRIALS=5e7
 NGENES=sum(counts_df['L3',])
 probs = unlist(probs_df['L1',])
 set.seed(0)
@@ -144,24 +196,45 @@ system.time(
 #      user  system elapsed 
 #     223.521 178.054 493.711
 })
-# create cluster cl
 
-
-
-cl = makeCluster( detectCores()-1)
+if(FALSE)
+{cl = makeCluster( detectCores()-1)
 clusterExport(cl, c("randTrials","expect", "stat"), environment())
 system.time({
   
   clusterSetRNGStream(cl,0)
   S0parallel=parApply(cl, randTrials, 2, function(x) { stat(x, expect)})
   })
-stopCluster(cl)
+stopCluster(cl)}
 
 summary(S0)
 obs = stat(unlist(counts_df['L3',]), probs*NGENES)
 obs
 pval = sum(S0 >= obs)/NTRIALS
-pval
+print(ifelse(pval==0, sprintf("p < %.1e", 1/NTRIALS), pval))
+L1L3.pval.str = ifelse(pval==0, sprintf("< %.1e", 1/NTRIALS), 
+                       as.character(pval))
+
+ggplot(summ, aes(y=count,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral") + ggtitle("Synaptic vesicle") + 
+  labs(subtitle=sprintf("multinomial statistic:\nLE to L1: p %s\nL1 to L3: p %s", LEL1.pval.str,L1L3.pval.str)) + ylab("gene count for GO term")
+
+knitr::kable(t(counts_df), caption="Gene counts for Synaptic vesicle")
+```
+## L3
+
+### Class A
+```{r get-genes-A, echo=FALSE}
+print(geneNames[synaptic_vesicle_df %>% filter(class=="classA", stage=="L3") %>% pull(wbid)])
+```
+
+### Class B
+```{r get-genes-B, echo=FALSE}
+print(geneNames[synaptic_vesicle_df %>% filter(class=="classB", stage=="L3") %>% pull(wbid)])
+```
+
+### Class C
+```{r get-genes-C, echo=FALSE}
+print(geneNames[synaptic_vesicle_df %>% filter(class=="classC", stage=="L3") %>% pull(wbid)])
 ```
 
 
