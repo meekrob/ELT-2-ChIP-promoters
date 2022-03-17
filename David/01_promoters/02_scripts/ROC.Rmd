@@ -39,7 +39,7 @@ ROC = function(scores, truth) {
   }
   # Sensitivity
   Sn = function(i) {
-    TP(i)/(TP(i) + FN(i)) # efficiency of recovering True Positives
+    TP(i)/(TP(i) + FN(i)) # efficiency of recovering set A (True Positives)
   }
   Sp = function(i) {
     TN(i)/(TN(i) + FP(i)) # success at excluding set B (True Negatives)
@@ -80,8 +80,141 @@ L3_tsv$stage = "L3"
 
 dataset = rbind(LE_tsv,L1_tsv,L3_tsv) %>% 
   filter(class %in% c("classA","classB")) %>% 
-           dplyr::select(stage,class,IDR_logTEN_max,IDR_logTEN_mean, IDR_logTEN_value, IDR_logTEN_sum)
+           dplyr::select(stage,class,IDR_logTEN_max,IDR_logTEN_mean, IDR_logTEN_value, IDR_logTEN_sum,IDR_nlogq)
 
 dataset$class = factor(dataset$class, levels=c("classA","classB"))
 dataset$stage = factor(dataset$stage, levels=c("LE","L1","L3"))
+
+long = dataset %>% pivot_longer(cols=IDR_logTEN_max:IDR_nlogq,names_to="score") %>% group_by(stage,score)
+
+```
+
+```{r}
+lapply(split(long, ~ stage + score), function(dataset){
+  stage_name = as.character(dataset$stage[1])
+  score_name = as.character(dataset$score[1])
+  
+  roc = ROC(dataset$value, dataset$class == "classA")
+  thresholds = seq(min(dataset$value), max(dataset$value), length.out=100)
+  df = data.frame(stage=stage_name,
+                  score=score_name,
+                  TP=roc$TP(thresholds),
+                  FP=roc$FP(thresholds),
+                  TN=roc$TN(thresholds),
+                  FN=roc$FN(thresholds),
+                  TPR=roc$TPR(thresholds),
+                  FPR=roc$FPR(thresholds),
+                  Acc=roc$Acc(thresholds),
+                  FDR=roc$FDR(thresholds),
+                  PPV=roc$PPV(thresholds),
+                  threshold=thresholds)
+}) -> result.list
+result.df = dplyr::bind_rows(result.list)
+result.df$stage = factor(result.df$stage, levels=c("LE","L1","L3")) # lost during the split
+```
+
+```{r}
+
+result.df %>%
+  ggplot(aes(x=FPR,y=TPR,color=stage)) + 
+  geom_line() + 
+  facet_wrap(~score) + 
+  geom_abline(slope=1) +
+  ggtitle("ROC plot: Power of binding scores in peaks\n to predict intestine enrichment") +
+  xlab("False positive rate") +
+  ylab("True positive rate")
+
+ggplot(result.df %>% filter(score=="IDR_logTEN_mean"), aes(x=threshold,y=PPV, color=stage)) + geom_line() 
+
+ggsave("ROC.pdf",width = 12)
+```
+
+```{r do-TPR}
+result.df %>% group_by(stage) %>% mutate(TPR_score = TPR-FPR) %>% filter(TPR_score == max(TPR_score)) %>% arrange(desc(TPR_score)) -> best_scores
+
+result.df %>% dplyr::select(stage,score,threshold,TPR,FPR) %>% 
+  filter(score %in% c("IDR_logTEN_max","IDR_logTEN_mean")) %>% 
+  pivot_longer(cols=c('TPR','FPR'),names_to="measure")  -> TFPR_obj
+head(TFPR_obj)
+
+TFPR_obj$stage = factor(TFPR_obj$stage, levels=c('LE','L1','L3'))
+TFPR_obj$measure = factor(TFPR_obj$measure, levels=c('TPR','FPR'))
+```
+
+
+```{r LE-TPR-plot}
+LE_best_score = best_scores %>% filter(stage == "LE")
+x = LE_best_score %>% pull(threshold)
+y.TPR = LE_best_score %>% pull(TPR)
+y.FPR = LE_best_score %>% pull(FPR)
+
+TFPR_obj %>% filter(stage == "LE", 
+                    score == "IDR_logTEN_max") %>%
+  ggplot(aes(x=threshold,y=value,color=measure)) + 
+  geom_line() + 
+  scale_color_manual(values=c("black","red")) +
+  # segments,points,label showing the threshold
+  geom_segment(x=x,xend=x,
+               y=0, yend=y.FPR,color='grey') +
+  geom_segment(x=x,xend=x,
+               y=y.TPR, yend=y.FPR,color='black') +
+  geom_point(x=x, y=y.TPR, color="black", size=.75) +
+  geom_point(x=x, y=y.FPR, color="black", size=.75) +
+  geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
+  geom_hline(yintercept=0) +
+  geom_point(x=x, y=0, color="black", size=.75) +
+  ggtitle("LE: maximum difference between true positive rate and false positive rate") +
+          xlab("log10 of max signal in peak")
+
+```
+
+```{r L1-TPR-plot}
+
+L1_best_score = best_scores %>% filter(stage == "L1")
+x = L1_best_score %>% pull(threshold)
+y.TPR = L1_best_score %>% pull(TPR)
+y.FPR = L1_best_score %>% pull(FPR)
+
+TFPR_obj %>% filter(stage == "L1", 
+                    score == "IDR_logTEN_mean") %>%
+  ggplot(aes(x=threshold,y=value,color=measure)) + 
+  geom_line() + 
+  scale_color_manual(values=c("black","red")) +
+  # segments,points,label showing the threshold
+  geom_segment(x=x,xend=x,
+               y=0, yend=y.FPR,color='grey') +
+  geom_segment(x=x,xend=x,
+               y=y.TPR, yend=y.FPR,color='black') +
+  geom_point(x=x, y=y.TPR, color="black", size=.75) +
+  geom_point(x=x, y=y.FPR, color="black", size=.75) +
+  geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
+  geom_hline(yintercept=0) +
+  geom_point(x=x, y=0, color="black", size=.75) +
+  ggtitle("L1: maximum difference between true positive rate and false positive rate")+
+          xlab("log10 of mean signal in peak")
+```
+```{r L3-TPR-plot}
+
+L3_best_score = best_scores %>% filter(stage == "L3")
+x = L3_best_score %>% pull(threshold)
+y.TPR = L3_best_score %>% pull(TPR)
+y.FPR = L3_best_score %>% pull(FPR)
+
+TFPR_obj %>% filter(stage == "L3", 
+                    score == "IDR_logTEN_mean") %>%
+  ggplot(aes(x=threshold,y=value,color=measure)) + 
+  geom_line() + 
+  scale_color_manual(values=c("black","red")) +
+  # segments,points,label showing the threshold
+  geom_segment(x=x,xend=x,
+               y=0, yend=y.FPR,color='grey') +
+  geom_segment(x=x,xend=x,
+               y=y.TPR, yend=y.FPR,color='black') +
+  geom_point(x=x, y=y.TPR, color="black", size=.75) +
+  geom_point(x=x, y=y.FPR, color="black", size=.75) +
+  geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
+  geom_hline(yintercept=0) +
+  geom_point(x=x, y=0, color="black", size=.75) +
+  ggtitle("L3: maximum difference between true positive rate and false positive rate") +
+          xlab("log10 of mean signal in peak")
 ```
