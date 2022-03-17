@@ -24,6 +24,7 @@ Load Libraries
 library(tidyverse)
 library(InterMineR)
 library(ComplexHeatmap)
+library(biomaRt)
 ```
 
 # load genes lists from WormBase
@@ -56,12 +57,31 @@ for(i in 1:length(tissues)){
 }
 table(gene_tissue_annotations$tissue)
 ```
+# Add ubiquitous genes
+
+```{r}
+ub_genes <- read_csv(file = "../01_input/Rechtsteiner_et_al_2010_Table_S2.csv", col_names = "wormbase_gseq")
+
+paramart <- biomaRt::useMart("parasite_mart", dataset = "wbps_gene", host = "https://parasite.wormbase.org", port = 443)
+
+ub_genes <- biomaRt::getBM(
+  mart = paramart,
+  filter = c("wormbase_gseqname"),
+  value = ub_genes$wormbase_gseq,
+  attributes = c("wbps_gene_id","wormbase_gseq", "wikigene_name"))
+
+ub_genes<- ub_genes %>% rename(WBGeneID = "wbps_gene_id")
+```
+
+Remove ubiquitous genes from the tissue specific list and then add on ubiquitous genes
+```{r}
+gene_tissue_annotations <- gene_tissue_annotations %>% filter(!(WBGeneID %in% ub_genes$WBGeneID)) %>%
+  bind_rows(data.frame(WBGeneID = ub_genes[,colnames(ub_genes) == "WBGeneID"], Sequence.name = ub_genes[,colnames(ub_genes) == "wikigene_name"],Species = "Caenorhabditis elegans", tissue = "ubiquitous"))
+```
 
 # Gene overlap of tissue assignment
 
 ```{r}
-
-filter(gene_tissue_annotations, tissue == "intestine")$WBGeneID
 lt = list(intestine = filter(gene_tissue_annotations, tissue == "intestine")$WBGeneID,
           pharyngeal.intestinal.valve = filter(gene_tissue_annotations, tissue == "pharyngeal-intestinal-valve")$WBGeneID,
           rectum = filter(gene_tissue_annotations, tissue == "rectum")$WBGeneID,
@@ -70,7 +90,8 @@ lt = list(intestine = filter(gene_tissue_annotations, tissue == "intestine")$WBG
           epithelial.system = filter(gene_tissue_annotations, tissue == "epithelial-system")$WBGeneID,
           nervous.system = filter(gene_tissue_annotations, tissue == "nervous-system")$WBGeneID,
           reproductive.system = filter(gene_tissue_annotations, tissue == "reproductive-system")$WBGeneID,
-          muscular.system = filter(gene_tissue_annotations, tissue == "muscular-system")$WBGeneID)
+          muscular.system = filter(gene_tissue_annotations, tissue == "muscular-system")$WBGeneID,
+          ubiquitous = filter(gene_tissue_annotations, tissue == "ubiquitous")$WBGeneID)
 
 m1 <- make_comb_mat(lt)
 UpSet(m1)
@@ -96,6 +117,7 @@ ggplot(tissue_specific_genes_totals, aes(x = tissue, y = gene_total))+
   geom_bar(stat = "identity") +
   coord_flip()
 ```
+
 # UpSet plot sanity check
 
 ```{r}
@@ -113,7 +135,7 @@ m1 <- make_comb_mat(lt)
 UpSet(m1)
 ```
 
-#export the tissue specific gene dataframe
+# export the tissue specific gene dataframe
 
 ```{r}
 write_csv(tissue_specific_genes %>% dplyr::select(-sum_tissues, -Species), file = "../03_output/tissue_specific_genes_220202.csv", col_names = TRUE)
@@ -122,7 +144,7 @@ write_csv(tissue_specific_genes %>% dplyr::select(-sum_tissues, -Species), file 
 
 
 
-# WormMine Crap
+<!-- # WormMine Crap -->
 
 <!-- Add developmental stage information via WormMine -->
 
