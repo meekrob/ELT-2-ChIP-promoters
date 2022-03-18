@@ -1,0 +1,242 @@
+---
+title: "elt2_target_analysis"
+author: "Robert Williams"
+date: "3/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# TO DO
+Add hypergeometric expected and pvalues to bar graphs
+
+
+load packages
+
+```{r}
+library(tidyverse)
+```
+
+load data files
+```{r}
+elt2_regulated_genes <- read_csv(file = "../../05_elt2_RNAseq/03_output/elt2_regulated_gene_sets.csv")
+
+L1_chip <- read.table(file = "../../../David/01_promoters/03_output/L1.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID")
+
+L1_alt_hyp_res_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/L1_GFPplus_vs_GFPminus_alt_hyp_res.csv")
+```
+
+Join the data
+
+```{r}
+L1_rna_chip <- L1_chip %>% mutate(promoter_status = case_when(!is.na(IDR_mean) ~ "bound",
+                                               is.na(IDR_mean) ~ "not_bound")) %>% 
+  left_join(L1_alt_hyp_res_df %>% filter(isDE == TRUE) %>% select(-(baseMean:padj), -isDE), by = "WBGeneID") %>%
+  left_join(elt2_regulated_genes %>% select(-wormbase_gseq, -wikigene_name), by = "WBGeneID") %>%
+  mutate(L1_intestine = case_when(type == "greater" ~ "enriched",
+                                  TRUE ~ "not_enriched")) %>%
+  select(WBGeneID, promoter_status, description, L1_intestine) %>%
+  rename(elt2_ko = "description")
+
+head(L1_rna_chip)
+
+sum(is.na(L1_rna_chip$L1_intestine))
+
+table(L1_rna_chip$L1_intestine, L1_rna_chip$promoter_status)
+```
+
+# Question: How many intestine enriched genes have ELT-2 binding?
+
+```{r}
+L1_rna_chip %>% group_by(L1_intestine, promoter_status) %>% summarise(genes = n()) %>% 
+  ggplot(aes(x = promoter_status, y = log10(genes))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~L1_intestine)
+```
+Interpretation: More intestine enriched genes are bound by ELT-2, but X% are not bound. More not intestine enriched genes are bound than intestine enriched. Are the genes numbers more or less than expected by chance?
+
+Add hypergeometric statistic. Are these numbers more or less than by chance
+
+```{r}
+# IAMHERE!
+bound_expressed_hyper <- L1_rna_chip %>% 
+  group_by(L1_intestine, promoter_status) %>% 
+  summarise(observed = n()) %>% 
+  ungroup() %>% 
+  group_by(L1_intestine) %>% 
+  mutate(intestine_totals = sum(observed)) %>% 
+  ungroup() %>%
+  group_by(promoter_status) %>% 
+  mutate(promoter_totals = sum(observed), pop_bound_success = 3240, pop_bound_fail = 16745) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(dhyper = dhyper(x = observed, k = intestine_totals , m = pop_bound_success, n = pop_bound_fail),
+         expected = intestine_totals*pop_bound_success/(pop_bound_success+pop_bound_fail)) %>%
+  pivot_longer(cols = c(observed, expected), names_to = "gene_type", values_to = "genes")%>%
+  ungroup() %>%
+  mutate(padj = p.adjust(dhyper, method = "BH")) %>%
+  mutate(star = case_when(gene_type == "observed" & padj > 0.01 ~ "~",
+                          gene_type == "observed" & padj < 1*10^-10 ~ "***",
+                          gene_type == "observed" & padj < 1*10^-5 ~ "**",
+                          gene_type == "observed" & padj < 0.01 ~ "*"))
+
+bound_expressed_hyper
+```
+
+
+```{r fig.width=5.5, fig.height = 3}
+bound_expressed_hyper_plot <- bound_expressed_hyper %>%
+  ggplot(aes(x = promoter_status, y = genes, fill = gene_type, label = star)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_text(vjust = 0, hjust = 0) +
+  scale_fill_manual(values = c("grey", "black")) +
+  theme_bw() +
+  facet_wrap(~L1_intestine)
+bound_expressed_hyper_plot
+ggsave(bound_expressed_hyper_plot, file = "../03_output/bound_expressed_gene_counts_plot.pdf", width = 5.5, height = 3)
+```
+
+
+```{r}
+L1_rna_chip %>% 
+  group_by(L1_intestine, promoter_status) %>% 
+  summarise(genes = n()) %>% 
+  ungroup() %>% 
+  group_by(L1_intestine) %>% 
+  mutate(intestine_totals = sum(genes)) %>% 
+  ungroup() %>%
+  group_by(promoter_status) %>% 
+  mutate(promoter_totals = sum(genes)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = promoter_status, values_from = promoter_totals)
+  # x = total number of successes in the sample size
+  # k = sample size
+  # m = population successes
+  # n = population non-successes
+```
+
+
+```{r}
+# bound enriched genes
+dhyper(x = 16131, k = 18500, m = 3240, n = 16745)
+
+
+```
+
+
+# Question: How many ELT-2 targets are differentially expressed
+
+```{r}
+L1_rna_chip %>% drop_na(elt2_ko) %>% group_by(elt2_ko, promoter_status) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = elt2_ko, y = genes)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~promoter_status)
+```
+Interpretation: Most genes do not respond to ELT-2 deletion, either bound or not bound. A subset of bound genes are up, and a subset are down - consider as direct regulated targets. A subset of genes not bound by ELT-2 also respond to ELT-2 deletion - consider as indirect targets. Higher transcript abundance in the absence of ELT-2 suggests repression or negative regulation. The large number negatively regulated bound genes is surprising, as ELT-2 is considered a transcriptional activator.
+
+```{r}
+bound_regulated_hyper <- L1_rna_chip %>% drop_na(elt2_ko) %>% group_by(elt2_ko, promoter_status) %>% summarise(observed = n()) %>%
+  ungroup() %>% 
+  group_by(elt2_ko) %>% 
+  mutate(elt2_ko_totals = sum(observed)) %>% 
+  ungroup() %>%
+  group_by(promoter_status) %>% 
+  mutate(promoter_totals = sum(observed)) %>%
+  mutate(pop_bound_success = 2239, pop_bound_fail = 6285) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(dhyper = dhyper(x = observed, k = elt2_ko_totals , m = pop_bound_success, n = pop_bound_fail),
+         expected = elt2_ko_totals*pop_bound_success/(pop_bound_success+pop_bound_fail)) %>%
+  pivot_longer(cols = c(observed, expected), names_to = "gene_type", values_to = "genes")%>%
+  ungroup() %>%
+  mutate(padj = p.adjust(dhyper, method = "BH")) %>%
+  mutate(star = case_when(
+    gene_type == "observed" & padj < 1*10^-10 ~ "***",
+    gene_type == "observed" & padj < 1*10^-5 ~ "**",
+    gene_type == "observed" & padj < 0.01 ~ "*"
+                          ))
+
+bound_regulated_hyper
+```
+
+```{r fig.width=5.5, fig.height = 3}
+bound_regulated_hyper_plot <- bound_regulated_hyper %>% filter(promoter_status == "bound") %>%
+  ggplot(aes(x = elt2_ko, y = genes, fill = gene_type, label = star)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(vjust = 0, hjust = 0) +
+  scale_fill_manual(values = c("grey", "black")) +
+  theme_bw() 
+# +
+#   facet_wrap(~promoter_status)
+
+bound_regulated_hyper_plot
+
+ggsave(bound_regulated_hyper_plot, file = "../03_output/bound_only_regulated_gene_counts_plot.pdf", width = 5.5, height = 3)
+```
+
+# Question: Are bound and differentially expressed genes intestine enriched?
+
+```{r}
+L1_rna_chip %>% filter(promoter_status == "bound") %>% drop_na(elt2_ko) %>% group_by(elt2_ko, L1_intestine) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = L1_intestine, y = genes)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~elt2_ko, scales = "free")
+```
+Interpretation: Repressed target genes are representative of both intestine enriched and not intestine enriched genes. Activated target genes are primarily intestine enriched. Targets independent of ELT-2 regulation are primarily not intestine enriched.
+
+Add hypergeometric expected
+```{r}
+bound_intestine_regulated_genes <- L1_rna_chip %>% filter(promoter_status == "bound") %>% drop_na(elt2_ko) %>% group_by(elt2_ko, L1_intestine) %>% summarise(observed = n()) %>%
+  ungroup() %>%
+group_by(elt2_ko) %>% 
+  mutate(elt2_ko_totals = sum(observed)) %>% 
+  ungroup() %>%
+  group_by(L1_intestine) %>% 
+  mutate(intestine_totals = sum(observed)) %>%
+  mutate(pop_bound_success = 541, pop_bound_fail = 1698) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(dhyper = dhyper(x = observed, k = elt2_ko_totals , m = pop_bound_success, n = pop_bound_fail),
+         expected = elt2_ko_totals*pop_bound_success/(pop_bound_success+pop_bound_fail)) %>%
+  pivot_longer(cols = c(observed, expected), names_to = "gene_type", values_to = "genes")%>%
+  ungroup() %>%
+  mutate(padj = p.adjust(dhyper, method = "BH")) %>%
+  mutate(star = case_when(gene_type == "observed" & padj < 0.01 ~ "*",
+                          gene_type == "observed" & padj < 1*10^-5 ~ "**",
+                          gene_type == "observed" & padj < 1*10^-10 ~ "***"))
+
+bound_intestine_regulated_genes
+```
+
+```{r fig.width=6, fig.height = 3}
+bound_intestine_regulated_genes_plot <- bound_intestine_regulated_genes %>%
+  ggplot(aes(x = L1_intestine, y = genes, fill = gene_type, label = star)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(vjust = 0.01, hjust = -1.5) +
+  scale_fill_manual(values = c("grey", "black")) +
+  theme_bw() +
+  facet_wrap(~elt2_ko)
+
+bound_intestine_regulated_genes_plot
+
+ggsave(bound_intestine_regulated_genes_plot, file = "../03_output/bound_intestine_regulated_gene_counts_plot.pdf", width = 6, height = 3)
+```
+
+
+# Question: what tissues are ELT-2 regulated genes expressed in?
+
+```{r}
+tissue_specific_genes <- read_csv(file = "../../01_tissue_specific_genes/03_output/tissue_specific_genes_220202.csv")
+```
+
+```{r}
+L1_rna_chip %>% filter(promoter_status == "bound", elt2_ko != "unchanged_ELT2_minus") %>% inner_join(tissue_specific_genes, by = "WBGeneID") %>%
+  group_by(tissue, elt2_ko) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = tissue, y = genes)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  facet_wrap(~elt2_ko)
+```
+Interpretation: ELT-2 repressed targets are expressed in both intestine and reproductive, nervous, and muscular systems. ELT-2 activated targets are primarily intestine genes with some muscle and epithelial genes.
