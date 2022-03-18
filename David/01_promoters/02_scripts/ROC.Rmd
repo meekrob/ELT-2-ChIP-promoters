@@ -124,7 +124,7 @@ result.df %>%
   xlab("False positive rate") +
   ylab("True positive rate")
 
-ggplot(result.df %>% filter(score=="IDR_logTEN_mean"), aes(x=threshold,y=PPV, color=stage)) + geom_line() 
+ggplot(result.df %>% filter(score=="IDR_logTEN_mean"), aes(x=FDR,y=TPR, color=stage)) + geom_line() 
 
 ggsave("ROC.pdf",width = 12)
 ```
@@ -164,7 +164,22 @@ TFPR_obj %>% filter(stage == "LE",
   geom_hline(yintercept=0) +
   geom_point(x=x, y=0, color="black", size=.75) +
   ggtitle("LE: maximum difference between true positive rate and false positive rate") +
-          xlab("log10 of max signal in peak")
+          xlab("log10 of max signal in peak") +       
+          geom_text(
+            inherit.aes=F,
+            aes(x=2.18, y=.85), 
+            #position=position_nudge(x=.6), 
+            hjust=0,
+            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR: false discovery rate %.0f/%.0f classB (%.1f%%)",
+                          LE_best_score$TP,
+                          LE_best_score$TP + LE_best_score$FN, 
+                          LE_best_score$TPR * 100,
+                          LE_best_score$FP,
+                          LE_best_score$FP  + LE_best_score$TN,
+                          LE_best_score$FPR * 100,
+                          LE_best_score$FP,
+                          LE_best_score$FP  + LE_best_score$TP,
+                          LE_best_score$FDR * 100))
 
 ```
 
@@ -191,7 +206,21 @@ TFPR_obj %>% filter(stage == "L1",
   geom_hline(yintercept=0) +
   geom_point(x=x, y=0, color="black", size=.75) +
   ggtitle("L1: maximum difference between true positive rate and false positive rate")+
-          xlab("log10 of mean signal in peak")
+          xlab("log10 of mean signal in peak") + 
+           geom_text(
+            inherit.aes=F,
+            aes(x=2.5, y=.9), hjust=0,
+            #position=position_nudge(x=.6), 
+            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
+                          L1_best_score$TP,
+                          L1_best_score$TP + L1_best_score$FN, 
+                          L1_best_score$TPR * 100,
+                          L1_best_score$FP,
+                          L1_best_score$FP  + L1_best_score$TN,
+                          L1_best_score$FPR * 100,
+                          L1_best_score$FP,
+                          L1_best_score$FP + L1_best_score$TP,
+                          L1_best_score$FDR * 100))
 ```
 ```{r L3-TPR-plot}
 
@@ -216,5 +245,37 @@ TFPR_obj %>% filter(stage == "L3",
   geom_hline(yintercept=0) +
   geom_point(x=x, y=0, color="black", size=.75) +
   ggtitle("L3: maximum difference between true positive rate and false positive rate") +
-          xlab("log10 of mean signal in peak")
+          xlab("log10 of mean signal in peak") +
+           geom_text(
+            inherit.aes=F,
+            aes(x=2.45, y=.9), hjust=0,
+            #position=position_nudge(x=.6), 
+            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
+                          L3_best_score$TP,
+                          L3_best_score$TP + L3_best_score$FN, 
+                          L3_best_score$TPR * 100,
+                          L3_best_score$FP,
+                          L3_best_score$FP  + L3_best_score$TN,
+                          L3_best_score$FPR * 100,
+                          L1_best_score$FP,
+                          L3_best_score$FP + L3_best_score$TP,
+                          L3_best_score$FDR * 100))
+```
+```{r ROC-best}
+TFPR_obj %>% filter((stage == 'LE' & score == "IDR_logTEN_max") |
+                    (stage != 'LE' & score == "IDR_logTEN_mean")) %>%
+              pivot_wider(names_from='measure', values_from = 'value') -> ROC.df
+
+ROC.df %>%
+  ggplot(aes(x=FPR,y=TPR,color=stage)) + 
+  geom_line() + 
+  geom_abline(slope=1) +
+  ggtitle("ROC plot: Power of binding scores in peaks\n to predict intestine enrichment") +
+  xlab("False positive rate") +
+  ylab("True positive rate") +
+  geom_point(aes(x=LE_best_score$FPR,y=LE_best_score$TPR,color=LE_best_score$stage))+
+  geom_point(aes(x=L1_best_score$FPR,y=L1_best_score$TPR,color=L1_best_score$stage))+
+  geom_point(aes(x=L3_best_score$FPR,y=L3_best_score$TPR,color=L3_best_score$stage))
+
+
 ```
