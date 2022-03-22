@@ -19,104 +19,205 @@ library(tidyverse)
 Import intestine expression data
 
 ```{r}
-embryo_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/embryo_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
-L1_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/L1_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
-L3_rlog_status_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/L3_GFPplus_rlog_counts_status_df.csv", col_names = TRUE)
+GFPplus_samples_rlog_counts <- read_table(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv")
+```
+
+
+Import intestine vs non-intestine expression data
+
+```{r}
+res_embryoGFPplus_vs_embryoGFPminus_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv", col_names = TRUE)
+res_L1GFPplus_vs_L1GFPminus_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv", col_names = TRUE)
+res_L3GFPplus_vs_L3GFPminus_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv", col_names = TRUE)
+```
+
+Import intestine categories
+
+```{r}
+embryo_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/embryo_intestine_gene_categories.csv")
+L1_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/L1_intestine_gene_categories.csv")
+L3_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/L3_intestine_gene_categories.csv")
 ```
 
 
 Import promoter ChIP-seq data
 
 ```{r}
-promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
+L1.promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/L1.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
+L3.promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/L3.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
+LE.promoters.hilo <- read.table(file = "../../../David/01_promoters/03_output/LE.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID:IDR_nlogq)
 ```
 
 ```{r}
-elt2chip_embryo_rlog_status_df <- promoters.hilo %>% full_join(embryo_rlog_status_df, by = "WBGeneID") %>% mutate(status = replace_na(status, "no_sig_diff"))
-head(elt2chip_embryo_rlog_status_df)
+elt2chip_embryo_intestine_df <- LE.promoters.hilo %>% 
+  full_join(res_embryoGFPplus_vs_embryoGFPminus_df, by = "WBGeneID") %>% 
+  left_join(embryo_intestine_gene_categories, by = "WBGeneID") %>% 
+  left_join(GFPplus_samples_rlog_counts %>% select(WBGeneID, contains("embryo")), by = "WBGeneID") %>% 
+  drop_na(baseMean) %>%
+  rowwise() %>%
+  mutate(mean_rlog = mean(embryo_GFPplus_rep1, embryo_GFPplus_rep2, embryo_GFPplus_rep3))
+
+elt2chip_L1_intestine_df <- L1.promoters.hilo %>% 
+  full_join(res_L1GFPplus_vs_L1GFPminus_df, by = "WBGeneID") %>% 
+  left_join(L1_intestine_gene_categories, by = "WBGeneID") %>% 
+  left_join(GFPplus_samples_rlog_counts %>% select(WBGeneID, contains("L1")), by = "WBGeneID") %>% 
+  drop_na(baseMean) %>%
+  rowwise() %>%
+  mutate(mean_rlog = mean(L1_GFPplus_rep1, L1_GFPplus_rep3))
+
+elt2chip_L3_intestine_df <- L3.promoters.hilo %>% 
+  full_join(res_L3GFPplus_vs_L3GFPminus_df, by = "WBGeneID") %>% 
+  left_join(L3_intestine_gene_categories, by = "WBGeneID") %>% 
+  left_join(GFPplus_samples_rlog_counts %>% select(WBGeneID, contains("L3")), by = "WBGeneID") %>% 
+  drop_na(baseMean) %>%
+  rowwise() %>%
+  mutate(mean_rlog = mean(L3_GFPplus_rep1, L3_GFPplus_rep2, L3_GFPplus_rep3))
+
 ```
 
+# Correlate normalized read counts in intestine RNA-seq samples to ELT-2 ChIP-seq promoter reads
+
 ```{r fig.width=6, fig.height=3}
-elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
-  ggplot(aes(x = mean.rlog.counts, y = log10(IDR_mean))) +
+elt2chip_embryo_intestine_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = log10(IDR_mean), y = mean_rlog)) +
   geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
   # geom_smooth(method = "lm", formula = y~x) +
   # stat_summary(fun.data = "mean_cl_boot") +
   ggpubr::stat_cor(method = "pearson") +
-  facet_grid(~status) + 
+  facet_grid(~intestine_expression) +
   theme_bw()
 ```
+## Write plotting function
 
-
-```{r fig.width=6, fig.height=2.5}
-elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
-  ggplot(aes(x = mean.rlog.counts, y= log10(IDR_mean))) +
+```{r}
+regression_IDRpeak_rlog_expression_type <- function(in_df){
+in_df %>% drop_na(IDR_mean, intestine_expression) %>%
+  ggplot(aes(x = log10(IDR_mean), y = mean_rlog)) +
   geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
   geom_smooth(method = "lm", formula = y~x) +
-  ggpubr::stat_cor(method = "pearson", label.y = 3.2) +
+  ggpubr::stat_cor(method = "pearson") +
   ggpubr::stat_regline_equation(label.y = 3) +
-  geom_text(x = 4, y = 2.8, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
-  facet_grid(.~status) + 
+  geom_text(x = 4, y = 2.8, aes(label = gene_total), data = in_df %>% drop_na(IDR_mean, intestine_expression) %>% group_by(intestine_expression) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~intestine_expression) + 
   theme_classic()
+}
 
-# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
-```
-```{r fig.width=3, fig.height=2.5}
-elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean) %>%
-  ggplot(aes(x = mean.rlog.counts, y= log(IDR_mean))) +
+regression_IDRpeak_rlog_all_genes <- function(in_df){
+  in_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = log(IDR_mean), y = mean_rlog)) +
   geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
   geom_smooth(method = "lm", formula = y~x) +
   ggpubr::stat_cor(method = "pearson", label.y = 12) +
   ggpubr::stat_regline_equation(label.y = 11) +
   # geom_text(x = 1, y = 2.8, label = "hello world") +
-  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(elt2chip_embryo_rlog_status_df %>% drop_na(IDR_mean)), sep = "")) +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(in_df %>% drop_na(IDR_mean)), sep = "")) +
   # facet_grid(.~status) + 
   theme_classic() +
   ggtitle("correlation with all genes")
+}
 
-# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
-```
-
-```{r fig.width=6, fig.height=2.5}
-knitr::opts_chunk$set(dev = 'pdf')
-elt2chip_embryo_rlog_status_df %>% 
-  ggplot(aes(x = mean.rlog.counts, y= log_chip_signal_mean)) +
+regression_promSignal_rlog_intestine_type <- function(in_df){
+  in_df %>% drop_na(intestine_expression) %>%
+  ggplot(aes(x = log_chip_signal_mean, y= mean_rlog)) +
   geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
   geom_smooth(method = "lm", formula = y~x) +
   ggpubr::stat_cor(method = "pearson", label.y = 11) +
   ggpubr::stat_regline_equation(label.y = 10) +
-  geom_text(x = 5, y = 9, aes(label = gene_total), data = elt2chip_embryo_rlog_status_df %>% group_by(status) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
-  facet_grid(.~status) + 
+  geom_text(x = 5, y = 9, aes(label = gene_total), data = in_df %>% drop_na(intestine_expression) %>% group_by(intestine_expression) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~intestine_expression) + 
   theme_classic()
+}
 
-# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_All_Promoters.pdf", width = 6, height = 3, dpi = 300)
+regression_promSignal_rlog_all_genes <- function(in_df){
+  in_df %>% 
+  ggplot(aes(x = log_chip_signal_mean, y= mean_rlog)) +
+  geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 11) +
+  ggpubr::stat_regline_equation(label.y = 10) +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(in_df %>% drop_na(IDR_mean)), sep = "")) +
+  theme_classic()
+}
 ```
 
+## Embryo correlation
+
+```{r fig.width=6, fig.height=2.5}
+
+regression_IDRpeak_rlog_expression_type(elt2chip_embryo_intestine_df)
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
+```
 ```{r fig.width=3, fig.height=2.5}
-elt2chip_embryo_rlog_status_df %>% 
-  ggplot(aes(x = mean.rlog.counts, y= log_chip_signal_mean)) +
-  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
-  geom_smooth(method = "lm", formula = y~x) +
-  ggpubr::stat_cor(method = "pearson", label.y = 12) +
-  ggpubr::stat_regline_equation(label.y = 11) +
-  # geom_text(x = 1, y = 2.8, label = "hello world") +
-  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(elt2chip_embryo_rlog_status_df), sep = "")) +
-  # facet_grid(.~status) + 
-  theme_classic() +
-  ggtitle("correlation with all genes")
+
+regression_IDRpeak_rlog_all_genes(elt2chip_embryo_intestine_df)
 
 # ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
 ```
 
+```{r fig.width=6, fig.height=2.5}
+
+regression_promSignal_rlog_intestine_type(elt2chip_embryo_intestine_df)
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_All_Promoters.pdf", width = 6, height = 3, dpi = 300)
+```
+
+```{r fig.width=3, fig.height=2.5}
+regression_promSignal_rlog_all_genes(elt2chip_embryo_intestine_df)
+
+# ggsave(filename = "../03_output/PearsonCorrelation_embryoGFPplus_vs_ELT2_ChIP_Seq_Bound.pdf", width = 6, height = 3, dpi = 300)
+```
+
+## L1 correlation
+
+```{r}
+regression_promSignal_rlog_all_genes(elt2chip_L1_intestine_df)
+```
+```{r}
+regression_promSignal_rlog_intestine_type(elt2chip_L1_intestine_df)
+```
+```{r}
+regression_IDRpeak_rlog_all_genes(elt2chip_L1_intestine_df)
+```
+```{r}
+regression_IDRpeak_rlog_expression_type(elt2chip_L1_intestine_df)
+```
+
+## L3 correlation
+
+```{r}
+regression_promSignal_rlog_all_genes(elt2chip_L3_intestine_df)
+```
+```{r}
+regression_promSignal_rlog_intestine_type(elt2chip_L3_intestine_df)
+```
+```{r}
+regression_IDRpeak_rlog_all_genes(elt2chip_L3_intestine_df)
+```
+```{r}
+regression_IDRpeak_rlog_expression_type(elt2chip_L3_intestine_df)
+```
+
+
+
 ```{r fig.width=5, fig.height=2}
-elt2chip_embryo_rlog_status_df %>% 
-  ggplot(aes(x = mean.rlog.counts)) +
+elt2chip_embryo_intestine_df %>% 
+  ggplot(aes(x = mean_rlog)) +
   geom_histogram() +
   # geom_point(shape = 19, size = 0.5, alpha = 0.1) +
   # geom_smooth(method = "lm", formula = y~x) +
   # stat_summary(fun.data = "mean_cl_boot") +
   # ggpubr::stat_cor(method = "pearson") +
-  facet_grid(~status)
+  facet_grid(~intestine_expression)
+```
+```{r fig.width=5, fig.height=2}
+elt2chip_embryo_intestine_df %>% 
+  ggplot(aes(x = log_chip_signal_mean)) +
+  geom_histogram() +
+  # geom_point(shape = 19, size = 0.5, alpha = 0.1) +
+  # geom_smooth(method = "lm", formula = y~x) +
+  # stat_summary(fun.data = "mean_cl_boot") +
+  # ggpubr::stat_cor(method = "pearson") +
+  facet_grid(~intestine_expression)
 ```
 
 ```{r}
@@ -140,30 +241,118 @@ yomamam<-lm(log_chip_signal_mean~mean.rlog.counts*status,data = elt2chip_embryo_
 summary(yomamam)
 ```
 
-# Correlate embryo log2FoldChange to to ELT-2 ChIP-seq
+# Correlate log2FoldChange to to ELT-2 ChIP-seq
+
+## Write plotting function
 
 ```{r}
-embryo_all_pairwise_res <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/embryo_all_pairwise_res.csv")
+regression_IDRpeak_LFC_intestine_type <- function(in_df){
+in_df %>% drop_na(IDR_mean, intestine_expression) %>%
+  ggplot(aes(x = log10(IDR_mean), y = log2FoldChange)) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson") +
+  ggpubr::stat_regline_equation(label.y = 3) +
+  geom_text(x = 4, y = 2.8, aes(label = gene_total), data = in_df %>% drop_na(IDR_mean, intestine_expression) %>% group_by(intestine_expression) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~intestine_expression) + 
+  theme_classic()
+}
 
-embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange > -10, !is.na(padj)) %>% 
-  left_join(promoters.hilo, by = "WBGeneID") %>%
-  ggplot(aes(x = log2FoldChange, y = log_chip_signal_mean)) +
-  geom_point(alpha = 0.1, size = 0.25) +
-  ggpubr::
+regression_IDRpeak_LFC_all_genes <- function(in_df){
+  in_df %>% drop_na(IDR_mean) %>%
+  ggplot(aes(x = log(IDR_mean), y = log2FoldChange)) +
+  geom_point(shape = 19, size = 0.5, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 12) +
+  ggpubr::stat_regline_equation(label.y = 11) +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(in_df %>% drop_na(IDR_mean)), sep = "")) +
+  theme_classic() +
+  ggtitle("correlation with all genes")
+}
+
+regression_promSignal_LFC_intestine_type <- function(in_df){
+  in_df %>% drop_na(intestine_expression) %>%
+  ggplot(aes(x = log_chip_signal_mean, y= log2FoldChange)) +
+  geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 11) +
+  ggpubr::stat_regline_equation(label.y = 10) +
+  geom_text(x = 5, y = 9, aes(label = gene_total), data = in_df %>% drop_na(intestine_expression) %>% group_by(intestine_expression) %>% summarise(gene_total = paste0("# genes = ",n(), sep = ""))) +
+  facet_grid(.~intestine_expression) + 
+  theme_classic()
+}
+
+regression_promSignal_LFC_all_genes <- function(in_df){
+  in_df %>% 
+  ggplot(aes(x = log_chip_signal_mean, y= log2FoldChange)) +
+  geom_point(shape = 19, size = 0.25, alpha = 0.25, color = "black") +
+  geom_smooth(method = "lm", formula = y~x) +
+  ggpubr::stat_cor(method = "pearson", label.y = 11) +
+  ggpubr::stat_regline_equation(label.y = 10) +
+  annotate("text", x = 4, y = 10, label = paste0("# genes = ",nrow(in_df %>% drop_na(IDR_mean)), sep = "")) +
+  theme_classic()
+}
 ```
+
+## Embryo log2foldchange correlation
 
 ```{r}
-embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange > -10, !is.na(padj)) %>% 
-  left_join(promoters.hilo, by = "WBGeneID") %>%
-  ggplot(aes(x = log2FoldChange, y = log(IDR_mean))) +
-  geom_point(alpha = 0.1, size = 0.25)
+regression_IDRpeak_LFC_all_genes(elt2chip_embryo_intestine_df)
 ```
 
 
 ```{r}
-embryo_all_pairwise_res %>% filter(comparison == "embryoGFPplus_vs_embryoGFPminus", log2FoldChange < -1, padj < 0.01, !is.na(padj)) %>% 
-  left_join(promoters.hilo, by = "WBGeneID") %>%
-  ggplot(aes(x = log2FoldChange, y = log_chip_signal_mean)) +
-  geom_point()
+regression_IDRpeak_LFC_intestine_type(elt2chip_embryo_intestine_df)
 ```
 
+
+```{r}
+regression_promSignal_LFC_all_genes(elt2chip_embryo_intestine_df)
+```
+
+
+```{r}
+regression_promSignal_LFC_intestine_type(elt2chip_embryo_intestine_df)
+```
+
+## L1 log2foldchange correlation
+
+```{r}
+regression_IDRpeak_LFC_all_genes(elt2chip_L1_intestine_df)
+```
+
+
+```{r}
+regression_IDRpeak_LFC_intestine_type(elt2chip_L1_intestine_df)
+```
+
+
+```{r}
+regression_promSignal_LFC_all_genes(elt2chip_L1_intestine_df)
+```
+
+
+```{r}
+regression_promSignal_LFC_intestine_type(elt2chip_L1_intestine_df)
+```
+
+## L3 log2foldchange correlation
+
+```{r}
+regression_IDRpeak_LFC_all_genes(elt2chip_L3_intestine_df)
+```
+
+
+```{r}
+regression_IDRpeak_LFC_intestine_type(elt2chip_L3_intestine_df)
+```
+
+
+```{r}
+regression_promSignal_LFC_all_genes(elt2chip_L3_intestine_df)
+```
+
+
+```{r}
+regression_promSignal_LFC_intestine_type(elt2chip_L3_intestine_df)
+```

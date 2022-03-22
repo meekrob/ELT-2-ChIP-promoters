@@ -103,6 +103,7 @@ Output data table
 
 ```{r}
 res_elt2D_v_wt_ashr <- lfcShrink(dds_elt2, coef = "condition_elt2D_vs_wt", type = "ashr")
+# write_csv(file = "../03_output/res_elt2D_v_wt_ashr_shrunk.csv", x = res_to_df(res_elt2D_v_wt_ashr))
 ```
 
 ```{r}
