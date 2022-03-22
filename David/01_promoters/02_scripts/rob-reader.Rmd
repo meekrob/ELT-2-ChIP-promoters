@@ -1,0 +1,44 @@
+```{r rob-read}
+# just pushed the files to the repo. 
+# for GFP+ vs GFP- differential expression data use the files "res_*GFPplus_vs_*GFPminus.csv" with * replaced with stage name. 
+# For Log2FoldChange ranking use the files "res_*GFPplus_vs_*GFPminus_ashr_shrunk.csv". 
+# For the status of the gene (greater/less/lessAbs) use the files "*_GFPplus_vs_GFPminus_aly_hyp_res.csv"
+
+robdir = normalizePath("../../../Rob")
+rob.counts.path = file.path(robdir, '03_emb_L1_L3_intestine_RNAseq/03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv')
+
+rob.counts = read.table(rob.counts.path, header=T) %>% arrange(WBGeneID)
+
+rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+
+# unshrunk
+rob.unshrunk.files = list(LE='pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv',
+                 L1='pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv',
+                 L3='pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv')
+
+for (f in rob.unshrunk.files)
+{
+    print(f)
+    stopifnot( 
+      file.exists( 
+        file.path(rob.dir,f)))
+}
+
+# shrunk
+rob.shrunk.files = list(LE='pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv',
+                 L1='pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv',
+                 L3='pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv')
+
+
+for (f in rob.shrunk.files)
+{
+    print(f)
+    stopifnot( 
+      file.exists( 
+        file.path(rob.dir,f)))
+}
+
+
+
+
+```
