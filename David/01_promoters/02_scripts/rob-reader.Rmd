@@ -1,17 +1,28 @@
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+```
+
 ```{r rob-read}
 # just pushed the files to the repo. 
 # for GFP+ vs GFP- differential expression data use the files "res_*GFPplus_vs_*GFPminus.csv" with * replaced with stage name. 
 # For Log2FoldChange ranking use the files "res_*GFPplus_vs_*GFPminus_ashr_shrunk.csv". 
 # For the status of the gene (greater/less/lessAbs) use the files "*_GFPplus_vs_GFPminus_aly_hyp_res.csv"
 
+
+##### Rlog normalized counts:  # via from David/01_promoters/02_scripts
 robdir = normalizePath("../../../Rob")
 rob.counts.path = file.path(robdir, '03_emb_L1_L3_intestine_RNAseq/03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv')
 
 rob.counts = read.table(rob.counts.path, header=T) %>% arrange(WBGeneID)
 
-rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+
 
 # unshrunk
+rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
 rob.unshrunk.files = list(LE='pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv',
                  L1='pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv',
                  L3='pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv')
@@ -24,21 +35,146 @@ for (f in rob.unshrunk.files)
         file.path(rob.dir,f)))
 }
 
-# shrunk
+####### Shrunk                       # via from David/01_promoters/02_scripts
+rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
 rob.shrunk.files = list(LE='pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv',
                  L1='pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv',
                  L3='pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv')
 
 
-for (f in rob.shrunk.files)
+shrunk = lapply(rob.shrunk.files, function(f)
 {
-    print(f)
-    stopifnot( 
-      file.exists( 
-        file.path(rob.dir,f)))
-}
+  read.csv( file.path(rob.dir,f) )
+})
+
+####### end: Shrunk                     
 
 
+####### ELT2.din                     # via from David/01_promoters/02_scripts
+robdir = normalizePath("../../../Rob")
+# Dineen results
+elt2_regulated_gene_sets <- read.table(file.path(robdir,
+                                                 "05_elt2_RNAseq/03_output/elt2_regulated_gene_sets.csv"), 
+                                       sep=",", header=T)
+# rob rerun of dineen
+res_elt2D_v_wt <- read.table(file.path(robdir,"05_elt2_RNAseq/03_output/res_elt2D_v_wt.csv"),sep=',',header=T)
 
+ELT2.din = inner_join(res_elt2D_v_wt, elt2_regulated_gene_sets, by='WBGeneID')
+####### end: ELT2.din 
+
+###### Intestine gene categories
+
+rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+fileroot = file.path(rob.dir,'intestine_gene_categories')
+
+intestine.gene.categories.fnames = list(LE='embryo_intestine_gene_categories.csv',
+                                        L1='L1_intestine_gene_categories.csv',
+                                        L3='L3_intestine_gene_categories.csv')
+intestine.gene.categories = lapply(intestine.gene.categories.fnames, 
+                                   function(f) {
+                                     read_csv(file.path(fileroot, f))
+                                  })
+###### END: Intestine gene categories
+```
+
+```{r read-data-david, echo=FALSE}
+LE_promoter_tsv = "../03_output/LE.promoters.hilo.tsv"
+LE_tsv = read.table(LE_promoter_tsv, header=T)
+L1_promoter_tsv = "../03_output/L1.promoters.hilo.tsv"
+L1_tsv = read.table(L1_promoter_tsv, header=T)
+L3_promoter_tsv = "../03_output/L3.promoters.hilo.tsv"
+L3_tsv = read.table(L3_promoter_tsv, header=T)
+
+LE_tsv$stage = "LE"
+L1_tsv$stage = "L1"
+L3_tsv$stage = "L3"
+
+cbound = LE_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(seqnames, start, end, width, strand, wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum,
+                           class
+                           ) %>% 
+          dplyr::rename(LE_wbps_gene_id = wbps_gene_id,
+                           LE.log_chip_signal_mean=log_chip_signal_mean,
+                           LE.log_chip_signal_max=log_chip_signal_max,
+                           LE.IDR_logTEN_max=IDR_logTEN_max,
+                           LE.IDR_logTEN_mean=IDR_logTEN_mean,
+                           LE.IDR_logTEN_sum=IDR_logTEN_sum,
+                           LE.class = class
+                           ) %>%
+  cbind(L1_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum,
+                           class
+                           ) %>%
+          dplyr::rename(L1_wbps_gene_id = wbps_gene_id,
+                           L1.log_chip_signal_mean=log_chip_signal_mean,
+                           L1.log_chip_signal_max=log_chip_signal_max,
+                           L1.IDR_logTEN_max=IDR_logTEN_max,
+                           L1.IDR_logTEN_mean=IDR_logTEN_mean,
+                           L1.IDR_logTEN_sum=IDR_logTEN_sum,
+                           L1.class=class
+                           )
+          ) %>%
+  cbind(L3_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum,
+                           class
+                           ) %>%
+          dplyr::rename(L3_wbps_gene_id=wbps_gene_id,
+                        L3_log.chip_signal_mean=log_chip_signal_mean,
+                           L3.log_chip_signal_max=log_chip_signal_max,
+                           L3.IDR_logTEN_max=IDR_logTEN_max,
+                           L3.IDR_logTEN_mean=IDR_logTEN_mean,
+                           L3.IDR_logTEN_sum=IDR_logTEN_sum,
+                           L3.class = class
+                           )
+          )
+
+stopifnot(all(cbound$LE_wbps_gene_id == cbound$L1_wbps_gene_id) &&
+          all(cbound$LE_wbps_gene_id == cbound$L3_wbps_gene_id))
+
+cbound = cbound %>% 
+  dplyr::select(-LE_wbps_gene_id,-L1_wbps_gene_id) %>%
+  dplyr::rename(WBGeneID=L3_wbps_gene_id) 
+
+cbound = cbound %>% mutate(LE_bound=is.finite(LE.IDR_logTEN_max),
+                           L1_bound=is.finite(LE.IDR_logTEN_max), 
+                           L3_bound=is.finite(L3.IDR_logTEN_max))
+```
+
+```{r LE}
+LE.crosscompare = intestine.gene.categories$LE %>% right_join(cbound, by="WBGeneID") 
+
+bound_int.enriched = LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "enriched"
+bound_int.enriched[is.na(bound_int.enriched)] <- FALSE
+bound_int.FTR = LE.crosscompare$LE_bound & is.na(LE.crosscompare$intestine_expression) 
+
+bound_int.depleted = LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "depleted"
+bound_int.depleted[is.na(bound_int.depleted)] <- FALSE
+
+bound_int.equal= LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "equal"
+bound_int.equal[is.na(bound_int.equal)] <- FALSE
+
+
+unbound_int.enriched = !LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "enriched"
+unbound_int.enriched[is.na(unbound_int.enriched)] <- FALSE
+
+unbound_int.FTR = !LE.crosscompare$LE_bound & is.na(LE.crosscompare$intestine_expression) 
+
+unbound_int.depleted = !LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "depleted"
+unbound_int.depleted[is.na(unbound_int.depleted)] <- FALSE
+
+unbound_int.equal= !LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "equal"
+unbound_int.equal[is.na(unbound_int.equal)] <- FALSE
 
 ```
