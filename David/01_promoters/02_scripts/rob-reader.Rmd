@@ -237,6 +237,7 @@ L1.newclasses[bound_int.depleted] = "bound_int.depleted"
 L1.newclasses[bound_int.enriched] = "bound_int.enriched"
 L1.newclasses[bound_int.equal] = "bound_int.equal"
 L1.newclasses[bound_int.FTR] = "bound_int.FTR"
+L1.crosscompare$newclass = L1.newclasses
 t.L1=table(L1.newclasses,L1.crosscompare$L1.class)
 kable(t.L1,caption = "L1")
 ```
@@ -278,4 +279,11 @@ L3.newclasses[bound_int.equal] = "bound_int.equal"
 L3.newclasses[bound_int.FTR] = "bound_int.FTR"
 t.L3 = table(L3.newclasses,L3.crosscompare$L3.class) 
 kable(t.L3,caption = "L3")
+```
+
+```{r L1-plus-Dineeners}
+L1.df = L1.crosscompare %>% select(-starts_with("LE"), -starts_with("L3"))
+dineened = inner_join(L1.df, ELT2.din, by="WBGeneID")
+
+
 ```
