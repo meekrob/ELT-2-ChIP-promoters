@@ -148,7 +148,7 @@ cbound = cbound %>%
   dplyr::rename(WBGeneID=L3_wbps_gene_id) 
 
 cbound = cbound %>% mutate(LE_bound=is.finite(LE.IDR_logTEN_max),
-                           L1_bound=is.finite(LE.IDR_logTEN_max), 
+                           L1_bound=is.finite(L1.IDR_logTEN_max), 
                            L3_bound=is.finite(L3.IDR_logTEN_max))
 ```
 
@@ -176,5 +176,92 @@ unbound_int.depleted[is.na(unbound_int.depleted)] <- FALSE
 
 unbound_int.equal= !LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "equal"
 unbound_int.equal[is.na(unbound_int.equal)] <- FALSE
+stopifnot(all(unbound_int.depleted | unbound_int.enriched | unbound_int.equal | unbound_int.FTR | bound_int.depleted | bound_int.enriched | bound_int.equal | bound_int.FTR))
 
+LE.newclasses = character(length(unbound_int.enriched))
+LE.newclasses[unbound_int.depleted] = "unbound_int.depleted"
+LE.newclasses[unbound_int.enriched] = "unbound_int.enriched"
+LE.newclasses[unbound_int.equal] = "unbound_int.equal"
+LE.newclasses[unbound_int.FTR] = "unbound_int.FTR"
+LE.newclasses[bound_int.depleted] = "bound_int.depleted"
+LE.newclasses[bound_int.enriched] = "bound_int.enriched"
+LE.newclasses[bound_int.equal] = "bound_int.equal"
+LE.newclasses[bound_int.FTR] = "bound_int.FTR"
+table(LE.newclasses,LE.crosscompare$LE.class)
+```
+
+```{r L1}
+L1.crosscompare = intestine.gene.categories$L1 %>% right_join(cbound, by="WBGeneID") 
+
+bound_int.enriched = L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "enriched"
+bound_int.enriched[is.na(bound_int.enriched)] <- FALSE
+bound_int.FTR = L1.crosscompare$L1_bound & is.na(L1.crosscompare$intestine_expression) 
+
+bound_int.depleted = L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "depleted"
+bound_int.depleted[is.na(bound_int.depleted)] <- FALSE
+
+bound_int.equal= L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "equal"
+bound_int.equal[is.na(bound_int.equal)] <- FALSE
+
+
+unbound_int.enriched = !L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "enriched"
+unbound_int.enriched[is.na(unbound_int.enriched)] <- FALSE
+
+unbound_int.FTR = !L1.crosscompare$L1_bound & is.na(L1.crosscompare$intestine_expression) 
+
+unbound_int.depleted = !L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "depleted"
+unbound_int.depleted[is.na(unbound_int.depleted)] <- FALSE
+
+unbound_int.equal= !L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "equal"
+unbound_int.equal[is.na(unbound_int.equal)] <- FALSE
+stopifnot(all(unbound_int.depleted | unbound_int.enriched | unbound_int.equal | unbound_int.FTR | bound_int.depleted | bound_int.enriched | bound_int.equal | bound_int.FTR))
+
+L1.newclasses = character(length(unbound_int.enriched))
+L1.newclasses[unbound_int.depleted] = "unbound_int.depleted"
+L1.newclasses[unbound_int.enriched] = "unbound_int.enriched"
+L1.newclasses[unbound_int.equal] = "unbound_int.equal"
+L1.newclasses[unbound_int.FTR] = "unbound_int.FTR"
+L1.newclasses[bound_int.depleted] = "bound_int.depleted"
+L1.newclasses[bound_int.enriched] = "bound_int.enriched"
+L1.newclasses[bound_int.equal] = "bound_int.equal"
+L1.newclasses[bound_int.FTR] = "bound_int.FTR"
+table(L1.newclasses,L1.crosscompare$L1.class)
+```
+
+```{r L3}
+L3.crosscompare = intestine.gene.categories$L3 %>% right_join(cbound, by="WBGeneID") 
+
+bound_int.enriched = L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "enriched"
+bound_int.enriched[is.na(bound_int.enriched)] <- FALSE
+bound_int.FTR = L3.crosscompare$L3_bound & is.na(L3.crosscompare$intestine_expression) 
+
+bound_int.depleted = L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "depleted"
+bound_int.depleted[is.na(bound_int.depleted)] <- FALSE
+
+bound_int.equal= L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "equal"
+bound_int.equal[is.na(bound_int.equal)] <- FALSE
+
+
+unbound_int.enriched = !L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "enriched"
+unbound_int.enriched[is.na(unbound_int.enriched)] <- FALSE
+
+unbound_int.FTR = !L3.crosscompare$L3_bound & is.na(L3.crosscompare$intestine_expression) 
+
+unbound_int.depleted = !L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "depleted"
+unbound_int.depleted[is.na(unbound_int.depleted)] <- FALSE
+
+unbound_int.equal= !L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "equal"
+unbound_int.equal[is.na(unbound_int.equal)] <- FALSE
+stopifnot(all(unbound_int.depleted | unbound_int.enriched | unbound_int.equal | unbound_int.FTR | bound_int.depleted | bound_int.enriched | bound_int.equal | bound_int.FTR))
+
+L3.newclasses = character(length(unbound_int.enriched))
+L3.newclasses[unbound_int.depleted] = "unbound_int.depleted"
+L3.newclasses[unbound_int.enriched] = "unbound_int.enriched"
+L3.newclasses[unbound_int.equal] = "unbound_int.equal"
+L3.newclasses[unbound_int.FTR] = "unbound_int.FTR"
+L3.newclasses[bound_int.depleted] = "bound_int.depleted"
+L3.newclasses[bound_int.enriched] = "bound_int.enriched"
+L3.newclasses[bound_int.equal] = "bound_int.equal"
+L3.newclasses[bound_int.FTR] = "bound_int.FTR"
+table(L3.newclasses,L3.crosscompare$L3.class)
 ```
