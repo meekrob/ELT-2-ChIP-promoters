@@ -14,6 +14,7 @@ library(ggplot2)
 library(tidyr)
 library(kableExtra)
 library(dplyr)
+library(grid)
 ```
 
 ```{r ROC-functions}
@@ -63,10 +64,27 @@ ROC = function(scores, truth) {
   list(Sp=Sp,Sn=Sn,TP=TP,FP=FP,TN=TN,FN=FN,PPV=PPV,TPR=Sn,FPR=FPR,Acc=Acc,FDR=FDR)
 }
 
+# shared range for density plots
+density.xleft = 1.5
+density.xright = 3.5
+```
+
+```{r read-data-rob}
+library(readr)
+
+robdir = normalizePath("../../../Rob")
+# Dineen results
+elt2_regulated_gene_sets <- read.table(file.path(robdir,
+                                                 "05_elt2_RNAseq/03_output/elt2_regulated_gene_sets.csv"), 
+                                       sep=",", header=T)
+# rob rerun of dineen
+res_elt2D_v_wt <- read.table(file.path(robdir,"05_elt2_RNAseq/03_output/res_elt2D_v_wt.csv"),sep=',',header=T)
+
+ELT2.dep = inner_join(res_elt2D_v_wt, elt2_regulated_gene_sets, by='WBGeneID')
 
 ```
 
-```{r read-data, echo=FALSE}
+```{r read-data-david, echo=FALSE}
 LE_promoter_tsv = "../03_output/LE.promoters.hilo.tsv"
 LE_tsv = read.table(LE_promoter_tsv, header=T)
 L1_promoter_tsv = "../03_output/L1.promoters.hilo.tsv"
@@ -78,18 +96,77 @@ LE_tsv$stage = "LE"
 L1_tsv$stage = "L1"
 L3_tsv$stage = "L3"
 
+cbound = LE_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum
+                           ) %>% 
+          dplyr::rename(LE_wbps_gene_id = wbps_gene_id,
+                          LE_log_chip_signal_mean=log_chip_signal_mean,
+                           LE_log_chip_signal_max=log_chip_signal_max,
+                           LE_IDR_logTEN_max=IDR_logTEN_max,
+                           LE_IDR_logTEN_mean=IDR_logTEN_mean,
+                           LE_IDR_logTEN_sum=IDR_logTEN_sum
+                           ) %>%
+  cbind(L1_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum
+                           ) %>%
+          dplyr::rename(L1_wbps_gene_id = wbps_gene_id,
+                 L1_log_chip_signal_mean=log_chip_signal_mean,
+                           L1_log_chip_signal_max=log_chip_signal_max,
+                           L1_IDR_logTEN_max=IDR_logTEN_max,
+                           L1_IDR_logTEN_mean=IDR_logTEN_mean,
+                           L1_IDR_logTEN_sum=IDR_logTEN_sum
+                           )
+          ) %>%
+  cbind(L3_tsv %>% dplyr::arrange(wbps_gene_id) %>% 
+          dplyr::select(wbps_gene_id, log_chip_signal_mean,
+                           log_chip_signal_max,
+                           IDR_logTEN_max,
+                           IDR_logTEN_mean,
+                           IDR_logTEN_sum,
+                           class
+                           ) %>%
+          dplyr::rename(L3_wbps_gene_id=wbps_gene_id,
+                        L3_log_chip_signal_mean=log_chip_signal_mean,
+                           L3_log_chip_signal_max=log_chip_signal_max,
+                           L3_IDR_logTEN_max=IDR_logTEN_max,
+                           L3_IDR_logTEN_mean=IDR_logTEN_mean,
+                           L3_IDR_logTEN_sum=IDR_logTEN_sum
+                           )
+          )
+
+stopifnot(all(cbound$LE_wbps_gene_id == cbound$L1_wbps_gene_id) &&
+          all(cbound$LE_wbps_gene_id == cbound$L3_wbps_gene_id))
+
+cbound = cbound %>% 
+  dplyr::select(-LE_wbps_gene_id,-L1_wbps_gene_id) %>%
+  dplyr::rename(WBGeneID=L3_wbps_gene_id) 
+
+cbound2 = cbound %>% left_join(ELT2.dep, by='WBGeneID')
+cbound2$has_L1peak = is.finite(cbound2$L1_IDR_logTEN_max)
+```
+
+
+```{r pivot-class-data}
 dataset = rbind(LE_tsv,L1_tsv,L3_tsv) %>% 
   filter(class %in% c("classA","classB")) %>% 
-           dplyr::select(stage,class,IDR_logTEN_max,IDR_logTEN_mean, IDR_logTEN_value, IDR_logTEN_sum,IDR_nlogq)
+           dplyr::select(stage,class,IDR_logTEN_max,IDR_logTEN_mean, IDR_logTEN_value, IDR_logTEN_sum,IDR_nlogq,log_chip_signal_mean, log_chip_signal_max)
 
 dataset$class = factor(dataset$class, levels=c("classA","classB"))
 dataset$stage = factor(dataset$stage, levels=c("LE","L1","L3"))
 
-long = dataset %>% pivot_longer(cols=IDR_logTEN_max:IDR_nlogq,names_to="score") %>% group_by(stage,score)
+long = dataset %>% pivot_longer(cols=IDR_logTEN_max:log_chip_signal_max,names_to="score") %>% group_by(stage,score)
 
 ```
 
-```{r}
+```{r run-ROC-on-predictors}
 lapply(split(long, ~ stage + score), function(dataset){
   stage_name = as.character(dataset$stage[1])
   score_name = as.character(dataset$score[1])
@@ -130,10 +207,12 @@ ggsave("ROC.pdf",width = 12)
 ```
 
 ```{r do-TPR}
-result.df %>% group_by(stage) %>% mutate(TPR_score = TPR-FPR) %>% filter(TPR_score == max(TPR_score)) %>% arrange(desc(TPR_score)) -> best_scores
+best_scores = result.df %>% group_by(stage) %>% mutate(TPR_score = TPR-FPR) %>% filter(TPR_score == max(TPR_score)) %>% arrange(desc(TPR_score)) 
+
+best_FDRs = result.df %>% group_by(stage) %>% mutate(TPR_score = TPR-FPR) %>% filter(FDR == min(FDR, na.rm=T)) %>% arrange(FDR) 
 
 result.df %>% dplyr::select(stage,score,threshold,TPR,FPR) %>% 
-  filter(score %in% c("IDR_logTEN_max","IDR_logTEN_mean")) %>% 
+  filter(score %in% c("IDR_logTEN_max","IDR_logTEN_mean","log_chip_signal_mean", "log_chip_signal_max")) %>% 
   pivot_longer(cols=c('TPR','FPR'),names_to="measure")  -> TFPR_obj
 head(TFPR_obj)
 
@@ -144,54 +223,84 @@ TFPR_obj$measure = factor(TFPR_obj$measure, levels=c('TPR','FPR'))
 
 ```{r LE-TPR-plot}
 LE_best_score = best_scores %>% filter(stage == "LE")
+LE_lowest_FDR = best_FDRs %>%
+  filter(stage=='LE')
+
 x = LE_best_score %>% pull(threshold)
 y.TPR = LE_best_score %>% pull(TPR)
 y.FPR = LE_best_score %>% pull(FPR)
 
-TFPR_obj %>% filter(stage == "LE", 
-                    score == "IDR_logTEN_max") %>%
+p1 = ggplot(long %>% filter(score == LE_best_score$score, stage == 'LE'), aes(x=value,fill=class)) + geom_histogram(bins=100,position='dodge') + 
+  geom_vline(xintercept = x) + 
+  geom_vline(xintercept=LE_lowest_FDR%>% pull(threshold), linetype="dashed") +
+  geom_hline(yintercept=0) +
+  #scale_fill_brewer(palette="Spectral") +
+  ylab("LE gene count") + 
+  xlab(LE_best_score$score) + #coord_cartesian(xlim=c(density.xleft,density.xright)) + 
+  ggtitle("Predictive power of peak scores to predict intestine enrichment")
+
+
+p2 = TFPR_obj %>% filter(stage == "LE", 
+                    score == LE_lowest_FDR$score) %>%
   ggplot(aes(x=threshold,y=value,color=measure)) + 
   geom_line() + 
   scale_color_manual(values=c("black","red")) +
-  # segments,points,label showing the threshold
-  geom_segment(x=x,xend=x,
-               y=0, yend=y.FPR,color='grey') +
-  geom_segment(x=x,xend=x,
-               y=y.TPR, yend=y.FPR,color='black') +
+  
+  # Threshold at max(TPR-FPR)
+  geom_segment(x=x,xend=x, y=0, yend=y.FPR,color='grey') +
+  geom_segment(x=x,xend=x, y=y.TPR, yend=y.FPR,color='black') +
   geom_point(x=x, y=y.TPR, color="black", size=.75) +
   geom_point(x=x, y=y.FPR, color="black", size=.75) +
+  
+  # Lowest FDR
+  geom_point(inherit.aes=F,data=LE_lowest_FDR, aes(x=threshold,y=FPR)) +
+  geom_point(inherit.aes=F,data=LE_lowest_FDR, aes(x=threshold,y=TPR)) +
+  geom_segment(inherit.aes=F,data=LE_lowest_FDR, aes(x=threshold, xend=threshold, y=TPR, yend=FPR),color='black') +
+  
   geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
   geom_hline(yintercept=0) +
   geom_point(x=x, y=0, color="black", size=.75) +
-  ggtitle("LE: maximum difference between true positive rate and false positive rate") +
-          xlab("log10 of max signal in peak") +       
-          geom_text(
-            inherit.aes=F,
-            aes(x=2.18, y=.85), 
-            #position=position_nudge(x=.6), 
-            hjust=0,
-            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR: false discovery rate %.0f/%.0f classB (%.1f%%)",
-                          LE_best_score$TP,
-                          LE_best_score$TP + LE_best_score$FN, 
-                          LE_best_score$TPR * 100,
-                          LE_best_score$FP,
-                          LE_best_score$FP  + LE_best_score$TN,
-                          LE_best_score$FPR * 100,
-                          LE_best_score$FP,
-                          LE_best_score$FP  + LE_best_score$TP,
-                          LE_best_score$FDR * 100))
-
+  ggtitle("Minimum observed FDR for LE peak scores") +
+          xlab(LE_best_score$score) #+       
+          # geom_text(
+          #   inherit.aes=F,
+          #   aes(x=2.18, y=.85), 
+          #   #position=position_nudge(x=.6), 
+          #   hjust=0,
+          #   label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR: false discovery rate %.0f/%.0f classB (%.1f%%)",
+          #                 LE_best_score$TP,
+          #                 LE_best_score$TP + LE_best_score$FN, 
+          #                 LE_best_score$TPR * 100,
+          #                 LE_best_score$FP,
+          #                 LE_best_score$FP  + LE_best_score$TN,
+          #                 LE_best_score$FPR * 100,
+          #                 LE_best_score$FP,
+          #                 LE_best_score$FP  + LE_best_score$TP,
+          #                 LE_best_score$FDR * 100))
+grid.newpage()
+grid.draw(rbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+LE.p1 = p1
 ```
 
 ```{r L1-TPR-plot}
-
 L1_best_score = best_scores %>% filter(stage == "L1")
+L1_lowest_FDR = best_FDRs %>% filter(stage == 'L1')
+
+
 x = L1_best_score %>% pull(threshold)
 y.TPR = L1_best_score %>% pull(TPR)
 y.FPR = L1_best_score %>% pull(FPR)
 
-TFPR_obj %>% filter(stage == "L1", 
-                    score == "IDR_logTEN_mean") %>%
+p1 = ggplot(long %>% filter(score == L1_best_score$score, stage == 'L1'), aes(value,fill=class)) + geom_histogram(bins=100,position="dodge") + 
+  geom_vline(xintercept = x) + 
+  geom_vline(xintercept=L1_lowest_FDR%>% pull(threshold), linetype="dashed") +
+  geom_hline(yintercept=0) +
+  #scale_fill_brewer(palette="Spectral") +
+  ylab("L1 gene count") + 
+  xlab(L1_best_score$score) #+ coord_cartesian(xlim=c(density.xleft,density.xright))
+
+p2 = TFPR_obj %>% filter(stage == "L1", 
+                    score == L1_best_score$score) %>%
   ggplot(aes(x=threshold,y=value,color=measure)) + 
   geom_line() + 
   scale_color_manual(values=c("black","red")) +
@@ -204,33 +313,51 @@ TFPR_obj %>% filter(stage == "L1",
   geom_point(x=x, y=y.FPR, color="black", size=.75) +
   geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
   geom_hline(yintercept=0) +
+  geom_vline(xintercept=L1_lowest_FDR%>% pull(threshold), linetype="dashed") +
   geom_point(x=x, y=0, color="black", size=.75) +
-  ggtitle("L1: maximum difference between true positive rate and false positive rate")+
-          xlab("log10 of mean signal in peak") + 
-           geom_text(
-            inherit.aes=F,
-            aes(x=2.5, y=.9), hjust=0,
-            #position=position_nudge(x=.6), 
-            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
-                          L1_best_score$TP,
-                          L1_best_score$TP + L1_best_score$FN, 
-                          L1_best_score$TPR * 100,
-                          L1_best_score$FP,
-                          L1_best_score$FP  + L1_best_score$TN,
-                          L1_best_score$FPR * 100,
-                          L1_best_score$FP,
-                          L1_best_score$FP + L1_best_score$TP,
-                          L1_best_score$FDR * 100))
+  #ggtitle("L1: maximum difference between true positive rate and false positive rate")+
+          xlab(L1_best_score$score) #+ 
+           # geom_text(
+           #  inherit.aes=F,
+           #  aes(x=2.5, y=.9), hjust=0,
+           #  #position=position_nudge(x=.6), 
+           #  label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
+           #                L1_best_score$TP,
+           #                L1_best_score$TP + L1_best_score$FN, 
+           #                L1_best_score$TPR * 100,
+           #                L1_best_score$FP,
+           #                L1_best_score$FP  + L1_best_score$TN,
+           #                L1_best_score$FPR * 100,
+           #                L1_best_score$FP,
+           #                L1_best_score$FP + L1_best_score$TP,
+           #                L1_best_score$FDR * 100))
+grid.newpage()
+grid.draw(rbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+L1.p1 = p1
 ```
+
 ```{r L3-TPR-plot}
+L3_lowest_FDR = best_FDRs %>%
+  filter(stage=='L3')
 
 L3_best_score = best_scores %>% filter(stage == "L3")
 x = L3_best_score %>% pull(threshold)
 y.TPR = L3_best_score %>% pull(TPR)
 y.FPR = L3_best_score %>% pull(FPR)
 
-TFPR_obj %>% filter(stage == "L3", 
-                    score == "IDR_logTEN_mean") %>%
+# density plot
+p1 = ggplot(long %>% filter(score == L3_best_score$score, stage == 'L3'), aes(x=value,fill=class)) + geom_histogram(bins=100,position="dodge") + 
+  geom_vline(xintercept = x) + 
+  geom_vline(xintercept=L3_lowest_FDR%>% pull(threshold), linetype="dashed") +
+  geom_hline(yintercept=0) +
+  ylab("L3 gene count") + 
+  #scale_fill_brewer(palette="Spectral") + 
+  xlab(best_scores$score) + 
+  coord_cartesian(xlim=c(density.xleft,density.xright))
+
+# TPR versus FPR
+p2 = TFPR_obj %>% filter(stage == "L3", 
+                    score == L3_best_score$score) %>%
   ggplot(aes(x=threshold,y=value,color=measure)) + 
   geom_line() + 
   scale_color_manual(values=c("black","red")) +
@@ -243,23 +370,37 @@ TFPR_obj %>% filter(stage == "L3",
   geom_point(x=x, y=y.FPR, color="black", size=.75) +
   geom_text(inherit.aes=F, aes(x=x,y=-.025),label=round(x,2)) + 
   geom_hline(yintercept=0) +
+  ylab("L3 TPR or FPR") +
   geom_point(x=x, y=0, color="black", size=.75) +
-  ggtitle("L3: maximum difference between true positive rate and false positive rate") +
-          xlab("log10 of mean signal in peak") +
-           geom_text(
-            inherit.aes=F,
-            aes(x=2.45, y=.9), hjust=0,
+  # this is the only comparison for which the lowest FDR and highest TPR-FPR come from different
+  # scores (log_chip_signal_mean vs IDR_log10mean) respectively
+  geom_vline(xintercept= L3_best_score %>% pull(threshold), linetype="dashed") +
+  
+          xlab(L3_best_score$score) #+
+           # geom_text(
+           #  inherit.aes=F,
+           #  aes(x=2.45, y=.9), hjust=0,
             #position=position_nudge(x=.6), 
-            label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
-                          L3_best_score$TP,
-                          L3_best_score$TP + L3_best_score$FN, 
-                          L3_best_score$TPR * 100,
-                          L3_best_score$FP,
-                          L3_best_score$FP  + L3_best_score$TN,
-                          L3_best_score$FPR * 100,
-                          L1_best_score$FP,
-                          L3_best_score$FP + L3_best_score$TP,
-                          L3_best_score$FDR * 100))
+            # label=sprintf("TPR: recover %.0f/%0.f classA (%.1f%%)\nFPR: fail to exclude %.0f/%.0f classB (%.1f%%)\nFDR (False Discovery Rate): %.0f/%.0f (%.1f%%)",
+            #               L3_best_score$TP,
+            #               L3_best_score$TP + L3_best_score$FN, 
+            #               L3_best_score$TPR * 100,
+            #               L3_best_score$FP,
+            #               L3_best_score$FP  + L3_best_score$TN,
+            #               L3_best_score$FPR * 100,
+            #               L1_best_score$FP,
+            #               L3_best_score$FP + L3_best_score$TP,
+            #               L3_best_score$FDR * 100)
+            #)
+grid.newpage()
+grid.draw(rbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+L3.p1 = p1
+```
+
+
+```{r all-density-plots}
+grid.newpage()
+grid.draw(rbind(ggplotGrob(LE.p1), ggplotGrob(L1.p1), ggplotGrob(L3.p1), size = "last"))
 ```
 ```{r ROC-best}
 TFPR_obj %>% filter((stage == 'LE' & score == "IDR_logTEN_max") |

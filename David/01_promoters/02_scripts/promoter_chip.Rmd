@@ -47,14 +47,21 @@ Configure all file paths based on the Rmarkdown parameter `stage` .
 # grep -f L1L3.class.wbid LE.classD.wbid  > LEL1L3.classQ.wbid
 classQ.wbid = read.table("../03_output/LEL1L3.classQ.wbid")[[1]]
 
-rob.dir = normalizePath('~/work/ELT-2-ChIP-revision/Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+#rob.dir = normalizePath('~/work/ELT-2-ChIP-revision/Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_shrunk_DE_results')
 
-rob.files = list(LE='res_embryoGFPplus_vs_embryoGFPminus_apeglm.csv',
-                 L1='res_L1GFPplus_vs_L1GFPminus_apeglm.csv',
-                 L3='res_L3GFPplus_vs_L3GFPminus_apeglm.csv')
+rob.files = list(LE='res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv',
+                 L1='res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv',
+                 L3='res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv')
+
+rob.files = list(LE='res_embryoGFPplus_vs_embryoGFPminus.csv',
+                 L1='res_L1GFPplus_vs_L1GFPminus.csv',
+                 L3='res_L3GFPplus_vs_L3GFPminus.csv')
+
 
 RNASEQ = file.path(rob.dir, rob.files[[params$stage]])
 
+f = read.csv('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv')
 
 UPSTREAM=1000
 DOWNSTREAM=200

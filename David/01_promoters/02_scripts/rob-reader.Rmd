@@ -4,6 +4,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(tidyr)
 library(dplyr)
+library(readr)
+library(knitr) # for kable
 ```
 
 ```{r rob-read}
@@ -152,7 +154,7 @@ cbound = cbound %>% mutate(LE_bound=is.finite(LE.IDR_logTEN_max),
                            L3_bound=is.finite(L3.IDR_logTEN_max))
 ```
 
-```{r LE}
+```{r LE, echo=FALSE}
 LE.crosscompare = intestine.gene.categories$LE %>% right_join(cbound, by="WBGeneID") 
 
 bound_int.enriched = LE.crosscompare$LE_bound & LE.crosscompare$intestine_expression == "enriched"
@@ -187,10 +189,20 @@ LE.newclasses[bound_int.depleted] = "bound_int.depleted"
 LE.newclasses[bound_int.enriched] = "bound_int.enriched"
 LE.newclasses[bound_int.equal] = "bound_int.equal"
 LE.newclasses[bound_int.FTR] = "bound_int.FTR"
-table(LE.newclasses,LE.crosscompare$LE.class)
+t.LE = table(LE.newclasses,LE.crosscompare$LE.class)
+df.LE = data.frame(
+          matrix(t.LE,
+                 nrow = 8, 
+                 ncol = 4, 
+                 dimnames = list(rownames(t.LE),
+                                 colnames(t.LE))))
+# list enriched categories first
+df.LE = df.LE[c(2,1,3,4,6,5,7,8),] 
+kable(df.LE,caption = "LE")
+# df.LE %>% datatable() %>% formatStyle(columns="classA", backgroundColor=styleEqual(569, "lightYellow"))
 ```
 
-```{r L1}
+```{r L1, echo=FALSE}
 L1.crosscompare = intestine.gene.categories$L1 %>% right_join(cbound, by="WBGeneID") 
 
 bound_int.enriched = L1.crosscompare$L1_bound & L1.crosscompare$intestine_expression == "enriched"
@@ -225,10 +237,11 @@ L1.newclasses[bound_int.depleted] = "bound_int.depleted"
 L1.newclasses[bound_int.enriched] = "bound_int.enriched"
 L1.newclasses[bound_int.equal] = "bound_int.equal"
 L1.newclasses[bound_int.FTR] = "bound_int.FTR"
-table(L1.newclasses,L1.crosscompare$L1.class)
+t.L1=table(L1.newclasses,L1.crosscompare$L1.class)
+kable(t.L1,caption = "L1")
 ```
 
-```{r L3}
+```{r L3, echo=FALSE}
 L3.crosscompare = intestine.gene.categories$L3 %>% right_join(cbound, by="WBGeneID") 
 
 bound_int.enriched = L3.crosscompare$L3_bound & L3.crosscompare$intestine_expression == "enriched"
@@ -263,5 +276,6 @@ L3.newclasses[bound_int.depleted] = "bound_int.depleted"
 L3.newclasses[bound_int.enriched] = "bound_int.enriched"
 L3.newclasses[bound_int.equal] = "bound_int.equal"
 L3.newclasses[bound_int.FTR] = "bound_int.FTR"
-table(L3.newclasses,L3.crosscompare$L3.class)
+t.L3 = table(L3.newclasses,L3.crosscompare$L3.class) 
+kable(t.L3,caption = "L3")
 ```
