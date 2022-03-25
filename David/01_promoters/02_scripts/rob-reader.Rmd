@@ -282,8 +282,17 @@ kable(t.L3,caption = "L3")
 ```
 
 ```{r L1-plus-Dineeners}
-L1.df = L1.crosscompare %>% select(-starts_with("LE"), -starts_with("L3"))
+L1.df = L1.crosscompare %>% dplyr::select(-starts_with("LE"), -starts_with("L3"))
 dineened = inner_join(L1.df, ELT2.din, by="WBGeneID")
 
-
+counts = rob.counts %>% mutate(embryo.rlog_ave=(embryo_GFPplus_rep1+embryo_GFPplus_rep2+embryo_GFPplus_rep3)/3,
+       L1.rlog_ave=(L1_GFPplus_rep1+L1_GFPplus_rep3)/2,
+       L3.rlog_ave=(L3_GFPplus_rep1+L3_GFPplus_rep2+L3_GFPplus_rep3)/3)
+L1.counts = counts %>% dplyr::select(WBGeneID,L1.rlog_ave)
+head(L1.counts)
+L1.df2 = L1.df %>% inner_join(L1.counts) 
+ggplot(L1.df2 %>% filter(newclass != "bound_int.FTR" & newclass != "unbound_int.FTR" ), aes(x=L1.log_chip_signal_mean, y=L1.rlog_ave,color=newclass)) + geom_point() + 
+  coord_cartesian(xlim=c(6,10)) + 
+  scale_fill_brewer(palette="Spectral") + facet_grid(~L1_bound)
+ggplot(L1.df2, aes(x=L1.log_chip_signal_mean, color=L1_bound)) + geom_boxplot()
 ```
