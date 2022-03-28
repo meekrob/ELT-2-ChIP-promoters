@@ -1,5 +1,55 @@
+read_rob_dineen_sets = function() {
+  # wd: David/01_promoters/02_scripts
+  robdir = normalizePath("../../../Rob")
+  # Dineen results
+  elt2_regulated_gene_sets <- read.table(file.path(robdir,
+                                                   "05_elt2_RNAseq/03_output/elt2_regulated_gene_sets.csv"), 
+                                         sep=",", header=T)
+  # rob rerun of dineen
+  res_elt2D_v_wt <- read.table(file.path(robdir,"05_elt2_RNAseq/03_output/res_elt2D_v_wt.csv"),sep=',',header=T)
+  
+  ELT2.din = inner_join(res_elt2D_v_wt, elt2_regulated_gene_sets, by='WBGeneID')
+  return(ELT2.din)
+}
+
+read_rob_ashr_shrunk = function() {
+  # wd: David/01_promoters/02_scripts
+  ##### Rlog normalized counts:  # via from David/01_promoters/02_scripts
+  robdir = normalizePath("../../../Rob")
+  rob.counts.path = file.path(robdir, '03_emb_L1_L3_intestine_RNAseq/03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv')
+  
+  rob.counts = read.table(rob.counts.path, header=T) 
+  
+  
+  rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
+  rob.shrunk.files = list(LE='pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv',
+                          L1='pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv',
+                          L3='pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv')
+  
+  
+  shrunk = lapply(rob.shrunk.files, function(f)
+  {
+    read.csv( file.path(rob.dir,f) )
+  })
+  
+  shrunk$LE = shrunk$LE %>% inner_join(rob.counts, by = "WBGeneID") %>% mutate(LE.rlog.rep1 = rob.counts$embryo_GFPplus_rep1,
+                                   LE.rlog.rep2 = rob.counts$embryo_GFPplus_rep2,
+                                   LE.rlog.rep3 = rob.counts$embryo_GFPplus_rep3)
+  
+  shrunk$L1 = shrunk$LE %>% mutate(L1.rlog.rep1 = rob.counts$L1_GFPplus_rep1,
+                                   L1.rlog.rep3 = rob.counts$L1_GFPplus_rep3)
+  
+  
+  return(shrunk)
+}
+
 read_ELT2_binding_data = function(as_genomic_ranges=FALSE) {
   LE_promoter_tsv = "../03_output/LE.promoters.hilo.tsv"
+  
+  if(!file.exists(LE_promoter_tsv)) {
+    stop("%s can't be read. Working directory must be .../ELT-2-ChIP-revision/David/01_promoters/02_scripts", LE_promoter_tsv)
+  }
+  
   LE_tsv = read.table(LE_promoter_tsv, header=T)
   L1_promoter_tsv = "../03_output/L1.promoters.hilo.tsv"
   L1_tsv = read.table(L1_promoter_tsv, header=T)

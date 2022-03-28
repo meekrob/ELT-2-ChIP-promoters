@@ -37,7 +37,7 @@ for (f in rob.unshrunk.files)
         file.path(rob.dir,f)))
 }
 
-####### Shrunk                       # via from David/01_promoters/02_scripts
+####### Shrunk                       # via David/01_promoters/02_scripts
 rob.dir = normalizePath('../../../Rob/03_emb_L1_L3_intestine_RNAseq/03_output')
 rob.shrunk.files = list(LE='pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv',
                  L1='pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv',
