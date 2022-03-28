@@ -1,0 +1,184 @@
+---
+title: "topGO only"
+params:
+  stage: 'LE'
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(biomaRt)
+library(GenomicRanges)
+library(topGO)
+library(tidyr)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+```
+
+```{r run-all-stages, eval=FALSE, echo=FALSE}
+stages = list(LE="LE",L1="L1",L3="L3")
+for (stage in names(stages))
+{
+  rmarkdown::render(input = "topGO.Rmd",
+                    output_file = sprintf("%s_topGO.html", stage), 
+                    output_format = "html_document", 
+                    params = list(stage=stage))
+  }
+```
+
+```{r GO-terms, warning=FALSE,message=TRUE}
+source('GOfxns.R')
+
+promoter_tsv = sprintf("../03_output/%s.promoters.hilo.tsv", params$stage)
+tsv = read.table(promoter_tsv, header=T)
+gr.promoters = makeGRangesFromDataFrame(tsv, keep.extra.columns = T, starts.in.df.are.0based = T)
+
+library(GenomicRanges)
+
+# gene classes and logical vectors
+genes = gr.promoters$wbps_gene_id
+classA = gr.promoters$class == 'classA'
+classB = gr.promoters$class == 'classB'
+classC = gr.promoters$class == 'classC'
+classD = gr.promoters$class == 'classD'
+classQ.wbid = read.table('../03_output/LEL1L3.classQ.wbid')[[1]]
+classQ = genes %in% classQ.wbid
+classD_minusQ = classD & ! classQ
+sum(classA)
+sum(classB)
+sum(classC)
+sum(classD_minusQ)
+
+WORMGO_RDS_PATH = file.path("bioMart_saved_queries","WORMGO.rds")
+
+#WORMGO#
+if(file.exists(WORMGO_RDS_PATH)) {
+  message("Using WORMGO saved query")
+  WORMGO=readRDS(WORMGO_RDS_PATH)
+}else
+{
+  
+  WORMGO=C_elegans_query(mart)
+  saveRDS(WORMGO, WORMGO_RDS_PATH)
+}
+
+```
+
+```{r runGO, message=F}
+CLASSA_GO_RDS = file.path("topGO_saved_objects",params$stage, "classA.rds")
+if (file.exists(CLASSA_GO_RDS)) {
+  classA.go=readRDS(CLASSA_GO_RDS)
+}else{
+  classA.go = runGO(genes[classA], genes, WORMGO)
+  saveRDS(classA.go, CLASSA_GO_RDS)
+} 
+
+CLASSB_GO_RDS = file.path("topGO_saved_objects",params$stage, "classB.rds")
+if (file.exists(CLASSB_GO_RDS)) {
+  classB.go=readRDS(CLASSB_GO_RDS)
+}else{
+  classB.go = runGO(genes[classB], genes, WORMGO)
+  saveRDS(classB.go, CLASSB_GO_RDS)
+} 
+
+CLASSC_GO_RDS = file.path("topGO_saved_objects",params$stage, "classC.rds")
+if (file.exists(CLASSC_GO_RDS)) {
+  classC.go=readRDS(CLASSC_GO_RDS)
+}else{
+  classC.go = runGO(genes[classC], genes, WORMGO)
+  saveRDS(classC.go, CLASSC_GO_RDS)
+} 
+CLASSD_GO_RDS = file.path("topGO_saved_objects",params$stage, "classD.rds")
+if (file.exists(CLASSD_GO_RDS)) {
+  classD.go=readRDS(CLASSD_GO_RDS)
+}else{
+  classD.go = runGO(genes[classD], genes, WORMGO)
+  saveRDS(classD.go, CLASSD_GO_RDS)
+} 
+CLASSDmQ_GO_RDS = file.path("topGO_saved_objects",params$stage, "classDmQ.rds")
+if (file.exists(CLASSDmQ_GO_RDS)) {
+  classDmQ.go=readRDS(CLASSDmQ_GO_RDS)
+}else{
+  classDmQ.go = runGO(genes[classD_minusQ], genes, WORMGO)
+  saveRDS(classDmQ.go, CLASSDmQ_GO_RDS)
+} 
+```
+
+
+```{r look-for-specific-terms, eval=F}
+# innate immunity
+classA.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$BP.result %>% filter(GO.ID=='GO:0045087') %>% mutate(class='D-Q',stage=params$stage)) 
+
+# GO:0009792	- embryo development ending in birth or eg...
+classA.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$BP.result %>% filter(GO.ID=='GO:0009792') %>% mutate(class='D-Q',stage=params$stage)) 
+
+# determination of adult lifespan
+classA.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$BP.result %>% filter(GO.ID=='GO:0008340') %>% mutate(class='D-Q',stage=params$stage)) 
+
+# GO:0045892	negative regulation of transcription, DN…
+go.term = 'GO:0045892'
+classA.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='D-Q',stage=params$stage)) 
+
+# GO:0048557	embryonic digestive tract morphogenesis
+go.term = 'GO:0048557'
+classA.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$BP.result %>% filter(GO.ID==go.term) %>% mutate(class='D-Q',stage=params$stage)) 
+
+# GO:0000981	DNA-binding transcription factor activity, RNA polymerase II-specific
+go.term = 'GO:0000981'
+classA.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='D-Q',stage=params$stage)) 
+# GO:0003700 DNA-binding transcription factor activity
+go.term = 'GO:0003700'
+classA.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='A',stage=params$stage) %>% 
+  rbind(classB.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='B',stage=params$stage)) %>%
+  rbind(classC.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='C',stage=params$stage)) %>%
+  rbind(classDmQ.go$MF.result %>% filter(GO.ID==go.term) %>% mutate(class='D-Q',stage=params$stage)) 
+```
+
+```{r go-kable, results="asis"}
+GOresults = list(classA=classA.go,classB=classB.go,classC=classC.go,classDmQ=classDmQ.go)
+
+kabs = lapply(GOresults, function(compClass){
+  results = list(BP=compClass$BP.result, MF=compClass$MF.result, CC=compClass$CC.result)
+  lapply(results, function(section){
+    section %>%
+    filter(elim < .1) %>%
+      filter(Significant >= 10) %>%
+             arrange(`Rank in elim`) %>%
+             head(50) 
+  })
+})
+
+for (cls in c('classA', 'classB', 'classC', 'classDmQ')){
+  for(sect in c('BP','MF','CC')) {
+    kabs[[cls]][[sect]] %>% 
+      dplyr::select(-classicFisher) %>%
+      dplyr::select(!("Rank in elim")) %>%
+      kable( label = cls, caption = sprintf("%s %s/%s", params$stage, cls, sect), digits = 2) -> k
+      print(k)
+      #cat('\n\n<!-- -->\n\n') # https://stackoverflow.com/questions/39650166/r-why-kable-doesnt-print-inside-a-for-loop
+  }
+}
+
+```
