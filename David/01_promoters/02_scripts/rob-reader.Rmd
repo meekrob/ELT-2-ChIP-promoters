@@ -152,6 +152,8 @@ cbound = cbound %>%
 cbound = cbound %>% mutate(LE_bound=is.finite(LE.IDR_logTEN_max),
                            L1_bound=is.finite(L1.IDR_logTEN_max), 
                            L3_bound=is.finite(L3.IDR_logTEN_max))
+
+
 ```
 
 ```{r LE, echo=FALSE}
