@@ -1,0 +1,256 @@
+---
+title: "intestine_enriched_genes"
+author: "Rtpw"
+date: "3/28/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Install packages
+```{r}
+# BiocManager::install("topGO")
+```
+Load packages
+```{r}
+library("topGO")
+library("tidyverse")
+```
+
+
+
+# Tissue-specific marker genes analysis
+
+Purpose: evaluate the contamination/enrichment of GFP+ intestine cells by visualizing the log2FoldChange of known tissue-specific genes
+
+```{r}
+curated_tissue_genes <- read_csv(file = "../../01_tissue_specific_genes/01_input/Curated_Tissue_Specific_Genes_RTPW.csv") %>% 
+  mutate(tissue = fct_relevel(tissue, c("intestine", "germline", "neuron", "muscle", "hypodermis"))) %>%
+  mutate(gene_name = fct_rev(fct_reorder(gene_name, as.numeric(tissue))))
+res_embryoGFPplus_vs_embryoGFPminus_ashr_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv")
+res_L1GFPplus_vs_L1GFPminus_ashr_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv")
+res_L3GFPplus_vs_L3GFPminus_ashr_df <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
+```
+
+```{r}
+curated_gene_foldchange <- data.frame(res_embryoGFPplus_vs_embryoGFPminus_ashr_df, stage = "embryo") %>% 
+  bind_rows(data.frame(res_L1GFPplus_vs_L1GFPminus_ashr_df, stage = "L1")) %>% 
+  bind_rows(data.frame(res_L3GFPplus_vs_L3GFPminus_ashr_df, stage = "L3")) %>% 
+  right_join(curated_tissue_genes, by = "WBGeneID") %>%
+  mutate(star = case_when(
+    padj > 0.01 ~ " ",
+    padj < 1*10^-10 ~ "***",
+    padj < 1*10^-5 ~ "**",
+    padj < 0.01 ~ "*"
+                          )) %>%
+  ggplot(aes(x = gene_name, y = log2FoldChange, fill = tissue, label = star)) +
+  geom_bar(stat = "identity") +
+  # geom_hline(yintercept = 1, color = "black", linetype = 2) +
+  geom_hline(yintercept = 0, color = "black") +
+  facet_wrap(~stage) +
+  geom_text() +
+  coord_flip()+
+  theme_bw()
+curated_gene_foldchange
+# ggsave(filename = "../03_output/Curated_Gene_Intestine_FoldChange.pdf", plot = curated_gene_foldchange, width = 5, height = 3)
+```
+
+# Intestine Enriched Gene Ontology
+
+# Save C. elegans gene ontology table
+```{r}
+source("../../../David/01_promoters/02_scripts/GOfxns.R")
+# paramart <- biomaRt::useMart("parasite_mart", dataset = "wbps_gene", host = "https://parasite.wormbase.org", port = 443)
+# WORMGO <- C_elegans_query(paramart)
+# 
+# saveRDS(WORMGO, file = "../01_input/WORMGO.rds")
+# WORMGO<- readRDS(file = "../01_input/WORMGO.rds")
+WORMGO_nonObsolete <- read_tsv(file = "../01_input/Celegans_GOterms_NonObsolete_220330.tsv")
+WORMGO <- WORMGO_nonObsolete %>% select(wbps_gene_id = "Gene.primaryIdentifier", 
+                              external_gene_id = "Gene.symbol",
+                              go_accession = "Gene.goAnnotation.ontologyTerm.identifier"
+                              )
+
+```
+
+# topGO helper functions
+
+```{r}
+mkGOtissue = function(altHyp.df, WORMGO) {
+  library(topGO)
+  # create a named vector of p-values from DESEQ2 alternative hypothesis method
+  allGenes <- altHyp.df %>% drop_na(padj) %>% pull(padj)
+  names(allGenes) <- altHyp.df %>% drop_na(padj) %>% pull(WBGeneID)
+  # make simple function to determine if a gene has significant p-value or not
+  topDiffGenes <- function(geneVec){return(geneVec < 0.01)}
+  # assign GO terms to each gene for topGO
+  geneID2GO = geneID2GO(WORMGO)
+  # set up topGOdata object for each ontology type
+  BP.go = new("topGOdata", ontology='BP', 
+              allGenes = allGenes,
+              geneSel = topDiffGenes,
+              nodeSize = 10,
+              annot = topGO::annFUN.gene2GO,
+              gene2GO = geneID2GO)
+  MF.go = new("topGOdata", ontology='MF',
+              allGenes = allGenes,
+              geneSel = topDiffGenes,
+              nodeSize = 10,
+              annot = topGO::annFUN.gene2GO,
+              gene2GO = geneID2GO)
+  CC.go = new("topGOdata", ontology='CC',
+              allGenes = allGenes,
+              geneSel = topDiffGenes,
+              nodeSize = 10,
+              annot = topGO::annFUN.gene2GO,
+              gene2GO = geneID2GO)
+  list(BP=BP.go,CC=CC.go,MF=MF.go)
+}
+
+GOSummaryTissue<- function(GOdata, topNodes = 200) {
+  library(topGO)
+  library(dplyr)
+  resultFisher <- topGO::runTest(GOdata, algorithm = "weight01", statistic = "fisher")
+  resultKS <- topGO::runTest(GOdata, algorithm = "weight01", statistic = "ks")
+  resultFisherParentchild <- topGO::runTest(GOdata, algorithm = "parentchild", statistic = "fisher")
+  tab <- topGO::GenTable(
+    object=GOdata, 
+    ks.pval = resultKS, 
+    fisher.pval = resultFisher,
+    fisher.PC.pval = resultFisherParentchild,
+    orderBy="fisher.pval",
+    topNodes = topNodes
+  )
+  # not sure where the conversion to char is happening. convert back
+  # replace ">1e-30" character with number
+  tab <- suppressMessages(
+    tab %>% mutate(ks.pval = as.numeric(ks.pval), ks.pval = replace_na(ks.pval, 1e-30),
+                 fisher.pval = as.numeric(fisher.pval), fisher.pval = replace_na(fisher.pval, 1e-30)
+                 )
+  )
+  return(tab)
+}
+
+runGOtissue = function(altHyp.df, WORMGO, topNodes = 200)
+{
+  go = mkGOtissue(altHyp.df, WORMGO)
+  go$BP.result = GOSummaryTissue(go$BP, topNodes)
+  go$MF.result = GOSummaryTissue(go$MF, topNodes)
+  go$CC.result = GOSummaryTissue(go$CC, topNodes)
+  go
+}
+```
+
+# Embryo intestine GO terms
+
+```{r message=FALSE}
+res_embryoGFP_alHyp_greater <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/res_embryoGFP_alHyp_greater.csv")
+embryo_intestine_GO <- runGOtissue(res_embryoGFP_alHyp_greater, WORMGO)
+```
+
+# L1 intestine GO terms
+
+```{r message=FALSE}
+res_L1GFP_alHyp_greater<- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/res_L1GFP_alHyp_greater.csv")
+L1_intestine_GO <- runGOtissue(res_L1GFP_alHyp_greater, WORMGO)
+```
+
+# L3 intestine analysis
+
+```{r message=FALSE}
+res_L3GFP_alHyp_greater<- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/res_L3GFP_alHyp_greater.csv")
+L3_intestine_GO <- runGOtissue(res_L3GFP_alHyp_greater, WORMGO)
+```
+
+# topGO plotting function
+
+```{r}
+fisherGOplot <- function(in.df){
+in.df$BP.result %>% mutate(GO = "BP") %>% bind_rows(in.df$MF.result %>% mutate(GO = "MF")) %>% bind_rows(in.df$CC.result %>% mutate(GO = "CC")) %>%
+  filter(Significant > Expected) %>%
+  mutate(gene_count = paste0(Significant,"/", round(Expected))) %>%
+  slice_min(fisher.pval, n = 10) %>%
+  mutate(Term = fct_rev(fct_reorder(Term, fisher.pval))) %>%
+ggplot(aes(x = Term, y = -log10(fisher.pval), fill = GO, label = gene_count)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(hjust = -0.05, aes(y = 0))+
+  scale_fill_brewer(palette = "Greys", direction = -1) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 25)) +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.text.x=element_text(colour="black"),
+        axis.text.y=element_text(colour="black")) +
+  ggtitle(paste("data:", deparse(substitute(in.df)), sep = " "))
+}
+
+```
+
+```{r fig.width=5, fig.height=3.5}
+embryo_intestine_GO_plot <- fisherGOplot(embryo_intestine_GO)
+embryo_intestine_GO_plot
+ggsave(plot = embryo_intestine_GO_plot, filename = "../03_output/GO_plots/embryo_intestine_GO_plot.pdf", width = 4.5, height = 5)
+```
+
+
+```{r fig.width=5, fig.height=3.5}
+L1_intestine_GO_plot <- fisherGOplot(L1_intestine_GO)
+L1_intestine_GO_plot
+ggsave(plot = L1_intestine_GO_plot, filename = "../03_output/GO_plots/L1_intestine_GO_plot.pdf", width = 4.5, height = 5)
+```
+
+
+```{r fig.width=5.25, fig.height=3.5}
+L3_intestine_GO_plot <- fisherGOplot(L3_intestine_GO)
+L3_intestine_GO_plot
+ggsave(plot = L3_intestine_GO_plot, filename = "../03_output/GO_plots/L3_intestine_GO_plot.pdf", width = 4.5, height = 5)
+```
+
+<!-- # GO graph structure -->
+
+<!-- ```{r} -->
+<!-- # BiocManager::install("Rgraphviz") -->
+<!-- library("Rgraphviz") -->
+
+<!-- emb_go_BP_res_weight_fisher <- runTest(embryo_intestine_GO$BP, algorithm = "weight01", statistic = "fisher") -->
+<!-- GenTable(embryo_intestine_GO$BP, pval = emb_go_BP_res_weight_fisher) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- par(cex = 0.25) -->
+<!-- showSigOfNodes(embryo_intestine_GO$BP, score(emb_go_BP_res_weight_fisher), firstSigNodes = 5, useInfo = "all") -->
+
+<!-- ``` -->
+<!-- Parentchild agolrithm returns terms that are too general -->
+
+<!-- ```{r} -->
+<!-- emb_go_BP_res_parentchild_fisher <- runTest(embryo_intestine_GO$BP, algorithm = "parentchild", statistic = "fisher") -->
+<!-- GenTable(embryo_intestine_GO$BP, pval = emb_go_BP_res_parentchild_fisher) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- par(cex = 0.25) -->
+<!-- showSigOfNodes(embryo_intestine_GO$BP, score(emb_go_BP_res_parentchild_fisher), firstSigNodes = 5, useInfo = "all") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- L1_go_BP_res_weight_fisher <- runTest(L1_intestine_GO$BP, algorithm = "weight01", statistic = "fisher") -->
+<!-- GenTable(L1_intestine_GO$BP, pval = L1_go_BP_res_weight_fisher) -->
+<!-- par(cex = 0.25) -->
+<!-- showSigOfNodes(L1_intestine_GO$BP, score(L1_go_BP_res_weight_fisher), firstSigNodes = 5, useInfo = "all", ) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- L3_go_BP_res_weight_fisher <- runTest(L3_intestine_GO$BP, algorithm = "weight01", statistic = "fisher") -->
+<!-- GenTable(L3_intestine_GO$BP, pval = L3_go_BP_res_weight_fisher) -->
+<!-- par(cex = 0.25) -->
+<!-- showSigOfNodes(L3_intestine_GO$BP, score(L3_go_BP_res_weight_fisher), firstSigNodes = 5, useInfo = "all", ) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- emb_go_MF_res_weight_fisher <- runTest(embryo_intestine_GO$MF, algorithm = "weight01", statistic = "fisher") -->
+<!-- GenTable(embryo_intestine_GO$MF, pval = emb_go_MF_res_weight_fisher) -->
+<!-- par(cex = 0.25) -->
+<!-- showSigOfNodes(embryo_intestine_GO$MF, score(emb_go_MF_res_weight_fisher), firstSigNodes = 5, useInfo = "all") -->
+<!-- ``` -->
+

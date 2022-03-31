@@ -1,0 +1,16 @@
+﻿WBGeneID,gene_name,tissue
+WBGene00002054,ifb-2,intestine
+WBGene00000067,act-5,intestine
+WBGene00001250,elt-2,intestine
+WBGene00001578,ges-1,intestine
+WBGene00003057,lon-3,hypodermis
+WBGene00000251,bli-1,hypodermis
+WBGene00016735,fhod-1,muscle
+WBGene00001948,hlh-1,muscle
+WBGene00003515,myo-3,muscle
+WBGene00009100,rgef-1,neuron
+WBGene00004344,rgs-1,neuron
+WBGene00004267,rab-3,neuron
+WBGene00001598,glh-1,germline
+WBGene00003992,pgl-1,germline
+WBGene00010492,meg-1,germline

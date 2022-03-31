@@ -80,20 +80,17 @@ alt_hyp_res_df <- function(stage, thresh, sig){
                            comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_")) %>% 
         mutate(label = str_remove_all(comparison, "embryo|L1|L3")) %>%
         rownames_to_column(var = "WBGeneID")
-      # tobind<-data.frame(plotMA(thresh_res, returnData = TRUE), 
-      #                   comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"), 
-      #                    type = hyp) %>% mutate(label = str_remove_all(comparison, "embryo|L1|L3"))
       df <- rbind(df, tobind) 
     }
   }
   df <- df %>% 
-    mutate(isDE = case_when(type == "greater" & log2FoldChange >= thresh & padj <= sig ~ TRUE,
-                            type == "less" & log2FoldChange <= thresh & padj <= sig ~ TRUE,
-                            type == "lessAbs" & (log2FoldChange < thresh | log2FoldChange > thresh) & padj <= sig ~ TRUE,
+    drop_na(padj) %>%
+    mutate(isDE = case_when(padj < sig ~ TRUE,
                             padj > sig ~ FALSE,
                             is.na(padj) ~ FALSE))
   df
 }
+
 
 de_category_MA_plot <- function(df, title){
   df %>% filter(isDE == TRUE) %>%
