@@ -28,13 +28,40 @@ glimpse(rob)
 ```
 
 ```{r combine-elt-2-rnaseq}
-merge = inner_join(rob, elt2.data, by = "WBGeneID")
+merge = right_join(rob, elt2.data, by = "WBGeneID")
 glimpse(merge)
+
+# Left-over genes are NA in alldata. Give them a label
+merge$embryo_int_exp[is.na(merge$embryo_int_exp)] = 'ftr'
+merge$L1_int_exp[is.na(merge$L1_int_exp)] = 'ftr'
+merge$L3_int_exp[is.na(merge$L3_int_exp)] = 'ftr'
+
+merge$embryo.newClass = sprintf("%s.%s", ifelse(merge$LE_bound, "bound", "unbound"), merge$embryo_int_exp)
+merge$L1.newClass = sprintf("%s.%s", ifelse(merge$L1_bound, "bound", "unbound"), merge$L1_int_exp)
+merge$L3.newClass = sprintf("%s.%s", ifelse(merge$L3_bound, "bound", "unbound"), merge$L3_int_exp)
+
+
 alldata = GenomicRanges::makeGRangesFromDataFrame(merge, keep.extra.columns = T)
 seqinfo(alldata) <- Seqinfo(genome="ce11")
 ```
 
 ```{r make-stringent-classes}
+
+
+
+
+
+t(table(merge$LE.class,merge$embryo.newClass))
+t(table(merge$L1.class,merge$L1.newClass))
+t(table(merge$L3.class,merge$L3.newClass))
+
+
+# bools
+classA.LE = alldata$embryo_int_exp == 'enriched' & alldata$LE_bound
+classB.LE = !alldata$embryo_int_exp == 'enriched' & alldata$LE_bound
+classC.LE = !alldata$embryo_int_exp == 'enriched' & alldata$LE_bound
+classD.LE =  !alldata$embryo_int_exp == 'enriched' & ! alldata$LE_bound
+
 
  
 

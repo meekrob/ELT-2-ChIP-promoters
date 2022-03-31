@@ -1,4 +1,5 @@
 library(magrittr)
+library(readr)
 
 ###### Intestine gene categories
 read_rob_intestine_gene_categories = function(){
@@ -17,8 +18,8 @@ intestine.gene.categories$L1 %<>%  dplyr::rename(L1_altHyp=altHyp,L1_int_exp=int
 intestine.gene.categories$L3 %<>%  dplyr::rename(L3_altHyp=altHyp,L3_int_exp=intestine_expression)
 
 # return single, merged dataframe
-intestine.gene.categories$LE %>% inner_join(intestine.gene.categories$L1, by = 'WBGeneID') %>%
-                                        inner_join(intestine.gene.categories$L3, by = 'WBGeneID')
+intestine.gene.categories$LE %>% full_join(intestine.gene.categories$L1, by = 'WBGeneID') %>%
+                                        full_join(intestine.gene.categories$L3, by = 'WBGeneID')
 }
 read_rob_dineen_sets = function() {
   # wd: David/01_promoters/02_scripts
@@ -30,7 +31,7 @@ read_rob_dineen_sets = function() {
   # rob rerun of dineen
   res_elt2D_v_wt <- read.table(file.path(robdir,"05_elt2_RNAseq/03_output/res_elt2D_v_wt.csv"),sep=',',header=T)
   
-  ELT2.din = inner_join(res_elt2D_v_wt, elt2_regulated_gene_sets, by='WBGeneID')
+  ELT2.din = full_join(res_elt2D_v_wt, elt2_regulated_gene_sets, by='WBGeneID')
   return(ELT2.din)
 }
 
@@ -68,8 +69,8 @@ read_rob_ashr_shrunk_rlogc = function() {
     read.csv( file.path(rob.dir,f) )
   })
   
-  merged = shrunk$embryo %>% inner_join(shrunk$L1, by = "WBGeneID", suffix=c(".embryo", ".L1"))
-  merged %<>% inner_join( shrunk$L3 %>% dplyr::rename(
+  merged = shrunk$embryo %>% full_join(shrunk$L1, by = "WBGeneID", suffix=c(".embryo", ".L1"))
+  merged %<>% full_join( shrunk$L3 %>% dplyr::rename(
     baseMean.L3 = baseMean,
     log2FoldChange.L3 = log2FoldChange,
     lfcSE.L3 = lfcSE,
@@ -77,7 +78,7 @@ read_rob_ashr_shrunk_rlogc = function() {
     padj.L3 = padj
   ))
   
-  merged %<>% inner_join(rob.counts %>% dplyr::select(WBGeneID,starts_with("rlogc.")), by = "WBGeneID")
+  merged %<>% full_join(rob.counts %>% dplyr::select(WBGeneID,starts_with("rlogc.")), by = "WBGeneID")
   
   
   return(merged)
@@ -90,7 +91,7 @@ read_rob_all_merged = function() {
     dplyr::rename(din.status=status,din.status.description=description)
   
   #return
-  inner_join(a,b,by='WBGeneID') %>% inner_join(read_rob_intestine_gene_categories(), by="WBGeneID")
+  full_join(a,b,by='WBGeneID') %>% full_join(read_rob_intestine_gene_categories(), by="WBGeneID")
 }
 
 read_ELT2_binding_data = function(as_genomic_ranges=FALSE) {
