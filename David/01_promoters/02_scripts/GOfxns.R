@@ -38,9 +38,35 @@ C_elegans_query = function(paramart) {
       )
   WORMGO
 }
+# wbps_gene_id     ext..   go_accession go_name_1006                     go_linkage_type
+# 1 WBGene00000001 aap-1   GO:0040024   dauer larval development           IGI
+# 2 WBGene00000001 aap-1   GO:0040024   dauer larval development           IMP
+# 3 WBGene00000001 aap-1   GO:0008340   determination of adult lifespan    IMP
+# 4 WBGene00000001 aap-1   GO:0016310   phosphorylation                    IEA 
+# 5 WBGene00000001 aap-1   GO:0016301   kinase activity                    IEA
+# 6 WBGene00000001 aap-1   GO:0019901   protein kinase binding             IPI
 
-# create an object where you can access all the GO terms that are assigned to a specific gene
 
+# geneID2GO
+# Used in creation of a new topGOdata object:
+# Example: new("topGOdata", ontology='BP'
+#                        , allGenes = geneList
+#                        , annot = topGO::annFUN.gene2GO
+#                        , gene2GO = geneID2GO)
+# The function itself divides the WORMGO query dataframe into lists of GO terms indexed by gene ID
+# Example:
+# WORMGO$wbps_gene_id: WBGene00012717
+# [1] "GO:0005634" "GO:0005737" "GO:0005737" "GO:0005654" "GO:0000122" "GO:0017069"
+# [7] "GO:0000122" "GO:0004861" "GO:0097322" "GO:0045736" "GO:0004861"
+# -------------------------------------------------------------------- 
+#   WORMGO$wbps_gene_id: WBGene00012718
+# [1] "GO:0016021" "GO:0016020" "GO:0016740" "GO:0016746" "GO:0005783" "GO:0005794"
+# [7] "GO:0019706" "GO:0016409" "GO:0018230" "GO:0019706" "GO:0006612"
+# -------------------------------------------------------------------- 
+#   WORMGO$wbps_gene_id: WBGene00012719
+# [1] ""
+# 
+# We don't call this function, it is passed to "new" as in the example above.
 geneID2GO = function(WORMGO) {
   by(WORMGO$go_accession, 
      WORMGO$wbps_gene_id, 

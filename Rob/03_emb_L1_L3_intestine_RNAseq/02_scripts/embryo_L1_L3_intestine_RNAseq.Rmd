@@ -554,9 +554,9 @@ Fix this to reflect new altHypothesis approach
 
 ```{r}
 all_samples_rld <- rlog(dds)
-write_rds(all_samples_rld, file = "../03_output/rlog_counts/all_samples_rlog_counts.rds")
-write_tsv(as.data.frame(assay(all_samples_rld)) %>% rownames_to_column(var = "WBGeneID"), file = "../03_output/rlog_counts/all_samples_rlog_counts.tsv")
-write_tsv(as.data.frame(assay(all_samples_rld)) %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID, contains("GFPplus")), file = "../03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv")
+# write_rds(all_samples_rld, file = "../03_output/rlog_counts/all_samples_rlog_counts.rds")
+# write_tsv(as.data.frame(assay(all_samples_rld)) %>% rownames_to_column(var = "WBGeneID"), file = "../03_output/rlog_counts/all_samples_rlog_counts.tsv")
+# write_tsv(as.data.frame(assay(all_samples_rld)) %>% rownames_to_column(var = "WBGeneID") %>% select(WBGeneID, contains("GFPplus")), file = "../03_output/rlog_counts/GFPplus_samples_rlog_counts.tsv")
 all_samples_rld <- read_rds(file = "../03_output/all_samples_rlog_counts.rds")
 all_samples_rld_df <- read_tsv(file = "../03_output/all_samples_rlog_counts.tsv")
 
@@ -567,6 +567,7 @@ head(all_samples_rld_df)
 
 ```{r}
 embryo_intestine_gene_cats <- embryo_alt_hyp_res_df %>% 
+  drop_na(padj) %>%
   filter(label == "GFPplus_vs_GFPminus", padj < sig) %>% 
   select(WBGeneID, altHyp = "type") %>% 
   mutate(intestine_expression = case_when(
@@ -760,22 +761,20 @@ pheatmap(gfpplus_matrix_row_zscore_TFs[rowSds(gfpplus_matrix_TFs) >= 1,] ,
 # Data output
 
 ```{r}
-# per stage GFP+ vs GFP- differential expression
-write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus), file = "../03_output/pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv")
-write_csv(res_to_df(res_L1GFPplus_vs_L1_GFPminus), file = "../03_output/pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv")
-write_csv(res_to_df(res_L3GFPplus_vs_L3_GFPminus), file = "../03_output/pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv")
-
-# per stage GFP+ vs GFP- differential expression with log2FC shrink (visualization, ranking)
-write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv")
-write_csv(res_to_df(res_L1GFPplus_vs_L1GFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv")
-write_csv(res_to_df(res_L3GFPplus_vs_L3GFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
-
-# per stage enrichment annotation
+# # per stage GFP+ vs GFP- differential expression
+# write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus), file = "../03_output/pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv")
+# write_csv(res_to_df(res_L1GFPplus_vs_L1_GFPminus), file = "../03_output/pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv")
+# write_csv(res_to_df(res_L3GFPplus_vs_L3_GFPminus), file = "../03_output/pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv")
+# 
+# # per stage GFP+ vs GFP- differential expression with log2FC shrink (visualization, ranking)
+# write_csv(res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv")
+# write_csv(res_to_df(res_L1GFPplus_vs_L1GFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv")
+# write_csv(res_to_df(res_L3GFPplus_vs_L3GFPminus_ashr), file = "../03_output/pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
+# 
+# # per stage enrichment annotation
 # write_csv(embryo_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/embryo_GFPplus_vs_GFPminus_alt_hyp_res.csv")
 # write_csv(L1_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/L1_GFPplus_vs_GFPminus_alt_hyp_res.csv")
 # write_csv(L3_alt_hyp_res_df %>% filter(label == "GFPplus_vs_GFPminus") %>% select(WBGeneID:type, isDE), file = "../03_output/L3_GFPplus_vs_GFPminus_alt_hyp_res.csv")
-
-# OUTPUT UNSHRUNK RES WITH ALTHYP LABELS HERE
 ```
 
 # Plot output
@@ -821,30 +820,49 @@ single_cat_bar <- function(in_res, in_cats){
 ```{r}
 embryo_shrunk_MA <- single_MA_plot(res_embryoGFPplus_vs_embryoGFPminus_ashr, embryo_intestine_gene_cats)
 embryo_shrunk_MA
-ggsave(plot = embryo_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/embryo_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
+# ggsave(plot = embryo_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/embryo_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
 
 embryo_category_bar <- single_cat_bar(res_embryoGFPplus_vs_embryoGFPminus_ashr, embryo_intestine_gene_cats)
 embryo_category_bar
-ggsave(plot = embryo_category_bar, file = "../03_output/plots/Intestine_Expression_Category/embryo_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
+# ggsave(plot = embryo_category_bar, file = "../03_output/plots/Intestine_Expression_Category/embryo_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
 ```
 
 ```{r}
 L1_shrunk_MA <- single_MA_plot(res_L1GFPplus_vs_L1GFPminus_ashr, L1_intestine_gene_cats)
 L1_shrunk_MA
-ggsave(plot = L1_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/L1_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
+# ggsave(plot = L1_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/L1_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
 
 L1_category_bar <- single_cat_bar(res_L1GFPplus_vs_L1GFPminus_ashr, L1_intestine_gene_cats)
 L1_category_bar
-ggsave(plot = L1_category_bar, file = "../03_output/plots/Intestine_Expression_Category/L1_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
+# ggsave(plot = L1_category_bar, file = "../03_output/plots/Intestine_Expression_Category/L1_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
 ```
 
 ```{r}
 L3_shrunk_MA <- single_MA_plot(res_L3GFPplus_vs_L3GFPminus_ashr, L3_intestine_gene_cats)
 L3_shrunk_MA
-ggsave(plot = L3_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/L3_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
+# ggsave(plot = L3_shrunk_MA, file = "../03_output/plots/Intestine_Expression_Category/L3_GFPplus_vs_GFPminus_shrunk_MAplot.pdf", width = 5, height = 3)
 
 L3_category_bar <- single_cat_bar(res_L3GFPplus_vs_L3GFPminus_ashr, L3_intestine_gene_cats)
 L3_category_bar
-ggsave(plot = L3_category_bar, file = "../03_output/plots/Intestine_Expression_Category/L3_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
+# ggsave(plot = L3_category_bar, file = "../03_output/plots/Intestine_Expression_Category/L3_GFPplus_vs_GFPminus_Expression_Category_barplot.pdf", width = 5, height = 3)
 ```
+
+# Alternative Hypothesis output
+
+```{r}
+thresh <- 1
+sig <- 0.01
+
+res_embryoGFP_alHyp_greater <- results(dds, contrast = c("group", "embryoGFPplus", "embryoGFPminus"), lfcThreshold=thresh, altHypothesis = "greater", alpha = sig)
+write_csv(x = res_to_df(res_embryoGFP_alHyp_greater), file = "../03_output/res_embryoGFP_alHyp_greater.csv")
+
+res_L1GFP_alHyp_greater <- results(dds, contrast = c("group", "L1GFPplus", "L1GFPminus"), lfcThreshold=thresh, altHypothesis = "greater", alpha = sig)
+write_csv(x = res_to_df(res_L1GFP_alHyp_greater), file = "../03_output/res_L1GFP_alHyp_greater.csv")
+
+res_L3GFP_alHyp_greater <- results(dds, contrast = c("group", "L3GFPplus", "L3GFPminus"), lfcThreshold=thresh, altHypothesis = "greater", alpha = sig)
+write_csv(x = res_to_df(res_L3GFP_alHyp_greater), file = "../03_output/res_L3GFP_alHyp_greater.csv")
+
+
+```
+
 
