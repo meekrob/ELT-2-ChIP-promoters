@@ -8,24 +8,37 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyr)
+library(dplyr)
+library(GenomicRanges)
 source('david-reader.R')
 ```
 
 ## ELT-2 data
 
 ```{r read-data-ELT-2}
-elt2.data = read_ELT2_binding_data(as_genomic_ranges = TRUE)
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE)
+glimpse(elt2.data)
 ```
 
 ## Rob data
 
-```{r read-rob-ashr-shrunk}
-ashr_shrunk = read_rob_ashr_shrunk()
+```{r read-rob-merged}
+rob = read_rob_all_merged() %>% dplyr::select(-starts_with("pvalue."),-starts_with("lfcSE."))
+glimpse(rob)
 ```
 
-```{r read-rob-dineen-sets}
-# Rob has reanalyzed the Dineen/Nish RNA-seq and attached cluster labels
-dineen_sets = read_rob_dineen_sets()
+```{r combine-elt-2-rnaseq}
+merge = inner_join(rob, elt2.data, by = "WBGeneID")
+glimpse(merge)
+alldata = GenomicRanges::makeGRangesFromDataFrame(merge, keep.extra.columns = T)
+seqinfo(alldata) <- Seqinfo(genome="ce11")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r make-stringent-classes}
+
+ 
+
+```
+
+
+
