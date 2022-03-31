@@ -1,0 +1,31 @@
+---
+title: "Deeps"
+author: "DC King - Onish lab"
+date: "3/28/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+source('david-reader.R')
+```
+
+## ELT-2 data
+
+```{r read-data-ELT-2}
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = TRUE)
+```
+
+## Rob data
+
+```{r read-rob-ashr-shrunk}
+ashr_shrunk = read_rob_ashr_shrunk()
+```
+
+```{r read-rob-dineen-sets}
+# Rob has reanalyzed the Dineen/Nish RNA-seq and attached cluster labels
+dineen_sets = read_rob_dineen_sets()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
