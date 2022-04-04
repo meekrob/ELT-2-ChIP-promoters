@@ -87,8 +87,8 @@ read_rob_ashr_shrunk_rlogc = function() {
 read_rob_all_merged = function() {
   a = read_rob_ashr_shrunk_rlogc()
   b = read_rob_dineen_sets() %>% 
-    dplyr::select(WBGeneID, status, description) %>% 
-    dplyr::rename(din.status=status,din.status.description=description)
+    dplyr::select(WBGeneID, status, description, log2FoldChange) %>% 
+    dplyr::rename(din.status=status, din.status.description=description, din.log2FoldChange = log2FoldChange)
   
   #return
   full_join(a,b,by='WBGeneID') %>% full_join(read_rob_intestine_gene_categories(), by="WBGeneID")
