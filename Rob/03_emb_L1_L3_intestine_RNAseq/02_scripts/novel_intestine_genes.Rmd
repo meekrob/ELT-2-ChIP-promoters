@@ -1,0 +1,106 @@
+---
+title: "novel_intestine_genes"
+author: "Robert Williams"
+date: "4/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load packages
+
+```{r}
+library(tidyverse)
+```
+
+Load data
+
+```{r}
+embryo_intestine_gene_categories <- read_csv(file = "../03_output/intestine_gene_categories/embryo_intestine_gene_categories.csv")
+L1_intestine_gene_categories <- read_csv(file = "../03_output/intestine_gene_categories/L1_intestine_gene_categories.csv")
+L3_intestine_gene_categories <- read_csv(file = "../03_output/intestine_gene_categories/L3_intestine_gene_categories.csv")
+
+res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk <- read_csv("../03_output/pairwise_shrunk_DE_results/res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk.csv")
+res_L1GFPplus_vs_L1GFPminus_ashr_shrunk <- read_csv("../03_output/pairwise_shrunk_DE_results/res_L1GFPplus_vs_L1GFPminus_ashr_shrunk.csv")
+res_L3GFPplus_vs_L3GFPminus_ashr_shrunk <- read_csv("../03_output/pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
+
+intestine_genes <- read_delim("../../01_tissue_specific_genes/01_input/genes_direct_and_inferred_for_WBbt_0005772_intestine.txt", delim = "\t",col_names = c("WBGeneID", "gene_name", "Species"))
+```
+# Embryo genes
+
+```{r}
+embryo_enriched_annotation <- embryo_intestine_gene_categories %>% 
+  filter(altHyp == "greater") %>% 
+  left_join(res_embryoGFPplus_vs_embryoGFPminus_ashr_shrunk, by = "WBGeneID") %>% 
+  left_join(intestine_genes, by = "WBGeneID") %>%
+  mutate(annotation = case_when(is.na(gene_name) ~ "unannotated",
+                                !is.na(gene_name) ~ "annotated"))
+
+embryo_enriched_annotation %>% filter(annotation == "unannotated") %>% slice_min(padj, n = 10)
+```
+Smallest p-values:
+
+1. WBGene00001940, his-66, Predicted to enable DNA binding activity and protein heterodimerization activity. Predicted to be part of nucleosome. Is an ortholog of several human genes including H2BC11 (H2B clustered histone 11); H2BC13 (H2B clustered histone 13); and H2BC9 (H2B clustered histone 9).
+2. WBGene00043097, C02D5.4, Predicted to enable glutathione dehydrogenase (ascorbate) activity. Predicted to be involved in cellular oxidant detoxification and glutathione metabolic process.
+3. WBGene00018992, trpl-1, pseudogene
+4. WBGene00022014, Y61A9LA.1, Predicted to enable transmembrane transporter activity. Predicted to be involved in transmembrane transport.
+5. WBGene00020522, T15B7.10 pseudogene
+6. WBGene00009106, acs-12, Predicted to enable CoA-ligase activity. 
+7. WBGene00021611, nhr-238, Predicted to be involved in regulation of transcription by RNA polymerase II.
+8. WBGene00001922, his-48, Predicted to enable DNA binding activity. Involved in innate immune response. Predicted to be located in chromosome and nucleus. Predicted to be part of nucleosome. Expressed in gonad
+9. WBGene00000509, cka-1, Enables choline kinase activity. Involved in CDP-choline pathway. Located in cell cortex.
+10. WBGene00017327, F10C1.8, Is predicted to encode a protein with the following domains: Phosphorylation site; Lamin Tail Domain; Lamin tail domain; and Lamin tail domain superfamily.
+
+
+# L1 genes
+
+```{r}
+L1_enriched_annotation <- L1_intestine_gene_categories %>% 
+  filter(altHyp == "greater") %>% 
+  left_join(res_L1GFPplus_vs_L1GFPminus_ashr_shrunk, by = "WBGeneID") %>% 
+  left_join(intestine_genes, by = "WBGeneID") %>%
+  mutate(annotation = case_when(is.na(gene_name) ~ "unannotated",
+                                !is.na(gene_name) ~ "annotated"))
+
+L1_enriched_annotation %>% filter(annotation == "unannotated") %>% slice_min(padj, n = 10)
+```
+smallest p-values:  
+
+1. WBGene00001940, his-66, Predicted to enable DNA binding activity and protein heterodimerization activity. Predicted to be part of nucleosome. Is an ortholog of several human genes including H2BC11 (H2B clustered histone 11); H2BC13 (H2B clustered histone 13); and H2BC9 (H2B clustered histone 9).
+2. WBGene00018992, trpl-1, pseudogene
+3. WBGene00017327, F10C1.8, Is predicted to encode a protein with the following domains: Phosphorylation site; Lamin Tail Domain; Lamin tail domain; and Lamin tail domain superfamily.
+4. WBGene00020683, ribo-1, Predicted to be involved in protein N-linked glycosylation via asparagine. Predicted to be located in endoplasmic reticulum membrane. Predicted to be integral component of membrane
+5. WBGene00012134, T28F3.8, Enriched in I5 neuron; cholinergic neurons; head mesodermal cell; and retrovesicular ganglion based on RNA-seq and microarray studies.
+6. WBGene00018925, F56A11.5, Predicted to enable catalytic activity; molybdenum ion binding activity; and pyridoxal phosphate binding activity. Predicted to be located in membrane. Predicted to be integral component of membrane.
+7. WBGene00235352, ZK250.13, Enriched in head mesodermal cell based on RNA-seq studies. Is affected by several genes including elt-2; eat-2; and pmk-1 
+8. WBGene00017957, F31F4.1, Predicted to be located in membrane. Predicted to be integral component of membrane.
+9. WBGene00002070, ile-1, Predicted to enable mannose binding activity. Involved in IRE1-mediated unfolded protein response
+10. WBGene00001922, his-48, Predicted to enable DNA binding activity. Involved in innate immune response. Predicted to be located in chromosome and nucleus. Predicted to be part of nucleosome. Expressed in gonad
+
+
+# L3 genes
+
+```{r}
+L3_enriched_annotation <- L3_intestine_gene_categories %>% 
+  filter(altHyp == "greater") %>% 
+  left_join(res_L3GFPplus_vs_L3GFPminus_ashr_shrunk, by = "WBGeneID") %>% 
+  left_join(intestine_genes, by = "WBGeneID") %>%
+  mutate(annotation = case_when(is.na(gene_name) ~ "unannotated",
+                                !is.na(gene_name) ~ "annotated"))
+
+L3_enriched_annotation %>% filter(annotation == "unannotated") %>% slice_min(padj, n = 10)
+```
+Smallest p-value:  
+
+1. WBGene00001940, his-66, Predicted to enable DNA binding activity and protein heterodimerization activity. Predicted to be part of nucleosome. Is an ortholog of several human genes including H2BC11 (H2B clustered histone 11); H2BC13 (H2B clustered histone 13); and H2BC9 (H2B clustered histone 9).
+2. WBGene00016469, C36B7.6, Acts upstream of or within IRE1-mediated unfolded protein response. Predicted to be located in endomembrane system and membrane.
+3. WBGene00017327, F10C1.8, Enriched in body wall musculature and head mesodermal cell based on RNA-seq and microarray studies. Is affected by several genes including daf-16; daf-2; and dpy-10 based on microarray; tiling array; and RNA-seq studies.
+4. WBGene00001922, his-48, Predicted to enable DNA binding activity. Involved in innate immune response. Predicted to be located in chromosome and nucleus. Predicted to be part of nucleosome. Expressed in gonad
+5. WBGene00206354, F27E5.9, Predicted to be located in membrane. Predicted to be integral component of membrane.
+6. WBGene00012134, T28F3.8, Enriched in I5 neuron; cholinergic neurons; head mesodermal cell; and retrovesicular ganglion based on RNA-seq and microarray studies. Is affected by several genes including daf-16; daf-2; and glp-1 based on microarray; RNA-seq; and proteomic studies. 
+7. WBGene00017957, F31F4.1, Predicted to be located in membrane. Predicted to be integral component of membrane.
+8. WBGene00017974, vps-41, Predicted to enable metal ion binding activity. Involved in negative regulation of apoptotic process; vacuolar protein processing; and vacuolar transport. Predicted to be located in late endosome. Predicted to be part of HOPS complex. 
+9. WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.
+10. WBGene00003635, nhr-45, Predicted to enable DNA-binding transcription factor activity; sequence-specific DNA binding activity; and zinc ion binding activity.
