@@ -41,7 +41,7 @@ p
 
 ```
 
-```{r read-classes}
+```{r read-old-classes, include=FALSE, eval=FALSE}
 
 L= list()
 
@@ -62,7 +62,34 @@ L[['L3']]$classA = read.table("../03_output/L3.promoters.hilo.classA.bed")[[7]]
 L[['L3']]$classB = read.table("../03_output/L3.promoters.hilo.classB.bed")[[7]]
 L[['L3']]$classC = read.table("../03_output/L3.promoters.hilo.classC.bed")[[7]]
 L[['L3']]$classD = read.table("../03_output/L3.promoters.hilo.classD.bed")[[7]]
+```
 
+```{r read-v2-classes}
+
+L= list()
+
+L$LE = list()
+L[['LE']]$classA = read.table("LE.classA.v2.bed")[[4]]
+L[['LE']]$classB = read.table("LE.classB.v2.bed")[[4]]
+L[['LE']]$classC = read.table("LE.classC.v2.bed")[[4]]
+L[['LE']]$classD = read.table("LE.classD.v2.bed")[[4]]
+
+L$L1 = list()
+L[['L1']]$classA = read.table("L1.classA.v2.bed")[[4]]
+L[['L1']]$classB = read.table("L1.classB.v2.bed")[[4]]
+L[['L1']]$classC = read.table("L1.classC.v2.bed")[[4]]
+L[['L1']]$classD = read.table("L1.classD.v2.bed")[[4]]
+
+L$L3 = list()
+L[['L3']]$classA = read.table("L3.classA.v2.bed")[[4]]
+L[['L3']]$classB = read.table("L3.classB.v2.bed")[[4]]
+L[['L3']]$classC = read.table("L3.classC.v2.bed")[[4]]
+L[['L3']]$classD = read.table("L3.classD.v2.bed")[[4]]
+```
+
+
+
+```{r process-classes}
 # the 3-way intersection of classD never becomes enriched or bound
 L[["LE"]][["classD"]] %>% 
   intersect(L[["L1"]][["classD"]]) %>% 
@@ -72,7 +99,21 @@ L[["LE"]][["classD"]] %>%
 L[["LE"]][["classD"]] <- L[["LE"]][["classD"]] %>% setdiff(neverEnriched) 
 L[["L1"]][["classD"]] <- L[["L1"]][["classD"]] %>% setdiff(neverEnriched) 
 L[["L3"]][["classD"]] <- L[["L3"]][["classD"]] %>% setdiff(neverEnriched) 
+```
 
+```{r select-wtfs}
+wtf = read.table('../01_input/wtf3.wbid')[[1]]
+
+for (stage in c("LE","L1","L3")) {
+  for (cls in c("classA","classB","classC","classD")) {
+    L[[stage]][[cls]] <- L[[stage]][[cls]] %>% intersect(wtf)
+  }
+}
+
+```
+
+
+```{r do-counts}
 setCounts = data.frame(classA=length(L[["LE"]][["classA"]]),
                        classB=length(L[["LE"]][["classB"]]),
                        classC=length(L[["LE"]][["classC"]]),
@@ -109,7 +150,9 @@ setSizes$class = factor(setSizes$class, levels=c("classA","classB","classC","cla
 ggplot(setSizes, aes(y=geneCount,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral")
 ```
 
-```{r simulate-LE-L1}
+
+
+```{r simulate-LE-L1, eval=FALSE, include=FALSE}
 stat <- function(obsvd, exptd) {
     sum((obsvd - exptd)^2 / exptd)
 }
@@ -182,18 +225,18 @@ for(cl.from in c("classA","classB","classC","classD")){
 ```{r rename-links-object}
 links=df
 
-links[links == 'LE.classA'] <- 'LE bound/enriched'
-links[links == 'LE.classB'] <- 'LE bound/not enriched'
-links[links == 'LE.classC'] <- 'LE not bound/enriched'
-links[links == 'LE.classD'] <- 'LE not bound/not enriched'
-links[links == 'L1.classA'] <- 'L1 bound/enriched'
-links[links == 'L1.classB'] <- 'L1 bound/not enriched'
-links[links == 'L1.classC'] <- 'L1 not bound/enriched'
-links[links == 'L1.classD'] <- 'L1 not bound/not enriched'
-links[links == 'L3.classA'] <- 'L3 bound/enriched'
-links[links == 'L3.classB'] <- 'L3 bound/not enriched'
-links[links == 'L3.classC'] <- 'L3 not bound/enriched'
-links[links == 'L3.classD'] <- 'L3 not bound/not enriched'
+links[links == 'LE.classA'] <- 'LE bound/enriched '
+links[links == 'LE.classB'] <- 'LE bound/not enriched '
+links[links == 'LE.classC'] <- 'LE not bound/enriched '
+links[links == 'LE.classD'] <- 'LE not bound/not enriched '
+links[links == 'L1.classA'] <- 'L1 bound/enriched '
+links[links == 'L1.classB'] <- 'L1 bound/not enriched '
+links[links == 'L1.classC'] <- 'L1 not bound/enriched '
+links[links == 'L1.classD'] <- 'L1 not bound/not enriched '
+links[links == 'L3.classA'] <- 'L3 bound/enriched '
+links[links == 'L3.classB'] <- 'L3 bound/not enriched '
+links[links == 'L3.classC'] <- 'L3 not bound/enriched '
+links[links == 'L3.classD'] <- 'L3 not bound/not enriched '
 
 # From these flows we need to create a node data frame: it lists every entities involved in the flow
 nodes <- data.frame(
@@ -214,9 +257,9 @@ p <- sankeyNetwork(Links = links, Nodes = nodes,
 p
 
 # save an html
-saveWidget(p, file=paste0( getwd(), "/geneflow_relabelled.html"))
+saveWidget(p, file=paste0( getwd(), "/geneflow_relabelled.v2.wtf.html"))
 
 # save a pdf that should be editable in illustrator
-webshot(paste0( getwd(), "/geneflow_relabelled.html"), "geneflow_relabelled.pdf", delay=.2)
+webshot(paste0( getwd(), "/geneflow_relabelled.v2.wtf.html"), "geneflow_relabelled.v2.wtf.pdf", delay=.2)
 getwd()
 ```

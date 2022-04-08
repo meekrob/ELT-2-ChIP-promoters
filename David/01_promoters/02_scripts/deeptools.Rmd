@@ -127,7 +127,7 @@ for (stage in c("LE","L1","L3")) {
   for (cls in c("classA","classB","classC","classD")){
     outfilename = paste(stage, cls, "v2.bed", sep=".")
     tbl = splt[[cls]]
-    write.table(tbl[,c("seqnames","start","end")], outfilename, sep="\t", quote=F, row.names = F, col.names = F)
+    write.table(tbl[,c("seqnames","start","end","WBGeneID")], outfilename, sep="\t", quote=F, row.names = F, col.names = F)
   }
 }
 ```
