@@ -1,0 +1,158 @@
+---
+title: "elt2_target_gene_ontology"
+author: "Robert Williams"
+date: "4/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message = FALSE}
+library("topGO")
+library(tidyverse)
+```
+# Gene ontology analysis
+
+```{r}
+source("../../../David/01_promoters/02_scripts/GOfxns.R")
+
+WORMGO_nonObsolete <- read_tsv(file = "../../07_intestine_enriched_genes/01_input/Celegans_GOterms_NonObsolete_220330.tsv")
+WORMGO <- WORMGO_nonObsolete %>% dplyr::select(wbps_gene_id = "Gene.primaryIdentifier", 
+                              external_gene_id = "Gene.symbol",
+                              go_accession = "Gene.goAnnotation.ontologyTerm.identifier"
+                              )
+
+
+fisherGOplot <- function(in.df){
+in.df$BP.result %>% mutate(GO = "BP") %>% bind_rows(in.df$MF.result %>% mutate(GO = "MF")) %>% bind_rows(in.df$CC.result %>% mutate(GO = "CC")) %>%
+  filter(Significant > Expected) %>%
+  mutate(gene_count = paste0(Significant,"/", round(Expected))) %>%
+  slice_min(fisher, n = 10) %>%
+  mutate(Term = fct_rev(fct_reorder(Term, fisher))) %>%
+ggplot(aes(x = Term, y = -log10(fisher), fill = GO, label = gene_count)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(hjust = -0.05, aes(y = 0))+
+  scale_fill_brewer(palette = "Greys", direction = -1) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 25)) +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.text.x=element_text(colour="black"),
+        axis.text.y=element_text(colour="black")) +
+  ggtitle(paste("data:", deparse(substitute(in.df)), sep = " "))
+}
+```
+
+```{r}
+embryo_activated_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "embryo", elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(embryo_activated_GO)
+```
+```{r}
+embryo_repressed_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "embryo", elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(embryo_repressed_GO)
+```
+```{r}
+L1_activated_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "L1", elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(L1_activated_GO)
+```
+
+```{r}
+L1_repressed_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "L1", elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(L1_repressed_GO)
+```
+
+```{r}
+L3_activated_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "L3", elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(L3_activated_GO)
+```
+
+```{r}
+L3_repressed_GO <- runGO(foreground_genes = all_stages_chip %>% filter(stage == "L3", elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+fisherGOplot(L3_repressed_GO)
+```
+# What terms are ELT-2 activated genes enriched for regardless of developmental stage?
+
+```{r}
+all_enriched_activated_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(intestine_expression == "enriched",elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_enriched_activated_targets_GO_plot <- fisherGOplot(all_enriched_activated_targets_GO)
+all_enriched_activated_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_enriched_activated_targets_GO_plot.pdf", plot = all_enriched_activated_targets_GO_plot, width = 4, height = 5)
+```
+
+```{r}
+all_not_enriched_activated_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(intestine_expression == "not_enriched",elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_not_enriched_activated_targets_GO_plot <- fisherGOplot(all_not_enriched_activated_targets_GO)
+all_not_enriched_activated_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_not_enriched_activated_targets_GO_plot.pdf", plot = all_not_enriched_activated_targets_GO_plot, width = 4, height = 5)
+```
+
+# What terms are ELT-2 repressed genes enriched for regardless of developmental stage?
+
+```{r}
+all_enriched_repressed_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(intestine_expression == "enriched",elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_enriched_repressed_targets_GO_plot <- fisherGOplot(all_enriched_repressed_targets_GO)
+all_enriched_repressed_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_enriched_repressed_targets_GO_plot.pdf", plot = all_enriched_repressed_targets_GO_plot, width = 4, height = 5)
+```
+
+```{r}
+all_not_enriched_repressed_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(intestine_expression == "not_enriched",elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_not_enriched_repressed_targets_GO_plot <- fisherGOplot(all_not_enriched_repressed_targets_GO)
+all_not_enriched_repressed_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_not_enriched_repressed_targets_GO_plot.pdf", plot = all_not_enriched_repressed_targets_GO_plot, width = 4, height = 5)
+```
+
+# What terms are ELT-2 activated target genes enriched for regardless of developmental stage or intestine expression?
+
+```{r}
+all_activated_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(elt2_ko == "activated", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_activated_targets_GO_plot <- fisherGOplot(all_activated_targets_GO)
+all_activated_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_activated_targets_GO_plot.pdf", plot = all_activated_targets_GO_plot, width = 4, height = 5)
+```
+
+# What terms are ELT-2 target repressed genes enriched for regardless of developmental stage or intestine expression?
+
+```{r}
+all_repressed_targets_GO <- runGO(foreground_genes = all_stages_chip %>% filter(elt2_ko == "repressed", promoter_status == "bound") %>% pull(WBGeneID),
+                             background_genes = all_stages_chip %>% pull(WBGeneID) %>% unique(),
+                            WORMGO = WORMGO,
+                            topNodes = 20)
+all_repressed_targets_GO_plot <- fisherGOplot(all_repressed_targets_GO)
+all_repressed_targets_GO_plot
+ggsave(filename = "../03_output/GO_plots/all_repressed_targets_GO_plot.pdf", plot = all_repressed_targets_GO_plot, width = 4, height = 5)
+```

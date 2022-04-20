@@ -1,0 +1,206 @@
+---
+title: "TGATAA_seqs"
+author: "Robert Williams"
+date: "4/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# BiocManager::install("Biostrings")
+# BiocManager::install("BSgenome.Celegans.UCSC.ce11")
+```
+
+```{r}
+library(tidyverse)
+library(Biostrings)
+library(BSgenome.Celegans.UCSC.ce11)
+```
+
+load data files
+```{r message = FALSE}
+elt2_regulated_genes <- read_csv(file = "../../05_elt2_RNAseq/03_output/elt2_regulated_gene_sets.csv")
+
+embryo_chip <- read.table(file = "../../../David/01_promoters/03_output/LE.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID")
+L1_chip <- read.table(file = "../../../David/01_promoters/03_output/L1.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID")
+L3_chip <- read.table(file = "../../../David/01_promoters/03_output/L3.promoters.hilo.tsv") %>% rownames_to_column(var = "WBGeneID")
+
+embryo_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/embryo_intestine_gene_categories.csv")
+L1_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/L1_intestine_gene_categories.csv")
+L3_intestine_gene_categories <- read_csv(file = "../../03_emb_L1_L3_intestine_RNAseq/03_output/intestine_gene_categories/L3_intestine_gene_categories.csv")
+```
+
+Join the data
+
+```{r}
+
+rna_chip_df <- function(chip_df, category_df){
+  chip_df %>% mutate(promoter_status = case_when(!is.na(IDR_mean) ~ "bound",
+                                               is.na(IDR_mean) ~ "not_bound")) %>% 
+  full_join(category_df, by = "WBGeneID") %>%
+  full_join(elt2_regulated_genes %>% select(-wormbase_gseq, -wikigene_name), by = "WBGeneID") %>%
+  select(WBGeneID:strand, promoter_status, intestine_expression, elt2_ko = description) %>%
+  mutate(intestine_expression = case_when(intestine_expression == "enriched" ~ "enriched",
+                                          intestine_expression != "enriched" ~ "not_enriched",
+                                          TRUE ~ "not_enriched")) %>%
+  rows_update(tibble(WBGeneID = "WBGene00001250", promoter_status = "bound"), by = "WBGeneID") %>%
+    replace_na(list(promoter_status = "not_bound"))
+}
+
+embryo_rna_chip <- rna_chip_df(embryo_chip, embryo_intestine_gene_categories)
+L1_rna_chip <- rna_chip_df(L1_chip, L1_intestine_gene_categories)
+L3_rna_chip <- rna_chip_df(L3_chip, L3_intestine_gene_categories)
+
+all_stages_chip <- data.frame(L1_rna_chip, stage = "L1") %>% bind_rows(data.frame(embryo_rna_chip, stage = "embryo")) %>% bind_rows(data.frame(L3_rna_chip, stage = "L3"))
+all_stages_chip$stage <- factor(all_stages_chip$stage, levels = c("embryo", "L1", "L3"))
+
+all_stages_chip <-
+  all_stages_chip %>% mutate(
+    elt2_ko = case_when(
+      elt2_ko == "up_ELT2_minus" ~ "repressed",
+      elt2_ko == "down_ELT2_minus" ~ "activated",
+      elt2_ko == "unchanged_ELT2_minus" ~ "independent"
+    ),
+    elt2_ko = fct_relevel(elt2_ko, c("activated", "repressed", "independent"))
+  ) #%>%
+  # filter(WBGeneID %in% (
+  #   transcript_type %>% filter(biotype == "protein_coding") %>% distinct(WBGeneID) %>% pull(WBGeneID)
+  # ))
+
+
+head(all_stages_chip)
+
+
+```
+
+# Count TGATAA sites in promoters
+
+```{r}
+chroms <-
+  Seqinfo(
+    c('chrI', 'chrII', 'chrIII', 'chrIV', 'chrV', 'chrX', 'chrM'),
+    c(
+      15072434,
+      15279421,
+      13783801,
+      17493829,
+      20924180,
+      17718942,
+      13794
+    ),
+    c(rep(FALSE, 6), TRUE),
+    rep("ce11", 7)
+  )
+
+all_promoter_GRange <- trim(makeGRangesFromDataFrame(all_stages_chip %>% drop_na(start) %>% filter(stage == "L1") %>% arrange(WBGeneID),
+                                           keep.extra.columns = FALSE,
+                                           ignore.strand = FALSE,
+                                           start.field = "start",
+                                           end.field = "end",
+                                           seqinfo = chroms,
+                                           starts.in.df.are.0based = F))
+all_promoter_GRange <- getSeq(Celegans, all_promoter_GRange)
+
+all_promoter_TGATAA <- all_stages_chip %>% drop_na(start) %>% filter(stage == "L1") %>% arrange(WBGeneID) %>% mutate(site_num = vcountPattern(pattern = "TGATAA", subject = all_promoter_GRange)) %>% select(WBGeneID, site_num) %>% mutate(site_status = case_when(site_num >= 1 ~ "present", site_num == 0 ~ "absent"))
+
+all_stages_chip_TGATAA <- all_promoter_TGATAA %>% left_join(all_stages_chip, by = "WBGeneID")
+```
+
+
+
+
+# Question: what percentage of promoters with TGATAA site have ELT-2 present?
+```{r}
+all_stages_chip_TGATAA %>% group_by(site_status, promoter_status, stage) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = site_status, y = genes, fill =promoter_status )) +
+  geom_bar(stat = "identity", position = "fill")  +
+  facet_wrap(~stage)
+```
+# Question: what percentage of intestine enriched genes contain a TGATAA site and are bound by ELT-2?
+
+```{r}
+all_stages_chip_TGATAA %>% group_by(site_status, promoter_status, stage, intestine_expression) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = site_status, y = genes, fill =promoter_status )) +
+  geom_bar(stat = "identity", position = "fill")  +
+  facet_grid(intestine_expression~stage)
+```
+  
+# Question: what percentage of ELT-2 regulated genes have a TGATAA site and are bound by ELT-2?
+
+```{r}
+all_stages_chip_TGATAA %>% drop_na(elt2_ko) %>% group_by(site_status, promoter_status, elt2_ko, stage) %>% summarise(genes = n()) %>%
+  ggplot(aes(x = site_status, y = genes, fill =promoter_status )) +
+  geom_bar(stat = "identity", position = "fill") +
+  facet_grid(stage~elt2_ko)
+```
+  
+# Question: What is the distribution of TGATAA sites for activated or repressed genes?
+
+```{r}
+library("seqPattern")
+ELT2_pwm <- array(c(c(0,0,0,1), c(0,0,1,0), c(1,0,0,0), c(0,0,0,1), c(1,0,0,0), c(1,0,0,0)), dim = c(4,6))
+rownames(ELT2_pwm) <- c("A", "C", "G", "T")
+ELT2_pwm
+```
+
+```{r}
+activated_promoter_GRange <- trim(makeGRangesFromDataFrame(all_stages_chip %>% drop_na(start) %>% filter(stage == "L1", elt2_ko == "activated", promoter_status == "bound") %>% arrange(WBGeneID),
+                                           keep.extra.columns = FALSE,
+                                           ignore.strand = FALSE,
+                                           start.field = "start",
+                                           end.field = "end",
+                                           seqinfo = chroms,
+                                           starts.in.df.are.0based = F))
+activated_promoter_seq <- getSeq(Celegans, activated_promoter_GRange)
+
+repressed_promoter_GRange <- trim(makeGRangesFromDataFrame(all_stages_chip %>% drop_na(start) %>% filter(stage == "L1", elt2_ko == "repressed", promoter_status == "bound") %>% arrange(WBGeneID),
+                                           keep.extra.columns = FALSE,
+                                           ignore.strand = FALSE,
+                                           start.field = "start",
+                                           end.field = "end",
+                                           seqinfo = chroms,
+                                           starts.in.df.are.0based = F))
+repressed_promoter_seq <- getSeq(Celegans, repressed_promoter_GRange)
+```
+
+
+```{r}
+plotMotifOccurrenceAverage(regionsSeq = activated_promoter_seq,
+                           motifPWM = ELT2_pwm,
+                           minScore = "100%",
+                           smoothingWindow = 10,
+                           flankUp = 1000,
+                           flankDown = 200,
+                           color = c("red3"))
+plotMotifOccurrenceAverage(regionsSeq = repressed_promoter_seq,
+                           motifPWM = ELT2_pwm,
+                           minScore = "100%",
+                           smoothingWindow = 10,
+                           flankUp = 1000,
+                           flankDown = 200,
+                           color = c("blue3"),
+                           add = TRUE)
+legend("topleft", legend = c("activated", "repressed"), col = c("red3", "blue3"), bty = "n", lwd = 1)
+```
+
+
+# Motif analysis
+
+Do this centered on ELT-2 peak summits within promoters
+<!-- ```{r} -->
+<!-- library("seqLogo") -->
+
+<!-- seqLogo(consensusMatrix(activated_promoter_seq, as.prob = TRUE)[1:4,]) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library("rGADEM") -->
+<!-- activated_promoter_motifs <- GADEM(Sequences = activated_promoter_seq, numTop3mer = 5, numTop4mer = 5, numTop5mer = 5) -->
+<!-- plot(activated_promoter_motifs[1]) -->
+<!-- repressed_promoter_motifs <- GADEM(Sequences = repressed_promoter_seq, numTop3mer = 5, numTop4mer = 5, numTop5mer = 5) -->
+<!-- plot(repressed_promoter_motifs[1]) -->
+<!-- ``` -->
+
