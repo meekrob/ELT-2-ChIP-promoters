@@ -55,6 +55,7 @@ t(table(merge$L3.class,merge$L3.boundEnrichedStatus))
 ```
 
 ```{r bools}
+
 # bools
 classA.LE = merge$embryo.boundEnrichedStatus == "bound.enriched"
 classB.LE = merge$embryo.boundEnrichedStatus %in% c("bound.equal", "bound.depleted", "bound.ftr")
@@ -67,7 +68,6 @@ LEvec[classA.LE] = "classA"
 LEvec[classB.LE] = "classB"
 LEvec[classC.LE] = "classC"
 LEvec[classD.LE] = "classD"
-table(LEvec)
 
 # bools
 classA.L1 = merge$L1.boundEnrichedStatus == "bound.enriched"
@@ -81,7 +81,6 @@ L1vec[classA.L1] = "classA"
 L1vec[classB.L1] = "classB"
 L1vec[classC.L1] = "classC"
 L1vec[classD.L1] = "classD"
-table(L1vec)
 
 # bools
 classA.L3 = merge$L3.boundEnrichedStatus == "bound.enriched"
@@ -89,20 +88,69 @@ classB.L3 = merge$L3.boundEnrichedStatus %in% c("bound.equal", "bound.depleted",
 classC.L3 = merge$L3.boundEnrichedStatus == "unbound.enriched"
 classD.L3 = merge$L3.boundEnrichedStatus %in% c("unbound.equal", "unbound.depleted", "unbound.ftr")
  
-
 L3vec = character(length(classA.L3))
 L3vec[classA.L3] = "classA"
 L3vec[classB.L3] = "classB"
 L3vec[classC.L3] = "classC"
 L3vec[classD.L3] = "classD"
-table(L3vec)
-
 
 merge$LE.class.v2 = LEvec
 merge$L1.class.v2 = L1vec
 merge$L3.class.v2 = L3vec
 ```
+
+```{r class-barplots}
+class_lng = data.frame()
+ 
+
+tbl = table(LEvec)
+tbl
+df = as.data.frame(tbl)
+df$stage = "LE"
+colnames(df) <- c("class", "geneCounts", "stage")
+class_lng %<>% rbind(df)
+
+mx = matrix(c(tbl),nrow=2)
+dimnames(mx) <- list(ELT2.bound=c("yes","no"), int.enriched=c("yes","no"))
+mx.chi = chisq.test(mx)
+mx
+mx.chi$expected
+
+lng = data.frame(geneCounts=c(mx.chi$observed, mx.chi$expected), label=c("int.enriched/bound","int.enriched/unbound","NOT int.enriched/bound","NOT int.enriched/unbound"), obs.exp = c(rep("observed",4), rep("expected",4)))
+lng$obs.exp = factor(lng$obs.exp, levels=c("observed","expected"))
+
+ggplot(lng, aes(x=obs.exp, y=geneCounts, alpha=obs.exp)) + geom_bar(aes(fill=label),stat="identity",position=position_stack()) + scale_fill_brewer(palette="Spectral") + scale_y_break(c(14000,15000),scales=3) + scale_alpha_manual(values=c(1,.7), guide="none") + theme_classic()
+```
+
+
 ```{r}
+
+
+tbl = table(L1vec)
+tbl
+df = as.data.frame(tbl)
+df$stage = "L1"
+colnames(df) <- c("class", "geneCounts", "stage")
+class_lng %<>% rbind(df)
+
+tbl = table(L3vec)
+df = as.data.frame(tbl)
+df$stage = "L3"
+colnames(df) <- c("class", "geneCounts", "stage")
+class_lng %<>% rbind(df)
+
+class_lng$stage = factor(class_lng$stage, levels=c("LE","L1","L3"))
+class_lng$class = factor(class_lng$class, levels=c("classA","classB","classC","classD"))
+ggplot(class_lng, aes(y=geneCounts,x=stage)) + geom_bar(aes(fill=class),stat="identity",position=position_stack()) + scale_y_break(c(5000,15000)) 
+
+mx = matrix(c(tbl),nrow=2)
+dimnames(mx) <- list(ELT2.bound=c("yes","no"), int.enriched=c("yes","no"))
+mx
+
+```
+
+
+```{r write-files}
 
 # zero out the dineen LFC that are NA's to 0. 
 merge[is.na(merge$din.log2FoldChange),'din.log2FoldChange'] <- 0

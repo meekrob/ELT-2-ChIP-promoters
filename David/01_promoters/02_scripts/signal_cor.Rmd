@@ -1,0 +1,459 @@
+---
+title: "signal correlations"
+author: "DC King - Onish lab"
+date: "4/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+library(tidyr)
+library(dplyr)
+library(GenomicRanges)
+library(magrittr)
+library(knitr) # for kable
+library(ggplot2)
+source('david-reader.R')
+```
+
+## ELT-2 data
+
+```{r read-data-ELT-2}
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE)
+#glimpse(elt2.data)
+```
+
+## Rob data
+
+```{r read-rob-merged}
+rob = read_rob_all_merged() %>% dplyr::select(-starts_with("pvalue."),-starts_with("lfcSE."))
+glimpse(rob)
+```
+
+```{r combine-elt-2-rnaseq}
+merge = right_join(rob, elt2.data, by = "WBGeneID")
+# glimpse(merge)
+
+# Left-over genes are NA in alldata. Give them a label
+merge$embryo_int_exp[is.na(merge$embryo_int_exp)] = 'ftr'
+merge$L1_int_exp[is.na(merge$L1_int_exp)] = 'ftr'
+merge$L3_int_exp[is.na(merge$L3_int_exp)] = 'ftr'
+
+merge$embryo.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$LE_bound, "bound", "unbound"), merge$embryo_int_exp)
+merge$L1.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L1_bound, "bound", "unbound"), merge$L1_int_exp)
+merge$L3.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L3_bound, "bound", "unbound"), merge$L3_int_exp)
+
+# fix a name 
+merge %<>% dplyr::rename(L3.log_chip_signal_mean = L3_log.chip_signal_mean)
+```
+
+```{r log2-chip-to-log10, eval=FALSE}
+merge %<>% dplyr::mutate(LE.log_chip_signal_mean = LE.log_chip_signal_mean*log(2,10),
+                  LE.log_chip_signal_max  = LE.log_chip_signal_max*log(2,10),
+                  L1.log_chip_signal_mean = L1.log_chip_signal_mean*log(2,10),
+                  L1.log_chip_signal_max  = L1.log_chip_signal_max*log(2,10),
+                  L3.log_chip_signal_mean = L3.log_chip_signal_mean*log(2,10),
+                  L3.log_chip_signal_max  = L3.log_chip_signal_max*log(2,10)
+                  )
+```
+
+```{r choose-columns}
+
+alldata = merge %>% select(ends_with("log_chip_signal_mean"), 
+                        starts_with("rlogc."),
+                        starts_with("log2FoldChange."),
+                        ends_with(".boundEnrichedStatus"),
+                        ends_with("_int_exp"),
+                        ends_with("_bound"),
+                        din.status.description,
+                        WBGeneID)
+
+```
+
+```{r embryo-r-squared}
+data = alldata
+#data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
+#data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
+
+# trim extreme .1%
+q.LE.chipsig = quantile(data$LE.log_chip_signal_mean, c(1-.9995,.9995))
+q.rlogc.embryo = quantile(data$rlogc.embryo, c(1-.9995,.9995),na.rm=T)
+data %<>% filter(between(LE.log_chip_signal_mean, q.LE.chipsig[1],q.LE.chipsig[2]))
+data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
+
+#cor(data$LE.log_chip_signal_mean,data$rlogc.embryo,use="complete")
+
+# methods=c("pearson","spearman")
+# for (method in methods){
+# d= data %>% filter(LE_bound == TRUE); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# d= data %>% filter(LE_bound == FALSE); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# d= data %>% filter(embryo_int_exp == 'ftr'); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# d = data %>% filter(embryo_int_exp == 'enriched'); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# d= data %>% filter(embryo_int_exp == 'equal'); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# d= data %>% filter(embryo_int_exp == 'depleted'); cor(d$LE.log_chip_signal_mean,d$rlogc.embryo,use="complete", method=method) %>% print()
+# }
+
+
+
+mod.embryo0 = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data = data)
+s.mod.embryo0 = summary(mod.embryo0)
+
+mod.embryo1 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, data = data)
+s.mod.embryo1 = summary(mod.embryo1)
+
+embryo.explained.binding = s.mod.embryo1$r.square - s.mod.embryo0$r.squared
+
+mod.embryo2 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, data = data)
+s.mod.embryo2 = summary(mod.embryo2)
+
+embryo.explained.enrichment = s.mod.embryo2$r.square - s.mod.embryo0$r.squared
+
+mod.embryo3 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, data = data)
+s.mod.embryo3 = summary(mod.embryo3)
+embryo.explained.combined = s.mod.embryo3$r.square - s.mod.embryo0$r.squared
+
+fitted.embryo3 = predict(mod.embryo3, data)
+
+
+
+
+  
+  
+
+anova1 = anova(mod.embryo1) 
+anova2 = anova(mod.embryo2) 
+anova3 = anova(mod.embryo3) 
+
+tbl1 = cbind((anova1$`Sum Sq`)/sum(anova1$`Sum Sq`), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`))
+rownames(tbl1) = rownames(anova1)
+tbl2 = cbind((anova2$`Sum Sq`)/sum(anova2$`Sum Sq`), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))
+rownames(tbl2) = rownames(anova2)
+tbl3 = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+rownames(tbl3) = rownames(anova3)
+
+tbl1 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  ELT-2 binding", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+tbl2 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+tbl3 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  combined ELT-2 binding and intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+
+ggplot(data, 
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + 
+  ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.embryo0$r.squared,3)))) +
+  ylab("DESeq2 rlog counts")
+
+ggplot(data %>% mutate(elt2.binding = ifelse(LE_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal and ELT-2 called peak" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))
+
+ggplot(data,
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~embryo_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+ggplot(data.frame(data,fitted.embryo3), aes(x=fitted.embryo3, y=rlogc.embryo)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.embryo3$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+
+#anova(mod.embryo1, mod.embryo2,mod.embryo3)
+
+
+# who's the dead boy in ftr?
+ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
+#plot(ftr.lm) show point 10993 (10597 is high)
+```
+```{r smash}
+# smash together the variables returned by lm, summary, and anova
+smash = function(formula, data) {
+  mod = lm(formula, data)
+  summ = summary(mod)
+  for (name in names(s.mod.embryo0)) { 
+    mod[[name]] = summ[[name]]
+  }
+  mod$anova = anova(mod)
+  mod
+}
+```
+
+```{r get-hsd-row}
+getHSDRow = function(x, facCombo1, facCombo2) {
+   try1 = paste(facCombo1,facCombo2, sep="-")
+   message(try1)
+   try2 = paste(facCombo2,facCombo1, sep="-")
+   message(try2)
+   row1 = as.data.frame(x)[try1,]
+   row2 = as.data.frame(x)[try2,]
+   row1[is.na(row1)] <- 0
+   row2[is.na(row2)] <- 0
+   final = row1 + row2
+   rownames(final) <- try1
+   final
+}
+```
+
+
+```{r L1}
+data = alldata
+# data %<>% filter(L1_int_exp != "ftr")
+#data %<>% filter(L1_bound == TRUE)
+#cor(data$L1.log_chip_signal_mean,data$rlogc.L1,use="complete")
+
+mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
+#summary(mod.L11)
+
+mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean+L1_int_exp, data = data)
+#summary(mod.L12)
+
+mod.L13 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
+#summary(mod.L13)
+
+mod.L14 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound*din.status.description, data = data)
+
+anova1 = anova(mod.L11)
+anova2 = anova(mod.L12)
+anova3 = anova(mod.L13)
+anova4 = anova(mod.L14)
+
+ggplot(data %>% filter( L1_int_exp == "enriched"), 
+       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() + stat_smooth(method="lm") + facet_wrap(~L1_bound)#+ coord_cartesian(xlim=c(5,10),ylim=c(0,20))
+
+
+# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
+
+# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
+# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
+tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+rownames(tbl) = rownames(anova3)
+tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
+
+rlogc.L3 = data$rlogc.L3
+L3.log_chip_signal_mean = data$L3.log_chip_signal_mean
+L3_bound = as.character(data$L3_bound)
+L3_int_exp = data$L3_int_exp
+mL3 = lm(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound * L3_int_exp)
+cat_plot(mL3, modx=L3_bound, pred=L3_int_exp)
+
+```
+
+```{r L3}
+data = alldata
+mod.L31 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_bound, data = data)
+#summary(mod.L31)
+
+mod.L32 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp, data = data)
+#summary(mod.L32)
+
+mod.L33 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp*L3_bound, data = data)
+#summary(mod.L33)
+
+anova1 = anova(mod.L31)
+anova2 = anova(mod.L32)
+anova3 = anova(mod.L33)
+
+# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
+
+# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
+# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
+tbl = cbind(anova3$`Sum Sq`/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+rownames(tbl) = rownames(anova3)
+
+tbl %>% kable(caption="Variance in L3 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+
+```
+
+```{r}
+data = alldata
+LE_bound = ifelse(data$LE_bound, "called peak", "no called peak")
+rlogc.embryo = data$rlogc.embryo
+embryo_int_exp = data$embryo_int_exp
+embryo.aov = aov(rlogc.embryo ~ LE_bound * embryo_int_exp)
+embryo.hsd = TukeyHSD(embryo.aov, conf.level = .999)
+opar = par(mar=c(3,10,2,1)); plot(embryo.hsd, las=2,cex.axis=.5); par(opar)
+df = data.frame(expression.level = rlogc.embryo, 
+                LE_bound = LE_bound, 
+                intestine_enriched=embryo_int_exp,
+                levels.combined = paste(LE_bound, embryo_int_exp, sep=", "))
+table(df$levels.combined)
+df$levels.combined = factor(df$levels.combined, levels=rev(c(
+      "called peak, equal",
+      "no called peak, equal",
+        "called peak, enriched",
+      "no called peak, enriched",
+#      "called peak, depleted",
+#      "no called peak, depleted",
+      "called peak, ftr",
+      "no called peak, ftr"
+)))
+
+
+# get the letters
+comp = do.call(compare, list(embryo.hsd$`LE_bound:embryo_int_exp`[,4],.01))
+comp[is.na(comp)] <- FALSE
+
+# filter out depleted
+bad = (1:length(comp))[grepl('depleted', names(comp))]
+df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+
+
+letters = multcompLetters(comp[-bad])$Letters
+names(letters) <- sub(":", ", ", names(letters))
+df$multCompLetters = letters[as.character(df$levels.combined)]
+
+# %>% filter(combo != "FALSE depleted" 
+G.LE = ggplot(df, aes(x=expression.level, y=levels.combined, fill=multCompLetters)) + geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01") + guides(fill=FALSE) + ylab("Expression/ELT-2 binding") + xlab("Embryo intestine expression level") 
+G.LE
+
+df.embryo = df
+
+# L1
+L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp, data=data)
+L1_bound = ifelse(data$L1_bound, "called peak", "no called peak")
+rlogc.L1 = data$rlogc.L1
+L1_int_exp = data$L1_int_exp
+L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp)
+L1.hsd = TukeyHSD(L1.aov, conf.level = .999)
+opar = par(mar=c(3,10,2,1)); plot(L1.hsd, las=2,cex.axis=.5); par(opar)
+df = data.frame(expression.level = rlogc.L1, 
+                L1_bound = L1_bound, 
+                intestine_enriched=L1_int_exp,
+                levels.combined = paste(L1_bound, L1_int_exp, sep=", "))
+table(df$levels.combined)
+
+df.depleted = df %>% filter(intestine_enriched == "depleted")
+G1.L1.depleted = ggplot(df.depleted, aes(x=expression.level, 
+                      y=levels.combined)) + 
+  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x))
+
+df$levels.combined = factor(df$levels.combined, levels=rev(c(
+      "called peak, equal",
+      "no called peak, equal",
+        "called peak, enriched",
+      "no called peak, enriched",
+#      "called peak, depleted",
+#      "no called peak, depleted",
+      "called peak, ftr",
+      "no called peak, ftr"
+)))
+
+
+# get the letters
+comp = do.call(compare, list(L1.hsd$`L1_bound:L1_int_exp`[,4],.01))
+comp[is.na(comp)] <- FALSE
+
+# filter out depleted
+bad = (1:length(comp))[grepl('depleted', names(comp))]
+df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+
+letters.w.depleted = multcompLetters(comp)$Letters
+letters = multcompLetters(comp[-bad])$Letters
+names(letters) <- sub(":", ", ", names(letters))
+df$multCompLetters = letters[as.character(df$levels.combined)]
+
+# %>% filter(combo != "FALSE depleted" 
+G.L1 = ggplot(df, aes(x=expression.level, y=levels.combined, fill=multCompLetters)) + geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01")  + ylab("Expression/ELT-2 binding") + xlab("L1 intestine expression level") 
+G.L1
+
+grid.newpage()
+grid.draw(rbind(ggplotGrob(G.L1 + xlim(-5,20)), 
+                ggplotGrob(G.L1.depleted + xlim(-5,20) + 
+                   geom_text(inherit.aes = FALSE, 
+                     data=data.frame(x=0,
+                                     y=4,
+                                     label="Only different\nfrom equal"),
+                     mapping=aes(x=x,
+                             y=y,
+                             label=label))),
+                size="first")
+          )
+
+df.L1 = df
+
+# L3
+L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp, data=data)
+L3_bound = ifelse(data$L3_bound, "called peak", "no called peak")
+rlogc.L3 = data$rlogc.L3
+L3_int_exp = data$L3_int_exp
+L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp)
+L3.hsd = TukeyHSD(L3.aov, conf.level = .999)
+opar = par(mar=c(3,10,2,1)); plot(L3.hsd, las=2,cex.axis=.5); par(opar)
+df = data.frame(expression.level = rlogc.L3, 
+                L3_bound = L3_bound, 
+                intestine_enriched=L3_int_exp,
+                levels.combined = paste(L3_bound, L3_int_exp, sep=", "))
+table(df$levels.combined)
+
+
+df.depleted = df %>% filter(intestine_enriched == "depleted")
+G.L3.depleted = ggplot(df.depleted, aes(x=expression.level, 
+                      y=levels.combined)) + 
+  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x))
+
+
+df$levels.combined = factor(df$levels.combined, levels=rev(c(
+      "called peak, equal",
+      "no called peak, equal",
+        "called peak, enriched",
+      "no called peak, enriched",
+      "called peak, depleted",
+      "no called peak, depleted",
+      "called peak, ftr",
+      "no called peak, ftr"
+)))
+
+
+# get the letters
+comp = do.call(compare, list(L3.hsd$`L3_bound:L3_int_exp`[,4],.01))
+comp[is.na(comp)] <- FALSE
+
+# filter out depleted
+bad = (1:length(comp))[grepl('depleted', names(comp))]
+df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+
+letters.w.depleted = multcompLetters(comp)$Letters
+letters = multcompLetters(comp[-bad])$Letters
+
+
+names(letters) <- sub(":", ", ", names(letters))
+df$multCompLetters = letters[as.character(df$levels.combined)]
+
+# %>% filter(combo != "FALSE depleted" 
+G.L3 = ggplot(df, aes(x=expression.level, 
+                      y=levels.combined, 
+                      fill=multCompLetters)) + 
+  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x))  + 
+  ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01") +
+  guides(fill=FALSE) + 
+  ylab("Expression/ELT-2 binding") + 
+  xlab("L3 intestine expression level") 
+
+
+df.L3 = df
+tbl = table(df.L3$levels.combined) 
+Ns = data.frame(group=names(tbl), val=c(tbl), x=18.5, y=1:6 + .25)
+
+G.L3 = G.L3 +
+  geom_text(inherit.aes = F, data=Ns, aes(y=y, x=x, label=paste("N",Ns$val,sep="=")))
+
+G.L3
+
+```
+```{r paste-prev-plots}
+library(grid)
+grid.newpage()
+grid.draw(cbind(
+  ggplotGrob(G.LE 
+               ),
+  ggplotGrob(G.L1 + 
+               ylab(element_blank()) + 
+               theme(axis.text.y = element_blank())
+             ),
+  ggplotGrob(G.L3 + 
+               ylab(element_blank()) + 
+               theme(axis.text.y = element_blank()))))
+ggsave("ridgeplot.pdf")
+```
+
+```{r }
+
