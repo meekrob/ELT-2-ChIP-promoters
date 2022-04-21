@@ -143,11 +143,19 @@ ggplot(data,
 
 ggplot(data %>% mutate(elt2.binding = ifelse(LE_bound, "ELT-2 unbound", "ELT-2 bound")),
        aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal and ELT-2 called peak" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))
+
+
 
 ggplot(data,
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~embryo_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~embryo_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+ggplot(data %>% mutate(elt2.binding = ifelse(LE_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + embryo_int_exp) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo3$r.squared,3))))
+
 
 ggplot(data.frame(data,fitted.embryo3), aes(x=fitted.embryo3, y=rlogc.embryo)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.embryo3$r.squared,3)))) + ylab("DESeq2 rlog counts") 
 
@@ -172,6 +180,149 @@ smash = function(formula, data) {
 }
 ```
 
+
+
+
+```{r L1}
+data = alldata
+# data %<>% filter(L1_int_exp != "ftr")
+#data %<>% filter(L1_bound == TRUE)
+#cor(data$L1.log_chip_signal_mean,data$rlogc.L1,use="complete")
+
+# trim extreme .1%
+q.L1.chipsig = quantile(data$L1.log_chip_signal_mean, c(1-.9995,.9995))
+q.rlogc.L1 = quantile(data$rlogc.L1, c(1-.9995,.9995),na.rm=T)
+data %<>% filter(between(L1.log_chip_signal_mean, q.L1.chipsig[1],q.L1.chipsig[2]))
+data %<>% filter(between(rlogc.L1, q.rlogc.L1[1],q.rlogc.L1[2]))
+
+
+mod.L10 = lm(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
+s.mod.L10 = summary(mod.L11)
+
+mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean+L1_bound, data = data)
+s.mod.L11 = summary(mod.L11)
+
+mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp, data = data)
+s.mod.L12 = summary(mod.L12)
+
+mod.L13 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
+s.mod.L13 = summary(mod.L13)
+
+mod.L14 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound*din.status.description, data = data)
+s.mod.L14 = summary(mod.L14)
+
+anova1 = anova(mod.L11)
+anova2 = anova(mod.L12)
+anova3 = anova(mod.L13)
+anova4 = anova(mod.L14)
+
+fitted.L13 = predict(mod.L13, data)
+
+
+ggplot(data, 
+       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + 
+  ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.L10$r.squared,3)))) +
+  ylab("DESeq2 rlog counts")
+
+ggplot(data %>% mutate(elt2.binding = ifelse(L1_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L11$r.squared,3))))
+
+ggplot(data,
+       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~L1_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L12$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+ggplot(data %>% mutate(elt2.binding = ifelse(L1_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + L1_int_exp) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L13$r.squared,3))))
+
+
+ggplot(data.frame(data,fitted.L13), aes(x=fitted.L13, y=rlogc.L1)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L13$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+
+
+# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
+
+# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
+# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
+tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+rownames(tbl) = rownames(anova3)
+tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
+
+# rlogc.L3 = data$rlogc.L3
+# L3.log_chip_signal_mean = data$L3.log_chip_signal_mean
+# L3_bound = as.character(data$L3_bound)
+# L3_int_exp = data$L3_int_exp
+# mL3 = lm(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound * L3_int_exp)
+# cat_plot(mL3, modx=L3_bound, pred=L3_int_exp)
+
+```
+
+```{r L3}
+data = alldata
+# trim extreme .1%
+q.L3.chipsig = quantile(data$L3.log_chip_signal_mean, c(1-.9995,.9995))
+q.rlogc.L3 = quantile(data$rlogc.L3, c(1-.9995,.9995),na.rm=T)
+data %<>% filter(between(L3.log_chip_signal_mean, q.L3.chipsig[1],q.L3.chipsig[2]))
+data %<>% filter(between(rlogc.L3, q.rlogc.L3[1],q.rlogc.L3[2]))
+
+mod.L30 = lm(rlogc.L3 ~ L3.log_chip_signal_mean, data = data)
+s.mod.L30 = summary(mod.L30)
+
+mod.L31 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_bound, data = data)
+s.mod.L31 = summary(mod.L31)
+
+mod.L32 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp, data = data)
+s.mod.L32 = summary(mod.L32)
+
+mod.L33 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp*L3_bound, data = data)
+s.mod.L33 = summary(mod.L33)
+
+anova1 = anova(mod.L31)
+anova2 = anova(mod.L32)
+anova3 = anova(mod.L33)
+
+fitted.L33 = predict(mod.L33, data)
+
+
+ggplot(data, 
+       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + 
+  ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.L30$r.squared,3)))) +
+  ylab("DESeq2 rlog counts")
+
+ggplot(data %>% mutate(elt2.binding = ifelse(L3_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L31$r.squared,3))))
+
+ggplot(data,
+       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~L3_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L32$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+ggplot(data %>% mutate(elt2.binding = ifelse(L3_bound, "ELT-2 unbound", "ELT-2 bound")),
+       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
+  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + L3_int_exp) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L33$r.squared,3))))
+
+
+ggplot(data.frame(data,fitted.L33), aes(x=fitted.L33, y=rlogc.L3)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L33$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+
+
+
+
+# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
+
+# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
+# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
+tbl = cbind(anova3$`Sum Sq`/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+rownames(tbl) = rownames(anova3)
+
+tbl %>% kable(caption="Variance in L3 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+
+```
+
 ```{r get-hsd-row}
 getHSDRow = function(x, facCombo1, facCombo2) {
    try1 = paste(facCombo1,facCombo2, sep="-")
@@ -189,80 +340,16 @@ getHSDRow = function(x, facCombo1, facCombo2) {
 ```
 
 
-```{r L1}
+```{r ANOVAE}
 data = alldata
-# data %<>% filter(L1_int_exp != "ftr")
-#data %<>% filter(L1_bound == TRUE)
-#cor(data$L1.log_chip_signal_mean,data$rlogc.L1,use="complete")
+din.status.description = data$din.status.description
 
-mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
-#summary(mod.L11)
-
-mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean+L1_int_exp, data = data)
-#summary(mod.L12)
-
-mod.L13 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
-#summary(mod.L13)
-
-mod.L14 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound*din.status.description, data = data)
-
-anova1 = anova(mod.L11)
-anova2 = anova(mod.L12)
-anova3 = anova(mod.L13)
-anova4 = anova(mod.L14)
-
-ggplot(data %>% filter( L1_int_exp == "enriched"), 
-       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() + stat_smooth(method="lm") + facet_wrap(~L1_bound)#+ coord_cartesian(xlim=c(5,10),ylim=c(0,20))
+LE_bound = ifelse(data$LE_bound, "ELT2 BOUND", "ELT2 UNbound")
 
 
-# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
-
-# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
-# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
-tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
-rownames(tbl) = rownames(anova3)
-tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
-
-rlogc.L3 = data$rlogc.L3
-L3.log_chip_signal_mean = data$L3.log_chip_signal_mean
-L3_bound = as.character(data$L3_bound)
-L3_int_exp = data$L3_int_exp
-mL3 = lm(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound * L3_int_exp)
-cat_plot(mL3, modx=L3_bound, pred=L3_int_exp)
-
-```
-
-```{r L3}
-data = alldata
-mod.L31 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_bound, data = data)
-#summary(mod.L31)
-
-mod.L32 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp, data = data)
-#summary(mod.L32)
-
-mod.L33 = lm(rlogc.L3 ~ L3.log_chip_signal_mean*L3_int_exp*L3_bound, data = data)
-#summary(mod.L33)
-
-anova1 = anova(mod.L31)
-anova2 = anova(mod.L32)
-anova3 = anova(mod.L33)
-
-# https://stats.stackexchange.com/questions/79399/calculate-variance-explained-by-each-predictor-in-multiple-regression-using-r
-
-# cbind(rownames(anova1), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`)) %>% kable()
-# cbind(rownames(anova2), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))%>% kable()
-tbl = cbind(anova3$`Sum Sq`/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
-rownames(tbl) = rownames(anova3)
-
-tbl %>% kable(caption="Variance in L3 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
-
-```
-
-```{r}
-data = alldata
-LE_bound = ifelse(data$LE_bound, "called peak", "no called peak")
 rlogc.embryo = data$rlogc.embryo
 embryo_int_exp = data$embryo_int_exp
+embryo_int_exp[ embryo_int_exp == "ftr" ] = "not passing"
 embryo.aov = aov(rlogc.embryo ~ LE_bound * embryo_int_exp)
 embryo.hsd = TukeyHSD(embryo.aov, conf.level = .999)
 opar = par(mar=c(3,10,2,1)); plot(embryo.hsd, las=2,cex.axis=.5); par(opar)
@@ -272,42 +359,54 @@ df = data.frame(expression.level = rlogc.embryo,
                 levels.combined = paste(LE_bound, embryo_int_exp, sep=", "))
 table(df$levels.combined)
 df$levels.combined = factor(df$levels.combined, levels=rev(c(
-      "called peak, equal",
-      "no called peak, equal",
-        "called peak, enriched",
-      "no called peak, enriched",
-#      "called peak, depleted",
-#      "no called peak, depleted",
-      "called peak, ftr",
-      "no called peak, ftr"
+      "ELT2 BOUND, equal",
+      "ELT2 UNbound, equal",
+      "ELT2 BOUND, enriched",
+      "ELT2 UNbound, enriched",
+      "ELT2 BOUND, not passing",
+      "ELT2 UNbound, not passing",
+      "ELT2 BOUND, depleted",
+      "ELT2 UNbound, depleted"
 )))
 
 
 # get the letters
+compare = function(x,y) {x<y}
 comp = do.call(compare, list(embryo.hsd$`LE_bound:embryo_int_exp`[,4],.01))
 comp[is.na(comp)] <- FALSE
 
 # filter out depleted
-bad = (1:length(comp))[grepl('depleted', names(comp))]
-df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+# bad = (1:length(comp))[grepl('depleted', names(comp))]
+# df %<>% filter(levels.combined != "ELT2 UNbound, depleted") %>% filter(levels.combined != "ELT2 BOUND, depleted")
 
 
-letters = multcompLetters(comp[-bad])$Letters
+#letters = multcompLetters(comp[-bad])$Letters
+letters = multcompLetters(comp)$Letters
 names(letters) <- sub(":", ", ", names(letters))
 df$multCompLetters = letters[as.character(df$levels.combined)]
 
 # %>% filter(combo != "FALSE depleted" 
 G.LE = ggplot(df, aes(x=expression.level, y=levels.combined, fill=multCompLetters)) + geom_density_ridges2(scale=2, quantile_lines=TRUE,
-                       quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01") + guides(fill=FALSE) + ylab("Expression/ELT-2 binding") + xlab("Embryo intestine expression level") 
-G.LE
+                       quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)") + ylab("Expression/ELT-2 binding") + xlab("Embryo intestine expression level") 
+
 
 df.embryo = df
 
+tbl = table(df.embryo$levels.combined) 
+tbl = tbl[tbl!=0]
+Ns = data.frame(group=names(tbl), val=c(tbl), x=18.5, y=1:length(tbl) + .25)
+
+G.LE = G.LE +
+  geom_text(inherit.aes = F, data=Ns, aes(y=y, x=x, label=paste("n",Ns$val,sep="=")))
+G.LE
+ggsave("embryo.rlogc.ridgeplot.pdf")
+
 # L1
 L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp, data=data)
-L1_bound = ifelse(data$L1_bound, "called peak", "no called peak")
+L1_bound = ifelse(data$L1_bound, "ELT2 BOUND", "ELT2 UNbound")
 rlogc.L1 = data$rlogc.L1
 L1_int_exp = data$L1_int_exp
+L1_int_exp[ L1_int_exp == "ftr" ] = "not passing"
 L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp)
 L1.hsd = TukeyHSD(L1.aov, conf.level = .999)
 opar = par(mar=c(3,10,2,1)); plot(L1.hsd, las=2,cex.axis=.5); par(opar)
@@ -324,14 +423,14 @@ G1.L1.depleted = ggplot(df.depleted, aes(x=expression.level,
                        quantile_fun=function(x,...) mean(x))
 
 df$levels.combined = factor(df$levels.combined, levels=rev(c(
-      "called peak, equal",
-      "no called peak, equal",
-        "called peak, enriched",
-      "no called peak, enriched",
-#      "called peak, depleted",
-#      "no called peak, depleted",
-      "called peak, ftr",
-      "no called peak, ftr"
+      "ELT2 BOUND, equal",
+      "ELT2 UNbound, equal",
+      "ELT2 BOUND, enriched",
+      "ELT2 UNbound, enriched",
+      "ELT2 BOUND, not passing",
+      "ELT2 UNbound, not passing",
+      "ELT2 BOUND, depleted",
+      "ELT2 UNbound, depleted"
 )))
 
 
@@ -341,41 +440,53 @@ comp[is.na(comp)] <- FALSE
 
 # filter out depleted
 bad = (1:length(comp))[grepl('depleted', names(comp))]
-df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+#df %<>% filter(levels.combined != "ELT2 UNbound, depleted") %>% filter(levels.combined != "ELT2 BOUND, depleted")
 
 letters.w.depleted = multcompLetters(comp)$Letters
-letters = multcompLetters(comp[-bad])$Letters
+#letters = multcompLetters(comp[-bad])$Letters
+letters = letters.w.depleted
 names(letters) <- sub(":", ", ", names(letters))
 df$multCompLetters = letters[as.character(df$levels.combined)]
 
 # %>% filter(combo != "FALSE depleted" 
 G.L1 = ggplot(df, aes(x=expression.level, y=levels.combined, fill=multCompLetters)) + geom_density_ridges2(scale=2, quantile_lines=TRUE,
                        quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01")  + ylab("Expression/ELT-2 binding") + xlab("L1 intestine expression level") 
-G.L1
+#G.L1
 
-grid.newpage()
-grid.draw(rbind(ggplotGrob(G.L1 + xlim(-5,20)), 
-                ggplotGrob(G.L1.depleted + xlim(-5,20) + 
-                   geom_text(inherit.aes = FALSE, 
-                     data=data.frame(x=0,
-                                     y=4,
-                                     label="Only different\nfrom equal"),
-                     mapping=aes(x=x,
-                             y=y,
-                             label=label))),
-                size="first")
-          )
+# grid.newpage()
+# grid.draw(rbind(ggplotGrob(G.L1 + xlim(-5,20)), 
+#                 ggplotGrob(G.L1.depleted + xlim(-5,20) + 
+#                    geom_text(inherit.aes = FALSE, 
+#                      data=data.frame(x=0,
+#                                      y=4,
+#                                      label="Only different\nfrom equal"),
+#                      mapping=aes(x=x,
+#                              y=y,
+#                              label=label))),
+#                 size="first")
+#           )
 
 df.L1 = df
 
+tbl = table(df.L1$levels.combined) 
+tbl = tbl[tbl!=0]
+Ns = data.frame(group=names(tbl), val=c(tbl), x=18.5, y=1:length(tbl) + .25)
+
+G.L1 = G.L1 +
+  geom_text(inherit.aes = F, data=Ns, aes(y=y, x=x, label=paste("n",Ns$val,sep="=")))
+G.L1
+ggsave("L1.rlogc.ridgeplot.pdf")
+
 # L3
+
+L3_bound = ifelse(data$L3_bound, "ELT2 BOUND", "ELT2 UNbound")
 L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp, data=data)
-L3_bound = ifelse(data$L3_bound, "called peak", "no called peak")
+L3.hsd = TukeyHSD(L3.aov, conf.level = .99)
 rlogc.L3 = data$rlogc.L3
 L3_int_exp = data$L3_int_exp
-L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp)
-L3.hsd = TukeyHSD(L3.aov, conf.level = .999)
-opar = par(mar=c(3,10,2,1)); plot(L3.hsd, las=2,cex.axis=.5); par(opar)
+L3_int_exp[ L3_int_exp == "ftr" ] = "not passing"
+
+opar = par(mar=c(3,15,2,1)); plot(L3.hsd, las=2,cex.axis=.5); par(opar)
 df = data.frame(expression.level = rlogc.L3, 
                 L3_bound = L3_bound, 
                 intestine_enriched=L3_int_exp,
@@ -391,14 +502,14 @@ G.L3.depleted = ggplot(df.depleted, aes(x=expression.level,
 
 
 df$levels.combined = factor(df$levels.combined, levels=rev(c(
-      "called peak, equal",
-      "no called peak, equal",
-        "called peak, enriched",
-      "no called peak, enriched",
-      "called peak, depleted",
-      "no called peak, depleted",
-      "called peak, ftr",
-      "no called peak, ftr"
+      "ELT2 BOUND, equal",
+      "ELT2 UNbound, equal",
+      "ELT2 BOUND, enriched",
+      "ELT2 UNbound, enriched",
+      "ELT2 BOUND, not passing",
+      "ELT2 UNbound, not passing",
+      "ELT2 BOUND, depleted",
+      "ELT2 UNbound, depleted"
 )))
 
 
@@ -408,11 +519,11 @@ comp[is.na(comp)] <- FALSE
 
 # filter out depleted
 bad = (1:length(comp))[grepl('depleted', names(comp))]
-df %<>% filter(levels.combined != "no called peak, depleted") %>% filter(levels.combined != "called peak, depleted")
+#df %<>% filter(levels.combined != "ELT2 UNbound, depleted") %>% filter(levels.combined != "ELT2 BOUND, depleted")
 
 letters.w.depleted = multcompLetters(comp)$Letters
-letters = multcompLetters(comp[-bad])$Letters
-
+#letters = multcompLetters(comp[-bad])$Letters
+letters = letters.w.depleted
 
 names(letters) <- sub(":", ", ", names(letters))
 df$multCompLetters = letters[as.character(df$levels.combined)]
@@ -421,23 +532,23 @@ df$multCompLetters = letters[as.character(df$levels.combined)]
 G.L3 = ggplot(df, aes(x=expression.level, 
                       y=levels.combined, 
                       fill=multCompLetters)) + 
-  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+  geom_density_ridges2(scale=2.5, quantile_lines=TRUE,
                        quantile_fun=function(x,...) mean(x))  + 
-  ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01") +
-  guides(fill=FALSE) + 
+  ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)") +
   ylab("Expression/ELT-2 binding") + 
   xlab("L3 intestine expression level") 
 
 
 df.L3 = df
 tbl = table(df.L3$levels.combined) 
-Ns = data.frame(group=names(tbl), val=c(tbl), x=18.5, y=1:6 + .25)
+tbl = tbl[tbl!=0]
+Ns = data.frame(group=names(tbl), val=c(tbl), x=18.5, y=1:length(tbl) + .25)
 
 G.L3 = G.L3 +
-  geom_text(inherit.aes = F, data=Ns, aes(y=y, x=x, label=paste("N",Ns$val,sep="=")))
+  geom_text(inherit.aes = F, data=Ns, aes(y=y, x=x, label=paste("n",Ns$val,sep="=")))
 
 G.L3
-
+ggsave("L3.rlogc.ridgeplot.pdf")
 ```
 ```{r paste-prev-plots}
 library(grid)
@@ -455,5 +566,101 @@ grid.draw(cbind(
 ggsave("ridgeplot.pdf")
 ```
 
-```{r }
+```{r L1-adding-dineenstatus}
+L1_bound = ifelse(data$L1_bound, "ELT2 BOUND", "ELT2 UNbound")
+rlogc.L1 = data$rlogc.L1
+L1_int_exp = data$L1_int_exp
+L1_int_exp[ L1_int_exp == "ftr" ] = "not passing"
 
+L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp * din.status.description)
+L1.hsd = TukeyHSD(L1.aov, conf.level = .99)
+opar = par(mar=c(3,15,2,1)); plot(L1.hsd, las=2,cex.axis=.5); par(opar)
+df = data.frame(expression.level = rlogc.L1, 
+                L1_bound = L1_bound, 
+                intestine_enriched=L1_int_exp,
+                levels.combined = paste(L1_bound, din.status.description, sep=", "))
+table(df$levels.combined)
+
+# get the letters
+letters = multcompLetters(comp)$Letters
+comp = do.call(compare, list(L1.hsd$`L1_bound:din.status.description`[,4],.01))
+comp[is.na(comp)] <- FALSE
+
+names(letters) <- sub(":", ", ", names(letters))
+df$multCompLetters = letters[as.character(df$levels.combined)]
+
+G.L1.dineen= ggplot(df, aes(x=expression.level, 
+                      y=levels.combined,
+                      fill=multCompLetters)) + 
+  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x))
+G.L1.dineen
+```
+
+```{r L3-adding-dineenstatus}
+din.status.description[is.na(din.status.description)] = 'unchanged_ELT2_minus'
+
+L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp * din.status.description)
+L3.hsd = TukeyHSD(L3.aov, conf.level = .99)
+opar = par(mar=c(3,15,2,1)); plot(L3.hsd, las=2,cex.axis=.5); par(opar)
+df = data.frame(expression.level = rlogc.L3, 
+                L3_bound = L3_bound, 
+                intestine_enriched=L3_int_exp,
+                levels.combined = paste(L3_bound, L3_int_exp, din.status.description, sep=", "))
+table(df$levels.combined)
+
+# get the letters
+comp = do.call(compare, list(L3.hsd$`L3_bound:L3_int_exp:din.status.description`[,4],.01))
+comp[is.na(comp)] <- FALSE
+
+letters = multcompLetters(comp)$Letters
+
+names(letters) <- gsub(":", ", ", names(letters))
+
+df$levels.combined = factor(df$levels.combined,
+levels = rev(c(
+"ELT2 BOUND, equal, down_ELT2_minus"  ,          
+"ELT2 BOUND, equal, unchanged_ELT2_minus"     ,   
+"ELT2 BOUND, equal, up_ELT2_minus"     ,    
+
+"ELT2 UNbound, equal, unchanged_ELT2_minus"   ,   
+"ELT2 UNbound, equal, up_ELT2_minus"     ,  
+
+"ELT2 BOUND, enriched, down_ELT2_minus",          
+"ELT2 BOUND, enriched, unchanged_ELT2_minus"    , 
+"ELT2 BOUND, enriched, up_ELT2_minus"    , 
+
+"ELT2 UNbound, enriched, down_ELT2_minus",        
+"ELT2 UNbound, enriched, unchanged_ELT2_minus" ,  
+"ELT2 UNbound, enriched, up_ELT2_minus"  ,  
+
+        
+"ELT2 BOUND, not passing, down_ELT2_minus"  ,     
+"ELT2 BOUND, not passing, unchanged_ELT2_minus"  ,
+"ELT2 BOUND, not passing, up_ELT2_minus"   , 
+
+"ELT2 UNbound, not passing, down_ELT2_minus" ,  
+"ELT2 UNbound, not passing, unchanged_ELT2_minus",
+"ELT2 UNbound, not passing, up_ELT2_minus"  ,     
+
+"ELT2 BOUND, depleted, down_ELT2_minus",
+"ELT2 BOUND, depleted, unchanged_ELT2_minus"  ,  
+"ELT2 BOUND, depleted, up_ELT2_minus"      ,     
+
+
+"ELT2 UNbound, depleted, down_ELT2_minus", 
+"ELT2 UNbound, depleted, unchanged_ELT2_minus",
+"ELT2 UNbound, depleted, up_ELT2_minus"       
+   )))
+
+
+df$multCompLetters = letters[as.character(df$levels.combined)]
+
+table(df$multCompLetters)
+
+G.L3.dineen= ggplot(df, aes(x=expression.level, 
+                      y=levels.combined, fill=multCompLetters)) + 
+  geom_density_ridges2(scale=2, quantile_lines=TRUE,
+                       quantile_fun=function(x,...) mean(x)) + facet_wrap(~intestine_enriched)
+G.L3.dineen
+```
