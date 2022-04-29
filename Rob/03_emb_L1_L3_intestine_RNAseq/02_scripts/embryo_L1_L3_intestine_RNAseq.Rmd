@@ -778,19 +778,23 @@ pheatmap(gfpplus_matrix_row_zscore_TFs[rowSds(gfpplus_matrix_TFs) >= 1,] ,
 # Plot output
 
 ```{r}
-res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr) %>% left_join(embryo_intestine_gene_cats, by = "WBGeneID") %>% drop_na(intestine_expression) %>%
+res_embryoGFPplus_vs_embryoGFPminus_ashr <- read_csv(file = "../03_output/pairwise_shrunk_DE_results/res_L3GFPplus_vs_L3GFPminus_ashr_shrunk.csv")
+embryo_intestine_gene_cats <- read_csv(file = "../03_output/intestine_gene_categories/L3_intestine_gene_categories.csv")
+res_embryoGFPplus_vs_embryoGFPminus_ashr %>% left_join(embryo_intestine_gene_cats, by = "WBGeneID") %>% drop_na(intestine_expression) %>% filter(intestine_expression == "enriched") %>%
   ggplot(aes(x =  log10(baseMean), y =log2FoldChange)) +
-  geom_point(data = res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr) %>% filter(!(WBGeneID %in%embryo_intestine_gene_cats$WBGeneID)),
-             shape = 16, alpha = 0.5, stroke = 0, size = 2, color = "grey") +
-  geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 2, aes(color = intestine_expression)) +
+  geom_point(data = res_embryoGFPplus_vs_embryoGFPminus_ashr %>% filter(!(WBGeneID %in%embryo_intestine_gene_cats$WBGeneID)),
+             shape = 16, alpha = 0.5, stroke = 0, size = 1, color = "grey") +
+  geom_point(shape = 16, alpha = 0.5, stroke = 0, size = 1, aes(color = intestine_expression)) +
   theme_bw() +
   labs(x = "log10(mean RNA abundance)",
        y = "log2(embryo GFP+ reads/embryo GFP- reads)")
+ggsave(filename = "../03_output/plots/Intestine_Expression_Category/L3_GFPplus_vs_GFPminus_shrunk_MAplot_enriched_only.jpg", width = 5, height = 3)
   
 res_to_df(res_embryoGFPplus_vs_embryoGFPminus_ashr) %>% left_join(embryo_intestine_gene_cats, by = "WBGeneID") %>% drop_na(intestine_expression) %>% group_by(intestine_expression) %>% summarise(genes = n()) %>% ggplot(aes(x = intestine_expression, y = genes, fill = intestine_expression, label = genes)) +
   geom_bar(stat = "identity") +
   geom_text(vjust = -0.25) +
   theme_bw()
+
 ```
 ```{r}
 single_MA_plot <- function(in_res, in_cats){

@@ -435,14 +435,25 @@ q1_contingency_df <-
   all_stages_chip %>% group_by(stage, intestine_expression, promoter_status) %>% summarise(genes = n()) %>% 
   ungroup()  %>%
   pivot_wider(values_from = genes, names_from = promoter_status)
+q1_contingency_df
 
-
+q1_pval_df <- data.frame()
 for(i in unique(q1_contingency_df$stage)){
   # print(i)
-  pval <- chisq.test(q1_contingency_df %>% filter(stage == i) %>% select(-stage, -intestine_expression))$p.value
-  print(c(i, pval))
+  q1_pval <- chisq.test(q1_contingency_df %>% filter(stage == i) %>% select(-stage, -intestine_expression))$p.value
+  print(c(i, q1_pval))
+  q1_pval_df <-q1_pval_df %>% bind_rows(data.frame(stage = i, chi.pval = q1_pval))
 }
 
+
+
+q1_table <- q1_contingency_df %>% 
+  rowwise() %>%
+  mutate(percent_bound = (100*bound)/(bound+not_bound),
+         percent_not_bound = (100*not_bound)/(bound+not_bound)) %>%
+  left_join(q1_pval_df %>% mutate(chi.padj = p.adjust(chi.pval, method = "bonferroni")), by = "stage")
+
+q1_table
 ```
 ## Question: What is the fraction of transcriptionally dependent ELT-2 targets?
 
@@ -463,6 +474,7 @@ fraction_regulated_targets
 ```
 
 
+
 ```{r}
 q2_contingency_df <-
   all_stages_chip %>% group_by(stage, intestine_expression, promoter_status, elt2_ko) %>% summarise(genes = n()) %>% drop_na(elt2_ko) %>%
@@ -470,16 +482,28 @@ q2_contingency_df <-
   pivot_wider(values_from = genes, names_from = elt2_ko)
 
 
+
+q2_pval_df <- data.frame()
 for(i in unique(q2_contingency_df$stage)){
   # print(i)
   for(j in c("bound", "not_bound")){
-    pval <- chisq.test(q2_contingency_df %>% filter(stage == i, promoter_status == j) %>% select(-(stage:promoter_status)))$p.value
-    print(c(i, j,pval))
+    q2_pval <- chisq.test(q2_contingency_df %>% filter(stage == i, promoter_status == j) %>% select(-(stage:promoter_status)))$p.value
+    print(c(i, j,q2_pval))
+    q2_pval_df <-q2_pval_df %>% bind_rows(data.frame(stage = i, promoter_status = j, chi.pval = q2_pval))
   }
 }
+q2_pval_df
 
+
+q2_table <- q2_contingency_df %>% 
+  rowwise() %>%
+  mutate(percent_activated = (100*activated)/(activated+repressed+independent),
+         percent_repressed = (100*repressed)/(activated+repressed+independent),
+         percent_independent = (100*independent)/(activated+repressed+independent)) %>%
+  left_join(q2_pval_df %>% mutate(chi.padj = p.adjust(chi.pval, method = "bonferroni")), by = c("stage", "promoter_status"))
+
+q2_table
 ```
-
 
 ```{r}
 all_stages_chip %>% group_by(stage, intestine_expression, promoter_status, elt2_ko) %>% summarise(genes = n()) %>% drop_na(elt2_ko) %>%
@@ -525,7 +549,7 @@ all_stages_chip %>% group_by(stage, intestine_expression, promoter_status) %>% s
 # Upset plot: How are intestine enriched ELT-2 regulated targets shared or distinct between stages
 
 ```{r}
-# library("ggupset")
+library("ggupset")
 
 upset_enriched_bound_repressed <-all_stages_chip %>% filter(
   intestine_expression == "enriched",
@@ -539,13 +563,13 @@ upset_enriched_bound_repressed <-all_stages_chip %>% filter(
   geom_bar(width = 0.5, fill = "darkmagenta") +
   geom_text(stat = "count", aes(label = after_stat(count)), vjust = -1) +
   scale_x_upset(order_by = "degree") +
-  scale_y_continuous(breaks = NULL, lim = c(0, 100), name = "") +
+  scale_y_continuous(lim = c(0, 100), name = "# of genes") +
   theme_classic() +
   theme(axis.text.x = element_text(colour = "black"),
         axis.text.y = element_text(colour = "black")) +
   ggtitle("Intestine enriched ELT-2 repressed target genes")
 upset_enriched_bound_repressed 
-ggsave(upset_enriched_bound_repressed, filename = "../03_output/Upset/upset_enriched_bound_repressed.pdf", width = 4, height = 3)
+# ggsave(upset_enriched_bound_repressed, filename = "../03_output/Upset/upset_enriched_bound_repressed.pdf", width = 4, height = 3)
 ```
 ```{r}
 upset_enriched_bound_activated <- all_stages_chip %>% filter(
@@ -560,14 +584,35 @@ upset_enriched_bound_activated <- all_stages_chip %>% filter(
   geom_bar(width = 0.5, fill = "darkgreen", ) +
   geom_text(stat = "count", aes(label = after_stat(count)), vjust = -1) +
   scale_x_upset(order_by = "degree") +
-  scale_y_continuous(breaks = NULL, lim = c(0, 100), name = "") +
+  scale_y_continuous(lim = c(0, 100), name = "# of genes") +
   theme_classic() +
   theme(axis.text.x = element_text(colour = "black"),
         axis.text.y = element_text(colour = "black")) +
   ggtitle("Intestine enriched ELT-2 activated target genes")
 upset_enriched_bound_activated
 
-ggsave(upset_enriched_bound_activated, filename = "../03_output/Upset/upset_enriched_bound_activated.pdf", width = 4, height = 3)
+# ggsave(upset_enriched_bound_activated, filename = "../03_output/Upset/upset_enriched_bound_activated.pdf", width = 4, height = 3)
+```
+
+```{r}
+all_stages_chip %>% filter(
+  intestine_expression == "enriched",
+  promoter_status == "bound",
+  elt2_ko %in% c("repressed")
+) %>%group_by(WBGeneID) %>%
+  summarise(stages = list(stage)) %>%
+  mutate(stage_collapsed = sapply(stages, function(x) paste0(sort(x), collapse = "-"))) %>% 
+  filter(stage_collapsed == "embryo")
+```
+
+Unique ELT-2 regulated genes
+
+```{r}
+all_stages_chip %>% filter(
+  # intestine_expression == "enriched",
+  promoter_status == "bound",
+  elt2_ko %in% c("activated")
+)  %>% distinct(WBGeneID) %>% nrow()
 ```
 
 
