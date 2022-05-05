@@ -16,6 +16,7 @@ library(ggplot2)
 library(cowplot)
 library(multcompView)
 library(ggridges)
+library(ggpubr)
 source('david-reader.R')
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 options(ggplot2.discrete.color=okabe) # this doesn't work
@@ -220,8 +221,6 @@ lm.combo = function(formula, data, subset) {
 }
 ```
 
-# Header 1
-Describe what you're doing.
 
 
 ```{r L1}
@@ -665,7 +664,7 @@ G.L3 = G.L3 +
 G.L3
 ggsave("L3.rlogc.ridgeplot.pdf")
 ```
-```{r paste-prev-plots}
+```{r paste-prev-plots, eval=FALSE, include=FALSE}
 library(grid)
 grid.newpage()
 grid.draw(cbind(
@@ -696,8 +695,8 @@ opar = par(mar=c(3,15,2,1)); plot(L1.hsd, las=2,cex.axis=.5); par(opar)
 df = data.frame(expression.FoldChange = logFC, 
                 L1_bound = L1_bound, 
                 intestine_enriched=L1_int_exp,
-                levels.combined = paste(L1_bound, din.status.description, sep=", ")
-                #levels.combined = din.status.description
+                levels.combined = paste(L1_bound, din.status.description, sep=", "),
+                din.status.description = din.status.description
                 )
 table(df$levels.combined)
 
@@ -728,19 +727,21 @@ G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), aes(y=expression.Fol
   
 G.L1.dineen
 ```
-```{r ggqq}
-#library(ggpubr)
 
-ggqqplot(df %>% filter(L1_bound != "ELT2 BOUND" & levels.combined != "ELT2 BOUND, unchanged_ELT2_minus"), x="expression.FoldChange", color="levels.combined")
+
+
+```{r ggqq}
+
+ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets")
 
 ```
 
 
-```{r subgroups-normality}
+```{r subgroups-normality-ks}
 dfl = split(df, df$levels.combined)
 lapply(dfl, function(x){
-  qxy = qqnorm(x$expression.FoldChange)
-  ggplot(as.data.frame(qxy), aes(x=x,y=y)) + geom_point() + ggtitle(unique(x$levels.combined))
+  kst = ks.test(x$expression.FoldChange,"pnorm")
+  kst
 })
 ```
 
