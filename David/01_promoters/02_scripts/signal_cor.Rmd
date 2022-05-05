@@ -13,7 +13,13 @@ library(GenomicRanges)
 library(magrittr)
 library(knitr) # for kable
 library(ggplot2)
+library(cowplot)
+library(multcompView)
+library(ggridges)
 source('david-reader.R')
+okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+options(ggplot2.discrete.color=okabe) # this doesn't work
+
 ```
 
 ## ELT-2 data
@@ -94,31 +100,31 @@ data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
 # }
 
 
-
+# base model (0): chip signal
 mod.embryo0 = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data = data)
 s.mod.embryo0 = summary(mod.embryo0)
 
+# model 1: binding
 mod.embryo1 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, data = data)
 s.mod.embryo1 = summary(mod.embryo1)
 
 embryo.explained.binding = s.mod.embryo1$r.square - s.mod.embryo0$r.squared
 
+# model 2: enrichment
 mod.embryo2 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, data = data)
 s.mod.embryo2 = summary(mod.embryo2)
 
 embryo.explained.enrichment = s.mod.embryo2$r.square - s.mod.embryo0$r.squared
 
+# full model
 mod.embryo3 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, data = data)
 s.mod.embryo3 = summary(mod.embryo3)
 embryo.explained.combined = s.mod.embryo3$r.square - s.mod.embryo0$r.squared
 
+# fit full model 
 fitted.embryo3 = predict(mod.embryo3, data)
-
-
-
-
-  
-  
+data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, "ELT-2 bound", "ELT-2 unbound"),
+                                       levels = c("ELT-2 unbound","ELT-2 bound")))
 
 anova1 = anova(mod.embryo1) 
 anova2 = anova(mod.embryo2) 
@@ -135,42 +141,76 @@ tbl1 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance 
 tbl2 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
 tbl3 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  combined ELT-2 binding and intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
 
-ggplot(data, 
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + 
-  ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.embryo0$r.squared,3)))) +
-  ylab("DESeq2 rlog counts")
+p1 = ggplot(data, 
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + 
+  geom_point(alpha=.5) +
+  stat_smooth(#color="black", 
+              method="lm", 
+              formula = y~x) + 
+  ggtitle(bquote("ChIP signal only," ~ R^2 == .(round(s.mod.embryo0$r.squared,3)))) +
+  ylab("DESeq2 rlog counts")+ scale_color_manual(values=okabe) + guides(color="none")
 
-ggplot(data %>% mutate(elt2.binding = ifelse(LE_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))
+# facet on binding only
+p2 = ggplot(data,
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo,  color=elt2.binding,group=elt2.binding)) + 
+  geom_point() +
+  stat_smooth(color="black", method="lm", formula = y~x) + 
+  ylim(c(0,19)) + 
+  facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("ChIP_signal and ELT-2 binding" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+
+# facet on enrichment only
+p3 = ggplot(data,
+       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo, color=elt2.binding,)) + 
+  geom_point(alpha=.5) +
+  stat_smooth(color="black", method="lm", formula = y~x) + 
+  facet_wrap(~embryo_int_exp)+ 
+  ylim(c(0,19)) + 
+  ggtitle(bquote("ChIP_signal and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)+ guides(color="none")
+
+# both binding and intestine enrichment faceted
+p4 = ggplot(data,
+       aes(x= LE.log_chip_signal_mean, 
+           y=rlogc.embryo, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) +
+  stat_smooth(color="black", 
+              method="lm", 
+              formula = y~x) + 
+  ylim(c(0,19)) + 
+  facet_wrap(~elt2.binding + embryo_int_exp) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("ChIP signal, ELT-2 binding and enrichment," 
+                 ~ R^2 == .(round(s.mod.embryo3$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
 
+p5 = ggplot(data.frame(data,fitted.embryo3), 
+            aes(y=fitted.embryo3, 
+                x=rlogc.embryo)) + 
+  geom_point(alpha=.5) + 
+  stat_smooth(#color="black", 
+              method = "lm", 
+              formula = y~x) + 
+  ggtitle(bquote("Full model," 
+                 ~ R^2 == .(round(s.mod.embryo3$r.squared,3)))) + 
+  xlab("DESeq2 rlog counts") + 
+  #ylim(c(0,15.5)) + 
+  #facet_wrap(~elt2.binding) + 
+  scale_color_manual(values=okabe)
 
-ggplot(data,
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~embryo_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") 
-
-ggplot(data %>% mutate(elt2.binding = ifelse(LE_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + embryo_int_exp) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo3$r.squared,3))))
-
-
-ggplot(data.frame(data,fitted.embryo3), aes(x=fitted.embryo3, y=rlogc.embryo)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.embryo3$r.squared,3)))) + ylab("DESeq2 rlog counts") 
-
-
-#anova(mod.embryo1, mod.embryo2,mod.embryo3)
-
-
+plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("test.pdf", height=15,width=12)
 # who's the dead boy in ftr?
 ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
 #plot(ftr.lm) show point 10993 (10597 is high)
 ```
+
+
 ```{r smash}
 # smash together the variables returned by lm, summary, and anova
-smash = function(formula, data) {
-  mod = lm(formula, data)
+lm.combo = function(formula, data, subset) {
+  d = data[subset,]
+  mod = lm(formula=formula, data=d)
   summ = summary(mod)
   for (name in names(s.mod.embryo0)) { 
     mod[[name]] = summ[[name]]
@@ -180,10 +220,12 @@ smash = function(formula, data) {
 }
 ```
 
-
+# Header 1
+Describe what you're doing.
 
 
 ```{r L1}
+
 data = alldata
 # data %<>% filter(L1_int_exp != "ftr")
 #data %<>% filter(L1_bound == TRUE)
@@ -197,7 +239,7 @@ data %<>% filter(between(rlogc.L1, q.rlogc.L1[1],q.rlogc.L1[2]))
 
 
 mod.L10 = lm(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
-s.mod.L10 = summary(mod.L11)
+s.mod.L10 = summary(mod.L10)
 
 mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean+L1_bound, data = data)
 s.mod.L11 = summary(mod.L11)
@@ -217,29 +259,66 @@ anova3 = anova(mod.L13)
 anova4 = anova(mod.L14)
 
 fitted.L13 = predict(mod.L13, data)
+data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, "ELT-2 bound", "ELT-2 unbound"),
+                                       levels = c("ELT-2 unbound","ELT-2 bound")))
 
-
-ggplot(data, 
-       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + 
+p1=ggplot(data, 
+       aes(x=L1.log_chip_signal_mean, 
+           y=rlogc.L1, group=elt2.binding, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) +
+  geom_smooth(color="black", method="lm", formula = y~x) + 
   ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.L10$r.squared,3)))) +
-  ylab("DESeq2 rlog counts")
+  ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)
 
-ggplot(data %>% mutate(elt2.binding = ifelse(L1_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L11$r.squared,3))))
+p2=ggplot(data,
+       aes(x= L1.log_chip_signal_mean, 
+           y=rlogc.L1, 
+           group=elt2.binding, 
+           color=elt2.binding)) + geom_point() +
+  stat_smooth(color="black", method="lm", formula = y~x) + 
+  ylim(c(0,19)) + 
+  facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L11$r.squared,3)))) + scale_color_manual(values=okabe)
 
-ggplot(data,
-       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~L1_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L12$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+p3=ggplot(data,
+       aes(x=L1.log_chip_signal_mean, 
+           y=rlogc.L1, 
+          # group=elt2.binding, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) + 
+  stat_smooth(method="lm", 
+              formula = y~x, 
+              color="black") + 
+  facet_wrap(~L1_int_exp) + 
+  ylim(c(0,19)) + 
+  ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L12$r.squared,3)))) + 
+  ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)
 
-ggplot(data %>% mutate(elt2.binding = ifelse(L1_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= L1.log_chip_signal_mean, y=rlogc.L1)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + L1_int_exp) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L13$r.squared,3))))
+p4=ggplot(data,
+       aes(x= L1.log_chip_signal_mean, 
+           y=rlogc.L1, 
+           group=elt2.binding, 
+           color=elt2.binding)) + 
+  geom_point() +
+  stat_smooth(method="lm", formula = y~x, color="black") + 
+  ylim(c(0,19)) + 
+  facet_wrap(~elt2.binding + L1_int_exp) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L13$r.squared,3)))) + 
+  scale_color_manual(values=okabe)
 
-
-ggplot(data.frame(data,fitted.L13), aes(x=fitted.L13, y=rlogc.L1)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L13$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+# Full model
+p5=ggplot(data.frame(data,fitted.L13), 
+       aes(x=fitted.L13,
+           y=rlogc.L1, 
+           #group=elt2.binding, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) + 
+  stat_smooth(method = "lm", 
+              formula = y~x, 
+              color="black") + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L13$r.squared,3)))) + ylab("DESeq2 rlog counts")  + scale_color_manual(values=okabe) #+ facet_wrap(~elt2.binding )
 
 
 
@@ -251,12 +330,7 @@ tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(
 rownames(tbl) = rownames(anova3)
 tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
 
-# rlogc.L3 = data$rlogc.L3
-# L3.log_chip_signal_mean = data$L3.log_chip_signal_mean
-# L3_bound = as.character(data$L3_bound)
-# L3_int_exp = data$L3_int_exp
-# mL3 = lm(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound * L3_int_exp)
-# cat_plot(mL3, modx=L3_bound, pred=L3_int_exp)
+plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("L1.cor.pdf", height=15,width=12)
 
 ```
 
@@ -286,28 +360,49 @@ anova3 = anova(mod.L33)
 
 fitted.L33 = predict(mod.L33, data)
 
+data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, "ELT-2 bound", "ELT-2 unbound"),
+                                       levels = c("ELT-2 unbound","ELT-2 bound")))
 
-ggplot(data, 
-       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + 
+p1 = ggplot(data, 
+       aes(x=L3.log_chip_signal_mean, 
+           y=rlogc.L3, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) +
+  stat_smooth(color="black", method="lm", formula = y~x) + 
   ggtitle(bquote("Expression level explained by ChIP signal," ~ R^2 == .(round(s.mod.L30$r.squared,3)))) +
-  ylab("DESeq2 rlog counts")
+  ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)
 
-ggplot(data %>% mutate(elt2.binding = ifelse(L3_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L31$r.squared,3))))
+p2 = ggplot(data,
+       aes(x= L3.log_chip_signal_mean, 
+           y=rlogc.L3, 
+           group=elt2.binding, 
+           color=elt2.binding)) + 
+  geom_point() +
+  stat_smooth(color="black", method="lm", formula = y~x) + 
+  ylim(c(0,19)) + facet_wrap(~elt2.binding ) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L31$r.squared,3)))) + scale_color_manual(values=okabe)
 
-ggplot(data,
-       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() + stat_smooth(method="lm", formula = y~x) + facet_wrap(~L3_int_exp)+ ylim(c(0,19)) + ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L32$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+p3 = ggplot(data,
+       aes(x=L3.log_chip_signal_mean, 
+           y=rlogc.L3, color=elt2.binding)) + 
+  geom_point(alpha=.5) + 
+  stat_smooth(color="black", method="lm", formula = y~x) + 
+  facet_wrap(~L3_int_exp)+ ylim(c(0,19)) + 
+  ggtitle(bquote("Expression explained by ChIP_signal and \nintestine enrichment status" ~ R^2 == .(round(s.mod.L32$r.squared,3)))) + ylab("DESeq2 rlog counts")  + scale_color_manual(values=okabe)
 
-ggplot(data %>% mutate(elt2.binding = ifelse(L3_bound, "ELT-2 unbound", "ELT-2 bound")),
-       aes(x= L3.log_chip_signal_mean, y=rlogc.L3)) + geom_point() +
-  stat_smooth(method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + L3_int_exp) +
-  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L33$r.squared,3))))
+p4 = ggplot(data,
+       aes(x= L3.log_chip_signal_mean, y=rlogc.L3, color=elt2.binding)) + geom_point() +
+  stat_smooth(color="black", method="lm", formula = y~x) + ylim(c(0,19)) + facet_wrap(~elt2.binding + L3_int_exp) +
+  ylab("DESeq2 rlog counts") + ggtitle(bquote("Expression explained by ChIP_signal\nELT-2  BOUND and intestine enrichment status" ~ R^2 == .(round(s.mod.L33$r.squared,3)))) + scale_color_manual(values=okabe)
 
 
-ggplot(data.frame(data,fitted.L33), aes(x=fitted.L33, y=rlogc.L3)) + geom_point() + stat_smooth(method = "lm", formula = y~x) + ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L33$r.squared,3)))) + ylab("DESeq2 rlog counts") 
+p5 = ggplot(data.frame(data,fitted.L33), 
+       aes(x=fitted.L33, y=rlogc.L3, color=elt2.binding)) + 
+  geom_point(alpha=.5) + 
+  stat_smooth(color="black", method = "lm", formula = y~x) + 
+  ggtitle(bquote("Full model," ~ R^2 == .(round(s.mod.L33$r.squared,3)))) + 
+  ylab("DESeq2 rlog counts")  + scale_color_manual(values=okabe)
 
 
 
@@ -321,6 +416,38 @@ rownames(tbl) = rownames(anova3)
 
 tbl %>% kable(caption="Variance in L3 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
 
+
+L3.individual.lms = apply(
+  expand.grid(levels(data$elt2.binding), 
+              unique(data$L3_int_exp)), 1, 
+  function(x) {
+
+    subset = data$elt2.binding == x[[1]] & data$L3_int_exp == x[[2]];
+
+    lmc = NA
+    if (sum(subset) > 0)
+    {   
+      lmc = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean,data=data[subset,])
+    }
+
+    data.frame(term1=x[[1]],
+      term2=x[[2]],
+      r.squared = ifelse(!any(is.na(lmc)), lmc$r.squared, NA),
+      
+      term1.SS = ifelse(!any(is.na(lmc)), lmc$anova$`Sum Sq`[1], NA),
+      term2.SS = ifelse(!any(is.na(lmc)), lmc$anova$`Sum Sq`[2], NA),
+      n=sum(subset), 
+      n.finite=sum(
+        is.finite(unlist(data[subset, 
+                    c('rlogc.L3', 'L3.log_chip_signal_mean')]
+               )))
+      )
+    }) %>% bind_rows()
+# this doesn't work to get the partial r-squared, because you're only applying
+# each submodel to its subset of the data
+l = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean, data = data) 
+
+plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("L3.cor.pdf", height=15,width=12)
 ```
 
 ```{r get-hsd-row}
@@ -451,20 +578,7 @@ df$multCompLetters = letters[as.character(df$levels.combined)]
 # %>% filter(combo != "FALSE depleted" 
 G.L1 = ggplot(df, aes(x=expression.level, y=levels.combined, fill=multCompLetters)) + geom_density_ridges2(scale=2, quantile_lines=TRUE,
                        quantile_fun=function(x,...) mean(x)) + ggtitle("ANOVA followed by Tukey Honest Significant Differences (multicomparison correction)", subtitle="Different colors: signif. difference in means at .01")  + ylab("Expression/ELT-2 binding") + xlab("L1 intestine expression level") 
-#G.L1
 
-# grid.newpage()
-# grid.draw(rbind(ggplotGrob(G.L1 + xlim(-5,20)), 
-#                 ggplotGrob(G.L1.depleted + xlim(-5,20) + 
-#                    geom_text(inherit.aes = FALSE, 
-#                      data=data.frame(x=0,
-#                                      y=4,
-#                                      label="Only different\nfrom equal"),
-#                      mapping=aes(x=x,
-#                              y=y,
-#                              label=label))),
-#                 size="first")
-#           )
 
 df.L1 = df
 
@@ -480,11 +594,12 @@ ggsave("L1.rlogc.ridgeplot.pdf")
 # L3
 
 L3_bound = ifelse(data$L3_bound, "ELT2 BOUND", "ELT2 UNbound")
-L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp, data=data)
-L3.hsd = TukeyHSD(L3.aov, conf.level = .99)
-rlogc.L3 = data$rlogc.L3
 L3_int_exp = data$L3_int_exp
 L3_int_exp[ L3_int_exp == "ftr" ] = "not passing"
+rlogc.L3 = data$rlogc.L3
+L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp)
+L3.hsd = TukeyHSD(L3.aov, conf.level = .99)
+
 
 opar = par(mar=c(3,15,2,1)); plot(L3.hsd, las=2,cex.axis=.5); par(opar)
 df = data.frame(expression.level = rlogc.L3, 
@@ -567,35 +682,68 @@ ggsave("ridgeplot.pdf")
 ```
 
 ```{r L1-adding-dineenstatus}
+data = alldata
+data %<>% filter(!is.na(din.status.description))
+logFC = data$log2FoldChange.L1
 L1_bound = ifelse(data$L1_bound, "ELT2 BOUND", "ELT2 UNbound")
 rlogc.L1 = data$rlogc.L1
 L1_int_exp = data$L1_int_exp
 L1_int_exp[ L1_int_exp == "ftr" ] = "not passing"
-
-L1.aov = aov(rlogc.L1 ~ L1_bound * L1_int_exp * din.status.description)
-L1.hsd = TukeyHSD(L1.aov, conf.level = .99)
+din.status.description = data$din.status.description
+L1.aov = aov(logFC ~ L1_bound *  din.status.description)
+L1.hsd = TukeyHSD(L1.aov, ordered=T, conf.level = .99)
 opar = par(mar=c(3,15,2,1)); plot(L1.hsd, las=2,cex.axis=.5); par(opar)
-df = data.frame(expression.level = rlogc.L1, 
+df = data.frame(expression.FoldChange = logFC, 
                 L1_bound = L1_bound, 
                 intestine_enriched=L1_int_exp,
-                levels.combined = paste(L1_bound, din.status.description, sep=", "))
+                levels.combined = paste(L1_bound, din.status.description, sep=", ")
+                #levels.combined = din.status.description
+                )
 table(df$levels.combined)
 
 # get the letters
-letters = multcompLetters(comp)$Letters
-comp = do.call(compare, list(L1.hsd$`L1_bound:din.status.description`[,4],.01))
+
+comp = do.call(compare, list(L1.hsd$`L1_bound:din.status.description`[,4],.05))
 comp[is.na(comp)] <- FALSE
+letters = multcompLetters(comp)$Letters
 
 names(letters) <- sub(":", ", ", names(letters))
 df$multCompLetters = letters[as.character(df$levels.combined)]
 
-G.L1.dineen= ggplot(df, aes(x=expression.level, 
-                      y=levels.combined,
-                      fill=multCompLetters)) + 
-  geom_density_ridges2(scale=2, quantile_lines=TRUE,
-                       quantile_fun=function(x,...) mean(x))
+# order by mean
+lvls = df %>% 
+  group_by(levels.combined) %>% 
+  summarize(mean=mean(expression.FoldChange,na.rm=T)) %>% 
+  dplyr::arrange(mean) %>% pull(levels.combined)
+
+df$levels.combined = factor(df$levels.combined, levels=lvls)
+
+G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), aes(y=expression.FoldChange, 
+                      x=levels.combined,fill=multCompLetters)) + 
+  geom_violin() +
+  stat_summary( fun="mean",
+               geom = "crossbar", 
+               width = 0.5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+  
 G.L1.dineen
 ```
+```{r ggqq}
+#library(ggpubr)
+
+ggqqplot(df %>% filter(L1_bound != "ELT2 BOUND" & levels.combined != "ELT2 BOUND, unchanged_ELT2_minus"), x="expression.FoldChange", color="levels.combined")
+
+```
+
+
+```{r subgroups-normality}
+dfl = split(df, df$levels.combined)
+lapply(dfl, function(x){
+  qxy = qqnorm(x$expression.FoldChange)
+  ggplot(as.data.frame(qxy), aes(x=x,y=y)) + geom_point() + ggtitle(unique(x$levels.combined))
+})
+```
+
 
 ```{r L3-adding-dineenstatus}
 din.status.description[is.na(din.status.description)] = 'unchanged_ELT2_minus'
