@@ -182,9 +182,6 @@ pre code {
 ## ✓ tibble  3.1.6     ✓ dplyr   1.0.8
 ## ✓ tidyr   1.2.0     ✓ stringr 1.4.0
 ## ✓ readr   2.1.2     ✓ forcats 0.5.1</code></pre>
-<pre><code>## Warning: package &#39;tidyr&#39; was built under R version 4.1.2</code></pre>
-<pre><code>## Warning: package &#39;readr&#39; was built under R version 4.1.2</code></pre>
-<pre><code>## Warning: package &#39;dplyr&#39; was built under R version 4.1.2</code></pre>
 <pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
 ## x dplyr::filter() masks stats::filter()
 ## x dplyr::lag()    masks stats::lag()</code></pre>
@@ -363,6 +360,44 @@ L3_enriched_annotation %&gt;% filter(annotation == &quot;unannotated&quot;) %&gt
 <li>WBGene00017974, vps-41, Predicted to enable metal ion binding activity. Involved in negative regulation of apoptotic process; vacuolar protein processing; and vacuolar transport. Predicted to be located in late endosome. Predicted to be part of HOPS complex.</li>
 <li>WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.</li>
 <li>WBGene00003635, nhr-45, Predicted to enable DNA-binding transcription factor activity; sequence-specific DNA binding activity; and zinc ion binding activity.</li>
+</ol>
+<pre class="r"><code>embryo_enriched_annotation %&gt;% filter(WBGeneID %in% unique(L1_enriched_annotation$WBGeneID, L3_enriched_annotation$WBGeneID)) %&gt;% filter(annotation == &quot;unannotated&quot;) %&gt;% arrange(padj)</code></pre>
+<pre><code>## # A tibble: 96 × 11
+##    WBGeneID      altHyp intestine_expre… baseMean log2FoldChange lfcSE    pvalue
+##    &lt;chr&gt;         &lt;chr&gt;  &lt;chr&gt;               &lt;dbl&gt;          &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;
+##  1 WBGene000019… great… enriched            3809.           9.93 0.451 6.61e-109
+##  2 WBGene000430… great… enriched            1861.           3.36 0.207 2.03e- 61
+##  3 WBGene000189… great… enriched             443.           7.82 0.493 1.66e- 57
+##  4 WBGene000205… great… enriched             413.           8.31 0.568 1.40e- 49
+##  5 WBGene000019… great… enriched            3207.           6.86 0.502 2.77e- 43
+##  6 WBGene000173… great… enriched             237.           7.32 0.567 6.58e- 39
+##  7 WBGene000019… great… enriched            3693.          11.0  0.876 8.42e- 38
+##  8 WBGene000000… great… enriched             499.           6.04 0.476 1.31e- 37
+##  9 WBGene001991… great… enriched             266.           7.44 0.641 5.55e- 32
+## 10 WBGene000035… great… enriched             113.           3.40 0.303 4.12e- 31
+## # … with 86 more rows, and 4 more variables: padj &lt;dbl&gt;, gene_name &lt;chr&gt;,
+## #   Species &lt;chr&gt;, annotation &lt;chr&gt;</code></pre>
+<ol style="list-style-type: decimal">
+<li>his-66</li>
+<li>WBGene00043097, C02D5.4, Predicted to enable glutathione dehydrogenase (ascorbate) activity and glutathione transferase activity. Predicted to be involved in glutathione metabolic process. Predicted to be located in cytoplasm.</li>
+<li>pseudogene</li>
+<li>pseudogene</li>
+<li>WBGene00001922, his-48, Predicted to enable DNA binding activity. Involved in innate immune response. Predicted to be located in chromosome and nucleus. Predicted to be part of nucleosome. Expressed in gonad</li>
+<li>WBGene00017327, F10C1.8, Enriched in body wall musculature and head mesodermal cell based on RNA-seq and microarray studies. Lamin tail domain superfamily.</li>
+<li>WBGene00001932, his-58</li>
+<li>WBGene00000071, acy-4, Predicted to enable adenylate cyclase activity. Involved in oocyte growth. Acts upstream of or within with a positive effect on oocyte maturation. Acts upstream of or within positive regulation of gene expression. Predicted to be located in plasma membrane. Predicted to be integral component of plasma membrane.</li>
+<li>WBGene00199158, C33D3.6, ncRNA</li>
+<li>WBGene00003585, ndx-8, Enables acetyl-CoA hydrolase activity; hydroxymethylglutaryl-CoA hydrolase activity; and succinyl-CoA hydrolase activity. Involved in coenzyme A catabolic process. Predicted to be located in peroxisome.</li>
+<li>WBGene00011677, cyp-13A1, Predicted to enable heme binding activity; iron ion binding activity; and oxidoreductase activity.</li>
+<li>WBGene00012134, T28F3.8, Enriched in I5 neuron; cholinergic neurons; head mesodermal cell; and retrovesicular ganglion based on RNA-seq and microarray studies.</li>
+<li>WBGene00000267, bre-2, Predicted to enable acetylglucosaminyltransferase activity. Involved in response to toxic substance. Predicted to be located in Golgi membrane.</li>
+<li>WBGene00003978, pes-4, Predicted to enable mRNA binding activity. Predicted to be involved in regulation of RNA metabolic process and regulation of gene expression.</li>
+<li>WBGene00014233, ZK1128.7, Expressed in vulval muscle</li>
+<li>WBGene00021820, nipa-1, Predicted to enable magnesium ion transmembrane transporter activity. Involved in adult locomotory behavior. Located in neuronal cell body. Used to study hereditary spastic paraplegia.</li>
+<li>WBGene00011756, ctg-2, Enriched in head mesodermal cell and sensory neurons based on RNA-seq studies. Is affected by several genes including daf-2; hsf-1; and let-7 based on microarray; proteomic; and RNA-seq studies.</li>
+<li>WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.</li>
+<li>WBGene00206354, F27E5.9, Predicted to be located in membrane. Predicted to be integral component of membrane.</li>
+<li>WBGene00044211, Y60A3A.25, Is affected by several genes including daf-12; hsf-1; and eat-2 based on tiling array; microarray; and RNA-seq studies.</li>
 </ol>
 </div>
 

@@ -104,3 +104,28 @@ Smallest p-value:
 8. WBGene00017974, vps-41, Predicted to enable metal ion binding activity. Involved in negative regulation of apoptotic process; vacuolar protein processing; and vacuolar transport. Predicted to be located in late endosome. Predicted to be part of HOPS complex. 
 9. WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.
 10. WBGene00003635, nhr-45, Predicted to enable DNA-binding transcription factor activity; sequence-specific DNA binding activity; and zinc ion binding activity.
+
+```{r}
+embryo_enriched_annotation %>% filter(WBGeneID %in% unique(L1_enriched_annotation$WBGeneID, L3_enriched_annotation$WBGeneID)) %>% filter(annotation == "unannotated") %>% arrange(padj)
+```
+  
+1. his-66
+2. WBGene00043097, C02D5.4, Predicted to enable glutathione dehydrogenase (ascorbate) activity and glutathione transferase activity. Predicted to be involved in glutathione metabolic process. Predicted to be located in cytoplasm.
+3. pseudogene
+4. pseudogene
+5. WBGene00001922, his-48, Predicted to enable DNA binding activity. Involved in innate immune response. Predicted to be located in chromosome and nucleus. Predicted to be part of nucleosome. Expressed in gonad
+6. WBGene00017327, F10C1.8, Enriched in body wall musculature and head mesodermal cell based on RNA-seq and microarray studies. Lamin tail domain superfamily.
+7. WBGene00001932, his-58
+8. WBGene00000071, acy-4, Predicted to enable adenylate cyclase activity. Involved in oocyte growth. Acts upstream of or within with a positive effect on oocyte maturation. Acts upstream of or within positive regulation of gene expression. Predicted to be located in plasma membrane. Predicted to be integral component of plasma membrane.
+9. WBGene00199158, C33D3.6, ncRNA
+10. WBGene00003585, ndx-8, Enables acetyl-CoA hydrolase activity; hydroxymethylglutaryl-CoA hydrolase activity; and succinyl-CoA hydrolase activity. Involved in coenzyme A catabolic process. Predicted to be located in peroxisome.
+11. WBGene00011677, cyp-13A1, Predicted to enable heme binding activity; iron ion binding activity; and oxidoreductase activity.
+12. WBGene00012134, T28F3.8, Enriched in I5 neuron; cholinergic neurons; head mesodermal cell; and retrovesicular ganglion based on RNA-seq and microarray studies.
+13. WBGene00000267, bre-2, Predicted to enable acetylglucosaminyltransferase activity. Involved in response to toxic substance. Predicted to be located in Golgi membrane.
+14. WBGene00003978, pes-4, Predicted to enable mRNA binding activity. Predicted to be involved in regulation of RNA metabolic process and regulation of gene expression.
+15. WBGene00014233, ZK1128.7, Expressed in vulval muscle
+16. WBGene00021820, nipa-1, Predicted to enable magnesium ion transmembrane transporter activity. Involved in adult locomotory behavior. Located in neuronal cell body. Used to study hereditary spastic paraplegia.
+17. WBGene00011756, ctg-2, Enriched in head mesodermal cell and sensory neurons based on RNA-seq studies. Is affected by several genes including daf-2; hsf-1; and let-7 based on microarray; proteomic; and RNA-seq studies.
+18. WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.
+19. WBGene00206354, F27E5.9, Predicted to be located in membrane. Predicted to be integral component of membrane.
+20. WBGene00044211, Y60A3A.25, Is affected by several genes including daf-12; hsf-1; and eat-2 based on tiling array; microarray; and RNA-seq studies. 
