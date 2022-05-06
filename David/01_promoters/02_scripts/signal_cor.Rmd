@@ -717,25 +717,55 @@ lvls = df %>%
 
 df$levels.combined = factor(df$levels.combined, levels=lvls)
 
-G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), aes(y=expression.FoldChange, 
+G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), 
+                    aes(y=expression.FoldChange, 
                       x=levels.combined,fill=multCompLetters)) + 
   geom_violin() +
-  stat_summary( fun="mean",
+  stat_summary(fun="mean",
                geom = "crossbar", 
                width = 0.5) + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0)
   
 G.L1.dineen
 ```
 
-```{r norm}
+```{r kruskal-wallis}
+kruskal.test(df$expression.FoldChange, df$levels.combined)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$levels.combined
+# Kruskal-Wallis chi-squared = 1234.9, df = 5, p-value < 2.2e-16
 
+kruskal.test(df$expression.FoldChange, df$L1_bound)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$L1_bound
+# Kruskal-Wallis chi-squared = 647.59, df = 1, p-value < 2.2e-16
 
+kruskal.test(df$expression.FoldChange, df$din.status.description)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$din.status.description
+# Kruskal-Wallis chi-squared = 695.85, df = 2, p-value < 2.2e-16
+
+dunn.out=dunnTest(df$expression.FoldChange, df$levels.combined, method="bh")
+# passing .01
+dunn.out$res %>% filter(P.adj < .01) %>% select(Comparison)
+
+# not passing .01 
+dunn.out$res %>% filter(P.adj > .01) %>% select(Comparison, P.adj)
 ```
 
 ```{r ggqq}
 
-ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets")
+ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets") +
+  geom_hline(yintercept=0, color="light blue") + 
+  geom_vline(xintercept=0, color="light blue") + 
+  ylab("Expression Fold Change in Intestine") +
+  xlab("Theoretical Quantiles (normal distribution)")
 
 ```
 
