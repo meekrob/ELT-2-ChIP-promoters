@@ -729,6 +729,29 @@ G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)),
 G.L1.dineen
 ```
 
+```{r dunn-formatter}
+
+dunn.matrix <- function(dunn.out)
+{
+  levs = str_trim(str_split_fixed(dunn.out$res$Comparison, "-", n = 2))
+  levs.u = unique(c(levs))
+  levs.mx = matrix(numeric(length(levs.u)^2), nrow = length(levs.u))
+  rownames(levs.mx) <- levs.u
+  colnames(levs.mx) <- levs.u
+  dunn.out$res$from = levs[ seq(1, length(levs), by = 2) ]
+  dunn.out$res$to = levs[ seq(2, length(levs), by = 2) ]  
+  
+  apply(dunn.out$res, 1, function(x) {
+    levs.mx[x['from'], x['to']] = as.numeric(x['P.adj'])
+    levs.mx[x['to'], x['from']] = as.numeric(x['P.adj'])
+    print(levs.mx)
+    })
+  levs.mx
+}
+
+```
+
+
 ```{r kruskal-wallis}
 kruskal.test(df$expression.FoldChange, df$levels.combined)
 # 
