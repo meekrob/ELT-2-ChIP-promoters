@@ -66,7 +66,7 @@ merge %<>% dplyr::mutate(LE.log_chip_signal_mean = LE.log_chip_signal_mean*log(2
 
 ```{r choose-columns}
 
-alldata = merge %>% select(ends_with("log_chip_signal_mean"), 
+alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"), 
                         starts_with("rlogc."),
                         starts_with("log2FoldChange."),
                         ends_with(".boundEnrichedStatus"),
@@ -717,78 +717,25 @@ lvls = df %>%
 
 df$levels.combined = factor(df$levels.combined, levels=lvls)
 
-G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), 
-                    aes(y=expression.FoldChange, 
+G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), aes(y=expression.FoldChange, 
                       x=levels.combined,fill=multCompLetters)) + 
   geom_violin() +
-  stat_summary(fun="mean",
+  stat_summary( fun="mean",
                geom = "crossbar", 
                width = 0.5) + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0)
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
   
 G.L1.dineen
 ```
 
-```{r dunn-formatter}
-
-dunn.matrix <- function(dunn.out)
-{
-  levs = str_trim(str_split_fixed(dunn.out$res$Comparison, "-", n = 2))
-  levs.u = unique(c(levs))
-  levs.mx = matrix(numeric(length(levs.u)^2), nrow = length(levs.u))
-  rownames(levs.mx) <- levs.u
-  colnames(levs.mx) <- levs.u
-  dunn.out$res$from = levs[ seq(1, length(levs), by = 2) ]
-  dunn.out$res$to = levs[ seq(2, length(levs), by = 2) ]  
-  
-  apply(dunn.out$res, 1, function(x) {
-    levs.mx[x['from'], x['to']] = as.numeric(x['P.adj'])
-    levs.mx[x['to'], x['from']] = as.numeric(x['P.adj'])
-    print(levs.mx)
-    })
-  levs.mx
-}
-
-```
+```{r norm}
 
 
-```{r kruskal-wallis}
-kruskal.test(df$expression.FoldChange, df$levels.combined)
-# 
-# 	Kruskal-Wallis rank sum test
-# 
-# data:  df$expression.FoldChange and df$levels.combined
-# Kruskal-Wallis chi-squared = 1234.9, df = 5, p-value < 2.2e-16
-
-kruskal.test(df$expression.FoldChange, df$L1_bound)
-# 
-# 	Kruskal-Wallis rank sum test
-# 
-# data:  df$expression.FoldChange and df$L1_bound
-# Kruskal-Wallis chi-squared = 647.59, df = 1, p-value < 2.2e-16
-
-kruskal.test(df$expression.FoldChange, df$din.status.description)
-# 
-# 	Kruskal-Wallis rank sum test
-# 
-# data:  df$expression.FoldChange and df$din.status.description
-# Kruskal-Wallis chi-squared = 695.85, df = 2, p-value < 2.2e-16
-
-dunn.out=dunnTest(df$expression.FoldChange, df$levels.combined, method="bh")
-# passing .01
-dunn.out$res %>% filter(P.adj < .01) %>% select(Comparison)
-
-# not passing .01 
-dunn.out$res %>% filter(P.adj > .01) %>% select(Comparison, P.adj)
 ```
 
 ```{r ggqq}
 
-ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets") +
-  geom_hline(yintercept=0, color="light blue") + 
-  geom_vline(xintercept=0, color="light blue") + 
-  ylab("Expression Fold Change in Intestine") +
-  xlab("Theoretical Quantiles (normal distribution)")
+ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets")
 
 ```
 
@@ -803,6 +750,7 @@ lapply(dfl, function(x){
 
 
 ```{r L3-adding-dineenstatus}
+din.status.description = alldata$din.status.description
 din.status.description[is.na(din.status.description)] = 'unchanged_ELT2_minus'
 
 L3.aov = aov(rlogc.L3 ~ L3_bound * L3_int_exp * din.status.description)
