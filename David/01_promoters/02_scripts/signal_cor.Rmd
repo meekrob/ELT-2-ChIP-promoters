@@ -17,6 +17,7 @@ library(cowplot)
 library(multcompView)
 library(ggridges)
 library(ggpubr)
+library(dunn.test)
 source('david-reader.R')
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 options(ggplot2.discrete.color=okabe) # this doesn't work
@@ -728,15 +729,59 @@ G.L1.dineen= ggplot(df %>% filter(!is.na(levels.combined)), aes(y=expression.Fol
 G.L1.dineen
 ```
 
-```{r norm}
-
-
-```
 
 ```{r ggqq}
 
 ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.description) + ggtitle("Normality (qqplots) of different subsets")
 
+```
+
+```{r dunn-formatter}
+dunn <- function(data, levels, method="bh")
+{
+  meds = lapply(split(data, factor(levels)), function(x) {median(x, na.rm=T)}) %>% dplyr::bind_rows()
+  
+  dunn.out=dunnTest(data, levels, method=method)
+  dunn.out$res %>% dplyr::filter(P.adj < .01) %>% dplyr::select(Comparison, P.adj) %>% kable(caption = "Comparisons < .01")
+  dunn.out$res %>% dplyr::filter(P.adj > .01) %>% dplyr::select(Comparison, P.adj) %>% 
+  kable(caption= "Comparisons > .01")
+  comp.c = dunn.out$res %>% pull(P.adj)
+  names(comp.c) <- dunn.out$res %>% pull(Comparison) %>% str_replace_all(", ", ":") %>% str_replace_all(" - ", "-")
+  letts = multcompLetters(comp.c <= .01)$Letters
+  
+  names(letts) <- names(letts) %>% str_replace_all(":",", ")
+  dunn.out$multCompLetters = data.frame(median=t(meds[names(letts)]),multCompLetter=letts)
+  dunn.out
+}
+```
+
+```{r kruskal-wallis}
+kruskal.test(df$expression.FoldChange, df$L1_bound)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$L1_bound
+# Kruskal-Wallis chi-squared = 647.59, df = 1, p-value < 2.2e-16
+kruskal.test(df$expression.FoldChange, df$din.status.description)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$din.status.description
+# Kruskal-Wallis chi-squared = 695.85, df = 2, p-value < 2.2e-16
+kruskal.test(df$expression.FoldChange, df$levels.combined)
+# 
+# 	Kruskal-Wallis rank sum test
+# 
+# data:  df$expression.FoldChange and df$levels.combined
+# Kruskal-Wallis chi-squared = 1234.9, df = 5, p-value < 2.2e-16
+
+dunn.out=dunnTest(df$expression.FoldChange, df$levels.combined, method="bh")
+dunn.out$res %>% dplyr::filter(P.adj < .01) %>% dplyr::select(Comparison, P.adj) %>% kable(caption = "Comparisons < .01")
+dunn.out$res %>% dplyr::filter(P.adj > .01) %>% dplyr::select(Comparison, P.adj) %>% 
+kable(caption= "Comparisons > .01")
+comp.c = dunn.out$res %>% pull(P.adj)
+names(comp.c) <- dunn.out$res %>% pull(Comparison) %>% str_replace_all(", ", ":") %>% str_replace_all(" - ", "-")
+letts = multcompLetters(comp.c <= .01)$Letters
 ```
 
 
@@ -817,3 +862,5 @@ G.L3.dineen= ggplot(df, aes(x=expression.level,
                        quantile_fun=function(x,...) mean(x)) + facet_wrap(~intestine_enriched)
 G.L3.dineen
 ```
+
+
