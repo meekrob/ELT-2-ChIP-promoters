@@ -103,64 +103,100 @@ data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
 
 
 # base model (0): chip signal
-mod.embryo0 = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data = data)
-s.mod.embryo0 = summary(mod.embryo0)
+mod.embryo0 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean, 
+                       data = data)
 
 # model 1: binding
-mod.embryo1 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, data = data)
-s.mod.embryo1 = summary(mod.embryo1)
+mod.embryo1 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, 
+                       data = data)
 
-embryo.explained.binding = s.mod.embryo1$r.square - s.mod.embryo0$r.squared
+embryo.explained.binding = mod.embryo1$r.square - mod.embryo0$r.squared
 
 # model 2: enrichment
-mod.embryo2 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, data = data)
-s.mod.embryo2 = summary(mod.embryo2)
+mod.embryo2 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, 
+                       data = data)
 
-embryo.explained.enrichment = s.mod.embryo2$r.square - s.mod.embryo0$r.squared
+embryo.explained.enrichment = mod.embryo2$r.square - mod.embryo0$r.squared
 
-# full model
-mod.embryo3 = lm(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, data = data)
-s.mod.embryo3 = summary(mod.embryo3)
-embryo.explained.combined = s.mod.embryo3$r.square - s.mod.embryo0$r.squared
+# model 2a: Elt-2 dependency AND signal
+mod.embryo2a = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*din.status.description, 
+                       data = data)
+
+# model 2b: Elt-2 dependency AND signal AND intestine enrichment
+mod.embryo2b = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*din.status.description*embryo_int_exp, 
+                       data = data)
+
+# model 2c: Elt-2 binding AND dependency AND signal AND intestine enrichment
+mod.embryo2c = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, 
+                       data = data)
+
+mod.embryo2c$r.squared
+
+# full model: Elt-2 binding AND dependency AND signal AND intestine enrichment
+mod.embryo3 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, 
+                       data = data)
+
+embryo.explained.combined = mod.embryo3$r.square - mod.embryo0$r.squared
 
 # fit full model 
 fitted.embryo3 = predict(mod.embryo3, data)
-data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, "ELT-2 bound", "ELT-2 unbound"),
-                                       levels = c("ELT-2 unbound","ELT-2 bound")))
+data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, 
+                          "ELT-2 bound", 
+                          "ELT-2 unbound"),
+                   levels = c("ELT-2 unbound","ELT-2 bound")))
 
-anova1 = anova(mod.embryo1) 
-anova2 = anova(mod.embryo2) 
-anova3 = anova(mod.embryo3) 
+anova1 = mod.embryo1$anova
+anova2 = mod.embryo2$anova
+anova3 = mod.embryo3$anova 
 
-tbl1 = cbind((anova1$`Sum Sq`)/sum(anova1$`Sum Sq`), cumsum(anova1$`Sum Sq`)/sum(anova1$`Sum Sq`))
+tbl1 = cbind(
+  (anova1$`Sum Sq`)  /  sum(anova1$`Sum Sq`),  # r-sq each component
+  cumsum(anova1$`Sum Sq`)  /  sum(anova1$`Sum Sq`)) # cumulative r-sq
 rownames(tbl1) = rownames(anova1)
-tbl2 = cbind((anova2$`Sum Sq`)/sum(anova2$`Sum Sq`), cumsum(anova2$`Sum Sq`)/sum(anova2$`Sum Sq`))
+
+tbl2 = cbind(
+  (anova2$`Sum Sq`)  /  sum(anova2$`Sum Sq`), # r-sq each component
+  cumsum(anova2$`Sum Sq`)  /  sum(anova2$`Sum Sq`)) # cumulative r-sq
 rownames(tbl2) = rownames(anova2)
-tbl3 = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(anova3$`Sum Sq`))
+
+tbl3 = cbind(
+  (anova3$`Sum Sq`) / sum(anova3$`Sum Sq`), # r-sq each component
+  cumsum(anova3$`Sum Sq`) / sum(anova3$`Sum Sq`)) # cumulative r-sq
 rownames(tbl3) = rownames(anova3)
 
-tbl1 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  ELT-2 binding", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
-tbl2 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
-tbl3 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  combined ELT-2 binding and intestine enrichment", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(4))
+tbl1 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  ELT-2 binding", 
+               col.names = c("Variance explained", "Cumulative Variance explained"), 
+               digits=c(4))
+tbl2 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  intestine enrichment", 
+               col.names = c("Variance explained", "Cumulative Variance explained"), 
+               digits=c(4))
+tbl3 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  combined ELT-2 binding and intestine enrichment",
+               col.names = c("Variance explained", "Cumulative Variance explained"), 
+               digits=c(4))
 
 p1 = ggplot(data, 
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo)) + 
+       aes(x= LE.log_chip_signal_mean, 
+           y=rlogc.embryo,
+           color=elt2.binding)) + 
   geom_point(alpha=.5) +
-  stat_smooth(#color="black", 
+  stat_smooth(color="black", 
               method="lm", 
               formula = y~x) + 
-  ggtitle(bquote("ChIP signal only," ~ R^2 == .(round(s.mod.embryo0$r.squared,3)))) +
+  ggtitle(bquote("ChIP signal only," ~ R^2 == .(round(mod.embryo0$r.squared,3)))) +
   ylab("DESeq2 rlog counts")+ scale_color_manual(values=okabe) + guides(color="none")
 
 # facet on binding only
 p2 = ggplot(data,
-       aes(x= LE.log_chip_signal_mean, y=rlogc.embryo,  color=elt2.binding,group=elt2.binding)) + 
+       aes(x= LE.log_chip_signal_mean, 
+           y=rlogc.embryo,
+           color=elt2.binding,
+           group=elt2.binding)) + 
   geom_point() +
   stat_smooth(color="black", method="lm", formula = y~x) + 
   ylim(c(0,19)) + 
   facet_wrap(~elt2.binding ) +
   ylab("DESeq2 rlog counts") + 
-  ggtitle(bquote("ChIP_signal and ELT-2 binding" ~ R^2 == .(round(s.mod.embryo1$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+  ggtitle(bquote("ChIP_signal and ELT-2 binding" ~ R^2 == .(round(mod.embryo1$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
 # facet on enrichment only
 p3 = ggplot(data,
@@ -169,7 +205,7 @@ p3 = ggplot(data,
   stat_smooth(color="black", method="lm", formula = y~x) + 
   facet_wrap(~embryo_int_exp)+ 
   ylim(c(0,19)) + 
-  ggtitle(bquote("ChIP_signal and intestine enrichment status" ~ R^2 == .(round(s.mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)+ guides(color="none")
+  ggtitle(bquote("ChIP_signal and intestine enrichment status" ~ R^2 == .(round(mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)+ guides(color="none")
 
 # both binding and intestine enrichment faceted
 p4 = ggplot(data,
@@ -184,24 +220,40 @@ p4 = ggplot(data,
   facet_wrap(~elt2.binding + embryo_int_exp) +
   ylab("DESeq2 rlog counts") + 
   ggtitle(bquote("ChIP signal, ELT-2 binding and enrichment," 
-                 ~ R^2 == .(round(s.mod.embryo3$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+                 ~ R^2 == .(round(mod.embryo3$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
+# ELT-2 dependency and binding status
+p4a = ggplot(data,
+       aes(x= LE.log_chip_signal_mean, 
+           y=rlogc.embryo, 
+           color=elt2.binding)) + 
+  geom_point(alpha=.5) +
+  stat_smooth(color="black", 
+              method="lm", 
+              formula = y~x) + 
+  ylim(c(0,19)) + 
+  facet_wrap(~din.status.description) +
+  ylab("DESeq2 rlog counts") + 
+  ggtitle(bquote("ChIP signal, ELT-2 binding and enrichment," 
+                 ~ R^2 == .(round(mod.embryo2a$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
 p5 = ggplot(data.frame(data,fitted.embryo3), 
-            aes(y=fitted.embryo3, 
-                x=rlogc.embryo)) + 
+            aes(x=fitted.embryo3, 
+                y=rlogc.embryo, 
+           color=elt2.binding)) + 
   geom_point(alpha=.5) + 
-  stat_smooth(#color="black", 
+  stat_smooth(color="black", 
               method = "lm", 
               formula = y~x) + 
   ggtitle(bquote("Full model," 
-                 ~ R^2 == .(round(s.mod.embryo3$r.squared,3)))) + 
-  xlab("DESeq2 rlog counts") + 
+                 ~ R^2 == .(round(mod.embryo3$r.squared,3)))) + 
+  xlab("Fitted model") + 
   #ylim(c(0,15.5)) + 
   #facet_wrap(~elt2.binding) + 
   scale_color_manual(values=okabe)
 
-plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("test.pdf", height=15,width=12)
+plot_grid(p1,p2,p3,p5, ncol=2, labels="AUTO"); # p4, 
+ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
 # who's the dead boy in ftr?
 ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
 #plot(ftr.lm) show point 10993 (10597 is high)
