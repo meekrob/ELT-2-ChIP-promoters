@@ -84,7 +84,7 @@ alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"),
 # Linear models
 
 ```{r embryo-r-squared}
-data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
+data = alldata #%>% filter(embryo_int_exp %in% c('enriched','equal'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -269,14 +269,14 @@ p5 = ggplot(data.frame(data,fitted.embryo3),
   ggtitle(bquote(.(mod.embryo3$label)
                  ~ R^2 == .(round(mod.embryo3$r.squared,3)))) + 
   xlab("Fitted model") + 
-  xlab("promoter ChIP signal (log)") +
+  ylab("DESeq2 rlog counts") +
   #ylim(c(0,15.5)) + 
   #facet_wrap(~elt2.binding) + 
   scale_color_manual(values=okabe)
 
 title <- ggdraw() + 
   draw_label(
-    "Intestine enriched and equal expressed genes predicted by ChIP signal level",
+    "Embryo: Intestine enriched and equal expressed genes predicted by ChIP signal level",
     fontface = 'bold',
     x = 0,
     hjust = 0
@@ -291,9 +291,7 @@ plot_grid(title, p1,p2,p3,p5, ncol=1,
   # rel_heights values control vertical title margins
   rel_heights = c(0.1, 1, 1, 1,1), labels=c('','A','B','C','D','E')); # p4, 
 ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
-# who's the dead boy in ftr?
-# ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
-#plot(ftr.lm) show point 10993 (10597 is high)
+
 ```
 
 
@@ -403,7 +401,7 @@ tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(
 rownames(tbl) = rownames(anova3)
 tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
 
-plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("L1.cor.pdf", height=15,width=12)
+plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("plots/signal_cor.xy.L1.pdf", height=15,width=12)
 
 ```
 
