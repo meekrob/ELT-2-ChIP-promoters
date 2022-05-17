@@ -83,8 +83,10 @@ alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"),
 
 # Linear models
 
+## Embryo
+
 ```{r embryo-r-squared}
-data = alldata #%>% filter(embryo_int_exp %in% c('enriched','equal'))
+data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -113,14 +115,14 @@ mod.embryo0 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean,
 
 mod.embryo0$label = "ChIP signal only"
 # model 1: binding
-mod.embryo1 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, 
+mod.embryo1 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean * LE_bound, 
                        data = data)
 mod.embryo1$label = "ChIP signal AND ELT-2 binding"
 
 embryo.explained.binding = mod.embryo1$r.square - mod.embryo0$r.squared
 
 # model 2: enrichment
-mod.embryo2 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, 
+mod.embryo2 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean * embryo_int_exp, 
                        data = data)
 mod.embryo2$label = "ChIP signal AND intestine enrichment"
 embryo.explained.enrichment = mod.embryo2$r.square - mod.embryo0$r.squared
@@ -203,8 +205,8 @@ p2 = ggplot(data,
            y=rlogc.embryo,
            color=elt2.binding,
            group=elt2.binding)) + 
-  geom_point() +
-  stat_smooth(color="black", method="lm", formula = y~x, se = F) + 
+  geom_point(alpha=1) +
+  stat_smooth(color="black", method="lm", formula = y~ 0 +x, se = F) + 
   ylim(c(0,19)) + 
   facet_wrap(~elt2.binding ) +
   ylab("DESeq2 rlog counts") + 
@@ -293,7 +295,7 @@ plot_grid(title, p1,p2,p3,p5, ncol=1,
 ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
 
 ```
-
+## L1
 
 ```{r L1}
 
@@ -309,20 +311,20 @@ data %<>% filter(between(L1.log_chip_signal_mean, q.L1.chipsig[1],q.L1.chipsig[2
 data %<>% filter(between(rlogc.L1, q.rlogc.L1[1],q.rlogc.L1[2]))
 
 
-mod.L10 = lm(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
-s.mod.L10 = summary(mod.L10)
+mod.L10 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
+mod.L10$label = "ChIP signal only"
 
-mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean+L1_bound, data = data)
-s.mod.L11 = summary(mod.L11)
+mod.L11 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean+L1_bound, data = data)
+mod.L11$label = "ChIP signal AND ELT-2 binding"
 
-mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp, data = data)
-s.mod.L12 = summary(mod.L12)
+mod.L12 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp, data = data)
+mod.L12$label = ""
 
-mod.L13 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
-s.mod.L13 = summary(mod.L13)
+mod.L13 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
+mod.L13$label = ""
 
-mod.L14 = lm(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound*din.status.description, data = data)
-s.mod.L14 = summary(mod.L14)
+mod.L14 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound*din.status.description, data = data)
+mod.L14$label = ""
 
 anova1 = anova(mod.L11)
 anova2 = anova(mod.L12)
