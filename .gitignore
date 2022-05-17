@@ -12,3 +12,4 @@
 
 # Bedgraphs are too large
 *.bedGraph
+*.bed
