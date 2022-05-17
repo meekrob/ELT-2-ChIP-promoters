@@ -3,7 +3,7 @@ lm.combo = function(formula, data, subset) {
   d = data[subset,]
   mod = lm(formula=formula, data=d)
   summ = summary(mod)
-  for (name in names(s.mod.embryo0)) { 
+  for (name in names(summ)) { 
     mod[[name]] = summ[[name]]
   }
   mod$anova = anova(mod)

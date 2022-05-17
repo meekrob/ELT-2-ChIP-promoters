@@ -19,8 +19,11 @@ library(ggridges)
 library(ggpubr)
 library(dunn.test)
 source('david-reader.R')
+source('signal_cor_functions.R')
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 options(ggplot2.discrete.color=okabe) # this doesn't work
+
+
 
 ```
 
@@ -78,8 +81,10 @@ alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"),
 
 ```
 
+# Linear models
+
 ```{r embryo-r-squared}
-data = alldata
+data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -106,35 +111,37 @@ data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
 mod.embryo0 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean, 
                        data = data)
 
+mod.embryo0$label = "ChIP signal only"
 # model 1: binding
 mod.embryo1 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound, 
                        data = data)
+mod.embryo1$label = "ChIP signal AND ELT-2 binding"
 
 embryo.explained.binding = mod.embryo1$r.square - mod.embryo0$r.squared
 
 # model 2: enrichment
 mod.embryo2 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*embryo_int_exp, 
                        data = data)
-
+mod.embryo2$label = "ChIP signal AND intestine enrichment"
 embryo.explained.enrichment = mod.embryo2$r.square - mod.embryo0$r.squared
 
 # model 2a: Elt-2 dependency AND signal
 mod.embryo2a = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*din.status.description, 
                        data = data)
 
+mod.embryo2a$label = "ChIP signal AND ELT-2 dependency"
+
 # model 2b: Elt-2 dependency AND signal AND intestine enrichment
 mod.embryo2b = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*din.status.description*embryo_int_exp, 
                        data = data)
 
-# model 2c: Elt-2 binding AND dependency AND signal AND intestine enrichment
-mod.embryo2c = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, 
-                       data = data)
+mod.embryo2b$label = "ChIP signal AND ELT-2 binding AND intestine enrichment AND ELT-2 dependency"
 
-mod.embryo2c$r.squared
 
 # full model: Elt-2 binding AND dependency AND signal AND intestine enrichment
 mod.embryo3 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean*LE_bound*embryo_int_exp, 
                        data = data)
+mod.embryo3$label = "Full model"
 
 embryo.explained.combined = mod.embryo3$r.square - mod.embryo0$r.squared
 
@@ -173,7 +180,9 @@ tbl2 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance 
 tbl3 %>% kable(caption="Variance in embryo/LE RLog counts explained by variance in chip signal, accounting for  combined ELT-2 binding and intestine enrichment",
                col.names = c("Variance explained", "Cumulative Variance explained"), 
                digits=c(4))
+```
 
+```{r embryo-plots}
 p1 = ggplot(data, 
        aes(x= LE.log_chip_signal_mean, 
            y=rlogc.embryo,
@@ -181,9 +190,12 @@ p1 = ggplot(data,
   geom_point(alpha=.5) +
   stat_smooth(color="black", 
               method="lm", 
-              formula = y~x) + 
-  ggtitle(bquote("ChIP signal only," ~ R^2 == .(round(mod.embryo0$r.squared,3)))) +
-  ylab("DESeq2 rlog counts")+ scale_color_manual(values=okabe) + guides(color="none")
+              formula = y~x, se = F) + 
+  ggtitle(bquote(.(mod.embryo0$label)  ~ R^2 == .(round(mod.embryo0$r.squared,3)))) +
+  ylab("DESeq2 rlog counts")+ 
+  xlab("promoter ChIP signal (log)") +
+  scale_color_manual(values=okabe) + 
+  guides(color="none")
 
 # facet on binding only
 p2 = ggplot(data,
@@ -192,20 +204,26 @@ p2 = ggplot(data,
            color=elt2.binding,
            group=elt2.binding)) + 
   geom_point() +
-  stat_smooth(color="black", method="lm", formula = y~x) + 
+  stat_smooth(color="black", method="lm", formula = y~x, se = F) + 
   ylim(c(0,19)) + 
   facet_wrap(~elt2.binding ) +
   ylab("DESeq2 rlog counts") + 
-  ggtitle(bquote("ChIP_signal and ELT-2 binding" ~ R^2 == .(round(mod.embryo1$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+  xlab("promoter ChIP signal (log)") +
+  ggtitle(bquote( .(mod.embryo1$label) ~ R^2 == .(round(mod.embryo1$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
 # facet on enrichment only
 p3 = ggplot(data,
        aes(x= LE.log_chip_signal_mean, y=rlogc.embryo, color=elt2.binding,)) + 
   geom_point(alpha=.5) +
-  stat_smooth(color="black", method="lm", formula = y~x) + 
+  stat_smooth(color="black", 
+              method="lm", 
+              formula = y~x, se = F) + 
   facet_wrap(~embryo_int_exp)+ 
   ylim(c(0,19)) + 
-  ggtitle(bquote("ChIP_signal and intestine enrichment status" ~ R^2 == .(round(mod.embryo2$r.squared,3)))) + ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)+ guides(color="none")
+  ggtitle(bquote( .(mod.embryo2$label) ~ R^2 == .(round(mod.embryo2$r.squared,3)))) + 
+  ylab("DESeq2 rlog counts") + 
+  xlab("promoter ChIP signal (log)") +
+  scale_color_manual(values=okabe)+ guides(color="none")
 
 # both binding and intestine enrichment faceted
 p4 = ggplot(data,
@@ -219,8 +237,8 @@ p4 = ggplot(data,
   ylim(c(0,19)) + 
   facet_wrap(~elt2.binding + embryo_int_exp) +
   ylab("DESeq2 rlog counts") + 
-  ggtitle(bquote("ChIP signal, ELT-2 binding and enrichment," 
-                 ~ R^2 == .(round(mod.embryo3$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+  xlab("promoter ChIP signal (log)") +
+  ggtitle(bquote(.(mod.embryo3$label) ~ R^2 == .(round(mod.embryo3$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
 
 # ELT-2 dependency and binding status
 p4a = ggplot(data,
@@ -234,8 +252,11 @@ p4a = ggplot(data,
   ylim(c(0,19)) + 
   facet_wrap(~din.status.description) +
   ylab("DESeq2 rlog counts") + 
-  ggtitle(bquote("ChIP signal, ELT-2 binding and enrichment," 
-                 ~ R^2 == .(round(mod.embryo2a$r.squared,3))))+ scale_color_manual(values=okabe)+ guides(color="none")
+  xlab("promoter ChIP signal (log)") +
+  ggtitle(bquote(.(mod.embryo2a$label )
+                 ~ R^2 == .(round(mod.embryo2a$r.squared,3)))) + 
+  scale_color_manual(values=okabe) + 
+  guides(color="none")
 
 p5 = ggplot(data.frame(data,fitted.embryo3), 
             aes(x=fitted.embryo3, 
@@ -245,35 +266,35 @@ p5 = ggplot(data.frame(data,fitted.embryo3),
   stat_smooth(color="black", 
               method = "lm", 
               formula = y~x) + 
-  ggtitle(bquote("Full model," 
+  ggtitle(bquote(.(mod.embryo3$label)
                  ~ R^2 == .(round(mod.embryo3$r.squared,3)))) + 
   xlab("Fitted model") + 
+  xlab("promoter ChIP signal (log)") +
   #ylim(c(0,15.5)) + 
   #facet_wrap(~elt2.binding) + 
   scale_color_manual(values=okabe)
 
-plot_grid(p1,p2,p3,p5, ncol=2, labels="AUTO"); # p4, 
+title <- ggdraw() + 
+  draw_label(
+    "Intestine enriched and equal expressed genes predicted by ChIP signal level",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    # add margin on the left of the drawing canvas,
+    # so title is aligned with left edge of first plot
+    plot.margin = margin(0, 0, 0, 7)
+  )
+
+plot_grid(title, p1,p2,p3,p5, ncol=1,
+  # rel_heights values control vertical title margins
+  rel_heights = c(0.1, 1, 1, 1,1), labels=c('','A','B','C','D','E')); # p4, 
 ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
 # who's the dead boy in ftr?
-ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
+# ftr.lm = lm(rlogc.embryo ~ LE.log_chip_signal_mean, data %>% filter(embryo_int_exp == "ftr"))
 #plot(ftr.lm) show point 10993 (10597 is high)
 ```
-
-
-```{r smash}
-# smash together the variables returned by lm, summary, and anova
-lm.combo = function(formula, data, subset) {
-  d = data[subset,]
-  mod = lm(formula=formula, data=d)
-  summ = summary(mod)
-  for (name in names(s.mod.embryo0)) { 
-    mod[[name]] = summ[[name]]
-  }
-  mod$anova = anova(mod)
-  mod
-}
-```
-
 
 
 ```{r L1}
@@ -500,22 +521,6 @@ L3.individual.lms = apply(
 l = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean, data = data) 
 
 plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("L3.cor.pdf", height=15,width=12)
-```
-
-```{r get-hsd-row}
-getHSDRow = function(x, facCombo1, facCombo2) {
-   try1 = paste(facCombo1,facCombo2, sep="-")
-   message(try1)
-   try2 = paste(facCombo2,facCombo1, sep="-")
-   message(try2)
-   row1 = as.data.frame(x)[try1,]
-   row2 = as.data.frame(x)[try2,]
-   row1[is.na(row1)] <- 0
-   row2[is.na(row2)] <- 0
-   final = row1 + row2
-   rownames(final) <- try1
-   final
-}
 ```
 
 
@@ -788,36 +793,6 @@ ggqqplot(df, x="expression.FoldChange") + facet_wrap(~L1_bound+din.status.descri
 
 ```
 
-```{r dunn-formatter}
-dunn <- function(data, levels, method="bh", alpha=.05, altp = T)
-{
-  # Run the dunn test on data, split by levels, and add a table to the default output
-  # that includes medians of each group and the result of multcompLetters.
-  # 
-  # The current flow assumes that input has had the ":" replaced by ", ", and will reverse
-  # that string replace when necessary. This is important to get multcompLetters to parse the 
-  # pairwise comparisons correctly.
-  # defaults -
-  # altp- affects the output format generated by dunnTest, but not the outcome of the test
-  # alpha- is passed to dunnTest, but the unthresholded adjusted p-values are evaluated
-  # when passed to multcompLetters 
-  # 
-  meds = lapply(split(data, factor(levels)), function(x) {median(x, na.rm=T)}) %>% dplyr::bind_rows()
-  
-  dunn.out=dunnTest(data, levels, method=method, alpha=alpha, altp=altp)
-
-  # Record P.adj and properly format names
-  comp.c = dunn.out$res %>% pull(P.adj)
-  names(comp.c) <- dunn.out$res %>% pull(Comparison) %>% str_replace_all(", ", ":") %>% str_replace_all(" - ", "-")
-  
-  # multcompLetters
-  letts = multcompLetters(comp.c <= alpha)$Letters
-  names(letts) <- names(letts) %>% str_replace_all(":",", ")
-  dunn.out$multCompLetters = data.frame(median=t(meds[names(letts)]), # indexing by name in case the lapply output is in a different order
-                                        multCompLetter=letts)
-  dunn.out
-}
-```
 
 ```{r kruskal-wallis}
 kruskal.test(df$expression.FoldChange, df$L1_bound)
@@ -847,7 +822,6 @@ comp.c = dunn.out$res %>% pull(P.adj)
 names(comp.c) <- dunn.out$res %>% pull(Comparison) %>% str_replace_all(", ", ":") %>% str_replace_all(" - ", "-")
 letts = multcompLetters(comp.c <= .01)$Letters
 ```
-
 
 ```{r subgroups-normality-ks}
 dfl = split(df, df$levels.combined)
