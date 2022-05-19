@@ -304,7 +304,7 @@ ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
 
 ```{r L1}
 
-data = alldata %>% filter(! L1_int_exp %in% c('depleted', 'ftr'))
+data = alldata %>% filter(! L1_int_exp %in% c('depleted',  'ftr'))
 #data %<>% filter(L1_bound == TRUE)
 #cor(data$L1.log_chip_signal_mean,data$rlogc.L1,use="complete")
 
@@ -316,16 +316,16 @@ data %<>% filter(between(rlogc.L1, q.rlogc.L1[1],q.rlogc.L1[2]))
 
 
 mod.L10 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean, data = data)
-mod.L10$label = "ChIP signal only"
+mod.L10$label = "ChIP signal"
 
 mod.L11 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_bound, data = data)
-mod.L11$label = "ChIP signal AND ELT-2 binding"
+mod.L11$label = "ChIP signal broken out by ELT-2 binding"
 
 mod.L12 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp, data = data)
 mod.L12$label = "ChIP signal AND intestine enrichment"
 
 
-yhat = fitted(mod.L12)
+yhat = fitted(mod.L11)
 ybar = mean(data$rlogc.L1, na.rm=T)
 squares_regression = (ybar - yhat)^2
 squares_error = (data$rlogc.L1 - yhat)^2
@@ -340,11 +340,24 @@ smackdown = data.frame(y=data$rlogc.L1,
                        L1_bound = data$L1_bound,
                        res = resid(mod.L12)
                        )
-groups = smackdown %>% group_by(L1_int_exp) %>% summarize(SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
-total = smackdown  %>% summarize(L1_int_exp="total", SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
+groups = smackdown %>% group_by(L1_bound) %>% summarize(SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
+total = smackdown  %>% summarize(L1_bound="total", SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
 
-summ = rbind(groups,total)
+var_explained_binding = groups$SSR / total$SST
+names(var_explained_binding) <- c('ELT-2 unbound', 'ELT-2 bound')
 
+L1.straightup.cor = cor(data$L1.log_chip_signal_mean, data$rlogc.L1)
+dbound = data %>% filter(L1_bound)
+dunbound = data %>% filter(!L1_bound)
+L1.bound.cor = cor.test(dbound$L1.log_chip_signal_mean, dbound$rlogc.L1, conf.level=.975)
+L1.unbound.cor = cor.test(dunbound$L1.log_chip_signal_mean, dunbound$rlogc.L1, conf.level=.975)
+
+
+
+
+# are the coefficients different (t-test) for L1_bound == TRUE?
+L1.coeff.padj = p.adjust(mod.L11$coefficients[,4], method="holm")
+summ.table = data.frame(mod.L11$coefficients, L1.coeff.padj)
 
 mod.L13 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
 mod.L13$label = "ChIP signal AND intestine enrichment AND ELT-2 binding"
@@ -357,17 +370,19 @@ anova2 = anova(mod.L12)
 anova3 = anova(mod.L13)
 anova4 = anova(mod.L14)
 
+fitted.L11 = fitted(mod.L11)
 fitted.L13 = predict(mod.L13, data)
 data %<>% mutate(elt2.binding = factor(ifelse(L1_bound, "ELT-2 bound", "ELT-2 unbound"),
                                        levels = c("ELT-2 unbound","ELT-2 bound")))
 
 p1=ggplot(data, 
        aes(x=L1.log_chip_signal_mean, 
-           y=rlogc.L1, group=elt2.binding, 
+           y=rlogc.L1, 
+           #group=elt2.binding, 
            color=elt2.binding)) + 
   geom_point(alpha=.5) +
-  geom_smooth(color="black", method="lm", formula = y~x) + 
-  stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x) +
+  geom_smooth(color="black", method="lm", formula = y~x, se=F) + 
+  #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
   ggtitle(bquote(.(mod.L10$label) ~ R^2 == .(round(mod.L10$r.squared,3)))) +
   ylab("DESeq2 rlog counts") + scale_color_manual(values=okabe)
 
@@ -377,8 +392,8 @@ p2=ggplot(data,
            group=elt2.binding, 
            color=elt2.binding
            )) + geom_point() +
-  stat_smooth(color="black", method="lm", formula = y~x) + 
-  stat_poly_eq(parse=T, aes(label = ..eq.label..), formula=y~x) +
+  stat_smooth(color="black", method="lm", formula = y~x, se=F) + 
+  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
   facet_wrap(~elt2.binding ) +
@@ -389,12 +404,14 @@ p3=ggplot(data,
        aes(x=L1.log_chip_signal_mean, 
            y=rlogc.L1, 
           # group=elt2.binding, 
-          # color=elt2.binding
+           color=elt2.binding
           )) + 
   geom_point(alpha=.5) + 
   stat_smooth(method="lm", 
-              formula = y~x) + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
+              
+              color="black",
+              formula = y~x, se=F) + 
+  #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
   facet_wrap(~L1_int_exp) + 
   ylim(c(0,19)) + 
   ggtitle(bquote(.(mod.L12$label) ~ R^2 == .(round(mod.L12$r.squared,3)))) + 
@@ -403,11 +420,11 @@ p3=ggplot(data,
 p4=ggplot(data,
        aes(x= L1.log_chip_signal_mean, 
            y=rlogc.L1, 
-           group=elt2.binding, 
+           #group=elt2.binding, 
            color=elt2.binding)) + 
   geom_point() +
   stat_smooth(method="lm", formula = y~x, color="black") + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
+  #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
   ylim(c(0,19)) + 
   facet_wrap(~elt2.binding + L1_int_exp) +
   ylab("DESeq2 rlog counts") + 
@@ -415,17 +432,17 @@ p4=ggplot(data,
   scale_color_manual(values=okabe)
 
 # Full model
-p5=ggplot(data.frame(data,fitted.L13), 
-       aes(x=fitted.L13,
+p5=ggplot(data.frame(data,fitted.L11), 
+       aes(x=fitted.L11,
            y=rlogc.L1, 
            #group=elt2.binding, 
-           #color=elt2.binding
+           color=elt2.binding
            )) + 
   geom_point(alpha=.5) + 
   stat_smooth(method = "lm", 
               formula = y~x, 
               color="black") + ggtitle(bquote("Full model" ~ R^2 == .(round(mod.L13$r.squared,3)))) + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
+  #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
   ylab("DESeq2 rlog counts")  + scale_color_manual(values=okabe) #+ facet_wrap(~elt2.binding )
 
 
@@ -438,7 +455,7 @@ tbl = cbind((anova3$`Sum Sq`)/sum(anova3$`Sum Sq`), cumsum(anova3$`Sum Sq`)/sum(
 rownames(tbl) = rownames(anova3)
 tbl %>% kable(caption="Variance in L1 RLog counts explained by variance in chip signal, accounting for different factors", col.names = c("Variance explained", "Cumulative Variance explained"), digits=c(5))
 
-plot_grid(p1,p2,p3,p4,p5, ncol=2, labels="AUTO"); ggsave("plots/signal_cor.xy.L1.pdf", height=15,width=12)
+plot_grid(p1,p2,ncol=2, labels="AUTO"); ggsave("plots/signal_cor.xy.L1.pdf", height=6,width=12)
 
 ```
 
