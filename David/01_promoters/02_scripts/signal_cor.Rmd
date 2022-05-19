@@ -1,5 +1,5 @@
 ---
-title: "signal correlations"
+title: "Signal Correlations"
 author: "DC King - Onish lab"
 date: "4/14/2022"
 output: html_document
@@ -18,6 +18,7 @@ library(multcompView)
 library(ggridges)
 library(ggpubr)
 library(dunn.test)
+library(ggpmisc)
 source('david-reader.R')
 source('signal_cor_functions.R')
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -303,7 +304,7 @@ ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
 
 ```{r L1}
 
-data = alldata %>% filter(! L1_int_exp %in% c('ftr'))
+data = alldata %>% filter(! L1_int_exp %in% c('depleted', 'ftr'))
 #data %<>% filter(L1_bound == TRUE)
 #cor(data$L1.log_chip_signal_mean,data$rlogc.L1,use="complete")
 
@@ -322,6 +323,28 @@ mod.L11$label = "ChIP signal AND ELT-2 binding"
 
 mod.L12 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp, data = data)
 mod.L12$label = "ChIP signal AND intestine enrichment"
+
+
+yhat = fitted(mod.L12)
+ybar = mean(data$rlogc.L1, na.rm=T)
+squares_regression = (ybar - yhat)^2
+squares_error = (data$rlogc.L1 - yhat)^2
+SST = sum(squares_regression, na.rm=T) + sum(squares_error, na.rm=T)
+
+sum(squares_regression, na.rm = T)/SST
+smackdown = data.frame(y=data$rlogc.L1, 
+                       yhat=yhat, 
+                       squares_regression=squares_regression,
+                       squares_error=squares_error,
+                       L1_int_exp=data$L1_int_exp,
+                       L1_bound = data$L1_bound,
+                       res = resid(mod.L12)
+                       )
+groups = smackdown %>% group_by(L1_int_exp) %>% summarize(SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
+total = smackdown  %>% summarize(L1_int_exp="total", SSR=sum(squares_regression), SSE=sum(squares_error), SST = SSR + SSE, RSQ = SSR/SST, n=n()) 
+
+summ = rbind(groups,total)
+
 
 mod.L13 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_int_exp*L1_bound, data = data)
 mod.L13$label = "ChIP signal AND intestine enrichment AND ELT-2 binding"
