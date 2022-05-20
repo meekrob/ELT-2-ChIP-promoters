@@ -87,7 +87,7 @@ read_rob_ashr_shrunk_rlogc = function() {
 read_rob_all_merged = function() {
   a = read_rob_ashr_shrunk_rlogc()
   b = read_rob_dineen_sets() %>% 
-    dplyr::select(WBGeneID, status, description, log2FoldChange) %>% 
+    dplyr::select(WBGeneID, status, description, log2FoldChange, wikigene_name) %>% 
     dplyr::rename(din.status=status, din.status.description=description, din.log2FoldChange = log2FoldChange)
   
   #return

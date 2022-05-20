@@ -74,6 +74,7 @@ alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"),
                         ends_with("_int_exp"),
                         ends_with("_bound"),
                         din.status.description,
+                        wikigene_name,
                         WBGeneID)
 
 alldata$embryo_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
@@ -177,6 +178,23 @@ title <- ggdraw() +
     plot.margin = margin(0, 0, 0, 7)
   )
 plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
+
+LE.p.title = title
+LE.p1 = p1
+```
+
+```{r get-embryo-set}
+data = alldata %>% dplyr::filter(embryo_int_exp %in% c('enriched','equal') & LE_bound &  din.status.description %in% c("down_ELT2_minus", "up_ELT2_minus")) %>% select(WBGeneID, LE.log_chip_signal_mean, rlogc.embryo, din.status.description, embryo_int_exp, LE_bound, wikigene_name)
+
+# trim extreme .1%
+# q.LE.chipsig = quantile(data$LE.log_chip_signal_mean, c(1-.9995,.9995))
+# q.rlogc.embryo = quantile(data$rlogc.embryo, c(1-.9995,.9995),na.rm=T)
+# data %<>% filter(between(LE.log_chip_signal_mean, q.LE.chipsig[1],q.LE.chipsig[2]))
+# data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
+
+nrow(data)
+head(data)
+write.table(data, file="embryo_bound_elt2_minus_changed.tsv", sep="\t", row.names = F, quote = F)
 ```
 
 ## L1
@@ -273,6 +291,9 @@ title <- ggdraw() +
     plot.margin = margin(0, 0, 0, 7)
   )
 plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L1.pdf", height=15,width=12)
+
+L1.p.title = title
+L1.p1 = p1
 ```
 
 ## L3
@@ -369,4 +390,29 @@ title <- ggdraw() +
     plot.margin = margin(0, 0, 0, 7)
   )
 plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L3.pdf", height=15,width=12)
+
+L3.p.title = title
+L3.p1 = p1
+```
+
+```{r all-plots}
+title <- ggdraw() + 
+  draw_label(
+    "Expression level of Intestine enriched and equal expressed genes predicted by ChIP signal intensity",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    # add margin on the left of the drawing canvas,
+    # so title is aligned with left edge of first plot
+    plot.margin = margin(0, 0, 0, 7)
+  )
+
+plot_grid(title, 
+          LE.p1 + ggtitle(bquote("Embryo " ~ R^2 == .(round(mod.embryo0$r.squared,3)))),
+          L1.p1 + ggtitle(bquote("L1 " ~ R^2 == .(round(mod.L10$r.squared,3)))),
+          L3.p1 + ggtitle(bquote("L3 " ~ R^2 == .(round(mod.L30$r.squared,3)))),
+          ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1))
+ggsave("plots/signal_cor.xy.final.pdf", height=15,width=12)
 ```
