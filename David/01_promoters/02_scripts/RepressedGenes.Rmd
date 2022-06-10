@@ -1,0 +1,230 @@
+---
+title: "Reepressed Genes"
+author: "David C. King"
+date: "6/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(dplyr)
+library(GenomicRanges)
+library(magrittr)
+library(knitr) # for kable
+library(ggplot2)
+library(cowplot)
+
+library(ggridges)
+library(ggpubr)
+
+library(ggpmisc)
+source('david-reader.R')
+source('GOfxns.R')
+okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+# Read, merge data
+
+## ELT-2 data
+
+```{r read-data-ELT-2}
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE)
+#glimpse(elt2.data)
+```
+
+## Rob data
+
+```{r read-rob-merged}
+rob = read_rob_all_merged() %>% dplyr::select(-starts_with("pvalue."),-starts_with("lfcSE."))
+glimpse(rob)
+```
+
+
+## combine with merge
+
+```{r combine-elt-2-rnaseq}
+merge = right_join(rob, elt2.data, by = "WBGeneID")
+# glimpse(merge)
+
+# Left-over genes are NA in alldata. Give them a label
+merge$embryo_int_exp[is.na(merge$embryo_int_exp)] = 'not passing at .01'
+merge$L1_int_exp[is.na(merge$L1_int_exp)] = 'not passing at .01'
+merge$L3_int_exp[is.na(merge$L3_int_exp)] = 'not passing at .01'
+
+merge$embryo.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$LE_bound, "bound", "unbound"), merge$embryo_int_exp)
+merge$L1.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L1_bound, "bound", "unbound"), merge$L1_int_exp)
+merge$L3.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L3_bound, "bound", "unbound"), merge$L3_int_exp)
+
+# fix a name 
+merge %<>% dplyr::rename(L3.log_chip_signal_mean = L3_log.chip_signal_mean)
+```
+
+## Convert log base in ChIP data
+
+```{r log2-chip-to-log10, eval=FALSE}
+merge %<>% dplyr::mutate(LE.log_chip_signal_mean = LE.log_chip_signal_mean*log(2,10),
+                  LE.log_chip_signal_max  = LE.log_chip_signal_max*log(2,10),
+                  L1.log_chip_signal_mean = L1.log_chip_signal_mean*log(2,10),
+                  L1.log_chip_signal_max  = L1.log_chip_signal_max*log(2,10),
+                  L3.log_chip_signal_mean = L3.log_chip_signal_mean*log(2,10),
+                  L3.log_chip_signal_max  = L3.log_chip_signal_max*log(2,10)
+                  )
+```
+
+```{r WORMGO}
+WORMGO_RDS_PATH = file.path("bioMart_saved_queries","WORMGO.rds")
+
+#WORMGO#
+if(file.exists(WORMGO_RDS_PATH)) {
+  message("Using WORMGO saved query")
+  WORMGO=readRDS(WORMGO_RDS_PATH)
+}else
+{
+  
+  WORMGO=C_elegans_query(mart)
+  saveRDS(WORMGO, WORMGO_RDS_PATH)
+}
+```
+
+
+```{r get-depleted-repressed-genes}
+
+all_repressed = merge %>% filter(din.status.description == "up_ELT2_minus")
+all_repressed_genes = all_repressed$WBGeneID
+
+depleted_repressed = merge %>% filter(L1_int_exp == "depleted" & 
+                                        din.status.description == "up_ELT2_minus")
+
+depleted_repressed_genes = depleted_repressed$WBGeneID
+
+```
+
+
+
+
+```{r do-enrichment}
+
+depleted_repressed.go = runGO(depleted_repressed_genes, all_repressed_genes, WORMGO)
+
+```
+
+```{r get-results}
+results = list(BP=depleted_repressed.go$BP.result, 
+               MF=depleted_repressed.go$MF.result, 
+               CC=depleted_repressed.go$CC.result)
+
+lapply(results, function(section){
+    section %>%
+    filter(fisher < .05) %>%
+      filter(Significant >= 1) %>%
+             arrange(fisher) %>%
+             head(50) 
+  })
+```
+```{r mosaics}
+
+merge %>% filter(L3_int_exp == "enriched" & 
+                   L1_int_exp == "enriched" & 
+                   embryo_int_exp == "enriched") %>% 
+  dplyr::select(L1_bound,LE_bound) -> dat
+
+dat %>% mutate(LE_bound = ifelse(LE_bound, "LE bound", "LE unbound"), 
+                 L1_bound = ifelse(L1_bound, "L1 bound", "L1 unbound")) %>% 
+  table() -> ctab
+mosaicplot(ctab, "LE/L1", shade=T)
+
+
+merge %>% filter(L3_int_exp == "enriched" & 
+                   L1_int_exp == "enriched" & 
+                   embryo_int_exp == "enriched") %>% 
+  dplyr::select(L1_bound,L3_bound) -> dat
+
+dat %>% mutate(L3_bound = ifelse(L3_bound, "L3 bound", "L3 unbound"), 
+                 L1_bound = ifelse(L1_bound, "L1 bound", "L1 unbound")) %>% 
+  table() -> ctab
+mosaicplot(ctab, "L1/L3", shade=T)
+
+# LE/L1/L3
+merge %>% filter(L3_int_exp == "enriched" & 
+                   L1_int_exp == "enriched" & 
+                   embryo_int_exp == "enriched") %>% 
+  dplyr::select(L1_bound,LE_bound,L3_bound) -> dat
+
+dat %>% mutate(
+  L1_bound = ifelse(L1_bound, "L1 bound", "L1 unbound"),
+               LE_bound = ifelse(LE_bound, "LE bound", "LE unbound"),
+               
+               L3_bound = ifelse(L3_bound, "L3 bound", "L3 unbound")) %>% 
+  table() -> ctab
+mosaicplot(ctab, "LE/L1/L3", shade=T)
+
+# LE/L1/L3/din.status.description
+merge %>% filter(L3_int_exp == "enriched" & 
+                   L1_int_exp == "enriched" & 
+                   embryo_int_exp == "enriched") %>% 
+  dplyr::select(L1_bound,LE_bound,L3_bound,din.status.description) -> dat
+
+dat %>% mutate(
+  L1_bound = ifelse(L1_bound, "L1 bound", "L1 unbound"),
+               LE_bound = ifelse(LE_bound, "LE bound", "LE unbound"),
+               
+               L3_bound = ifelse(L3_bound, "L3 bound", "L3 unbound")) %>% 
+  table() -> ctab
+mosaicplot(ctab, "LE/L1/L3/Din", shade=T)
+```
+
+## Intestine enrichment
+
+Coverage is scant, maybe because of the threshold at .01.
+
+```{r intestine_enrichment}
+### look at enrichment classes
+merge %>% filter(L3_int_exp != "ftr" & 
+                   L1_int_exp != "ftr" & 
+                   embryo_int_exp != "ftr") %>% 
+  dplyr::select(L3_int_exp, L1_int_exp, embryo_int_exp) -> dat
+
+dat %>% mutate(embryo_int_exp = paste("embryo_", embryo_int_exp)) %>% 
+  table() -> ctab
+ctab = table(dat)
+mosaicplot(ctab, "enrich/equal/depleted", shade=T)
+
+
+### look at enrichment classes
+merge %>% filter(L3_int_exp != "ftr" & 
+                   L1_int_exp != "ftr" & 
+                   embryo_int_exp != "ftr") %>% 
+  dplyr::select(L3_int_exp, L1_int_exp, embryo_int_exp, din.status.description) -> dat
+
+dat %>% mutate(embryo_int_exp = paste("embryo_", embryo_int_exp),
+               L1_int_exp = paste("L1_", L1_int_exp),
+               L3_int_exp = paste("L3_", L3_int_exp),
+               din.status.description = sub('_ELT2_minus','',din.status.description)
+               ) %>% 
+  table() -> ctab
+
+mosaicplot(ctab, "enrich/equal/depleted/din.status", shade=T)
+```
+
+```{r label-enriched-not-enriched}
+merge$L3_enrichment = ifelse(merge$L3_int_exp == "enriched", "enriched", "not enriched")
+merge$L1_enrichment = ifelse(merge$L1_int_exp == "enriched", "enriched", "not enriched")
+merge$embryo_enrichment = ifelse(merge$embryo_int_exp == "enriched", "enriched", "not enriched")
+```
+
+```{r embryo-to-L1-activation}
+
+# direct ELT-2 dependent activation from embryo to L1
+selected = merge %>% 
+            dplyr::filter(din.status.description == "down_ELT2_minus") %>%
+            dplyr::filter(LE_bound == FALSE) %>%
+            dplyr::filter(L1_bound == TRUE) %>%
+            dplyr::filter(embryo_enrichment == "not enriched") %>%
+            dplyr::filter(L1_enrichment == "enriched") 
+
+message("Direct ELT-2 dependent activation from embryo to L1", nrow(selected))
+kable(selected %>% dplyr::select(wikigene_name, LE_bound, embryo_enrichment, L1_bound, L1_enrichment, din.status.description), caption="Direct ELT-2 dependent activation from embryo to L1")
+          
+```
+
