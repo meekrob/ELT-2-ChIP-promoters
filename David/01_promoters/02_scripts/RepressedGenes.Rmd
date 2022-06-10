@@ -227,4 +227,59 @@ message("Direct ELT-2 dependent activation from embryo to L1", nrow(selected))
 kable(selected %>% dplyr::select(wikigene_name, LE_bound, embryo_enrichment, L1_bound, L1_enrichment, din.status.description), caption="Direct ELT-2 dependent activation from embryo to L1")
           
 ```
+```{r all-dineen-enriched}
 
+all_dineen_enriched = merge %>% 
+            dplyr::filter(!is.na(din.status.description)) %>%
+            #dplyr::filter(LE_bound == FALSE) %>%
+            #dplyr::filter(L1_bound == TRUE) %>%
+            #dplyr::filter(embryo_enrichment == "not enriched") %>%
+            dplyr::filter(L1_enrichment == "enriched") 
+```
+
+```{r GO-all-dineen-enriched}
+
+all_dineen_enriched_GO = runGO(all_dineen_enriched$WBGeneID, merge$WBGeneID, WORMGO)
+
+results = list(BP=all_dineen_enriched_GO$BP.result, 
+               MF=all_dineen_enriched_GO$MF.result, 
+               CC=all_dineen_enriched_GO$CC.result)
+
+lapply(results, function(section){
+    section %>%
+    arrange(elim) %>%
+    head(15) %>%
+    #mutate(BH=p.adjust(fisher, "BH")) %>% 
+    filter(elim < .05)
+
+  })
+
+```
+
+```{r GO-embryo-to-L1-activation, message=FALSE}
+all_dineen_enriched = merge %>% 
+            dplyr::filter(!is.na(din.status.description)) %>%
+            #dplyr::filter(LE_bound == FALSE) %>%
+            #dplyr::filter(L1_bound == TRUE) %>%
+            #dplyr::filter(embryo_enrichment == "not enriched") %>%
+            dplyr::filter(L1_enrichment == "enriched") 
+
+selectedVdineen = runGO(selected$WBGeneID, all_dineen_enriched$WBGeneID, WORMGO)
+```
+
+```{r }
+results = list(BP=selectedVdineen$BP.result, 
+               MF=selectedVdineen$MF.result, 
+               CC=selectedVdineen$CC.result)
+
+lapply(results, function(section){
+    section %>%
+    arrange(elim) %>%
+    head(50) %>%
+    #mutate(BH=p.adjust(fisher, "BH")) %>% 
+    filter(elim < .05)
+
+  }) -> filter_results
+
+filter_results
+```
