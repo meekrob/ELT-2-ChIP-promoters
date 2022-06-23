@@ -256,6 +256,38 @@ lapply(results, function(section){
 
 ```
 
+```{r rethreshold-depleted-ma}
+
+# Embryo: Re-thresholding the depleted: MA plot
+  merge.din %>% mutate(intestine.enrichment = ifelse(padj.embryo < .01 & embryo_int_exp %in% c("depleted", "ftr") & log2FoldChange.embryo < -1.5, "depleted", embryo_int_exp)) %>% dplyr::filter(intestine.enrichment != 'ftr') %>% ggplot(aes(x=log(baseMean.embryo), y=log2FoldChange.embryo, color=intestine.enrichment)) + geom_point(alpha=.5) + theme_classic() + geom_hline(yintercept=0) + ggtitle("MA plot (embryo): depleted p.adj < .01, log2FC < -1.5") + scale_color_manual(values=okabe)
+ggsave("newstatus_embryo.pdf")
+
+# L1: Re-thresholding the depleted: MA plot
+  merge.din %>% mutate(intestine.enrichment = ifelse(padj.L1 < .01 & L1_int_exp %in% c("depleted", "ftr") & 
+                        log2FoldChange.L1 < -1.5,
+                        "depleted", 
+                        L1_int_exp)) %>% 
+    dplyr::filter(intestine.enrichment != 'ftr' & 
+                    din.status.description != 'unchanged_ELT2_minus') %>%
+    ggplot(aes(x=log(baseMean.L1), 
+               y=log2FoldChange.L1, 
+               color=intestine.enrichment, 
+               shape=din.status.description)) + 
+    geom_hline(yintercept=0) + 
+    geom_point(alpha=1,size=3) + 
+    theme_classic() + 
+    ggtitle("MA plot (L1): depleted p.adj < .01, log2FC < -1.5; dineen unchanged filtered out") +
+    scale_color_manual(values=okabe)
+ggsave("newstatus_L1.pdf")
+
+
+# L3: Re-thresholding the depleted: MA plot
+  merge.din %>% mutate(intestine.enrichment = ifelse(padj.L3 < .01 & L3_int_exp %in% c("depleted", "ftr") & log2FoldChange.L3 < -1.5, "depleted", L3_int_exp)) %>% dplyr::filter(intestine.enrichment != 'ftr') %>% ggplot(aes(x=log(baseMean.L3), y=log2FoldChange.L3, color=intestine.enrichment)) + geom_point(alpha=.5) + theme_classic() + geom_hline(yintercept=0) + ggtitle("MA plot (L3): depleted p.adj < .01, log2FC < -1.5") + scale_color_manual(values=okabe)
+ggsave("newstatus_L3.pdf")
+
+```
+
+
 ```{r GO-embryo-to-L1-activation, message=FALSE}
 all_dineen_enriched = merge %>% 
             dplyr::filter(!is.na(din.status.description)) %>%
