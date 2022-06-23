@@ -624,7 +624,7 @@ plotMA(control_L3_v_L1_ashr, ylim = ylim, main = "L3_vs_L1_ashr\nGFP_minus_contr
 par(opar)
 ```
 
-```{r}
+```{r redMAplots-ashr}
 res_between_stage_GFP_df <- data.frame(as.data.frame(res_embryoGFPplus_vs_L1GFPplus_ashr), comparison = "embryo_vs_L1") %>%
   bind_rows(data.frame(as.data.frame(res_embryoGFPplus_vs_L3GFPplus_ashr), comparison = "embryo_vs_L3")) %>%
   bind_rows(data.frame(as.data.frame(res_L3GFPplus_vs_L1GFPplus_ashr), comparison = "L3_vs_L1")) %>% rownames_to_column(var = "WBGeneID")
@@ -636,8 +636,9 @@ res_between_stage_GFP_df %>% replace_na(list(padj = 1)) %>% filter(padj <= 0.01)
   geom_point(data = res_between_stage_GFP_df %>% replace_na(list(padj = 1)) %>% filter(padj > 0.01),shape = 16, alpha = 0.1, stroke = 0, size = 1, color = "black") +
   ylim(-10,10) +
   facet_grid(~comparison) +
-  theme_classic()
+  theme_classic()+ geom_density_2d(colour="purple", size=.25)
 ```
+
 ```{r plotMA-each-hyp-by-stage}
 opar = par(mfrow=c(3,3),mar=c(2,2,2,2))
 ylim <- c(-15,15)
@@ -669,6 +670,7 @@ combn(3,2, function(x) {
 par(opar)
 
 ```
+
 ```{r commented-out-plotPCA}
 # plotPCA(all_samples_rld, intgroup = "group")
 ```
