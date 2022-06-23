@@ -609,7 +609,7 @@ par(opar)
 ```
 
 ```{r MAPlots-btw-stage-ashr}
-opar=par(mfrow=c(2,3),mar=c(2,2,1,1))
+opar=par(mfrow=c(2,3),mar=c(2,2,2,1))
 ylim <- c(-15,15)
 # drawLines <- function() abline(h=c(-2,2),col="dodgerblue",lwd=2)
 # sig = 0.01
@@ -617,9 +617,9 @@ plotMA(res_embryoGFPplus_vs_L1GFPplus_ashr, ylim = ylim, main = "embryo_vs_L1_as
 plotMA(res_embryoGFPplus_vs_L3GFPplus_ashr, ylim = ylim, main = "embryo_vs_L3_ashr", alpha = 0.01)
 plotMA(res_L3GFPplus_vs_L1GFPplus_ashr, ylim = ylim, main = "L3_vs_L1_ashr", alpha = 0.01)
 
-plotMA(control_L1_v_embryo_ashr, ylim = ylim, main = "control_L1_vs_embryo_ashr", alpha = 0.01)
-plotMA(control_L3_v_embryo_ashr, ylim = ylim, main = "control_L3_vs_embryo_ashr", alpha = 0.01)
-plotMA(control_L3_v_L1_ashr, ylim = ylim, main = "control_L3_vs_L1_ashr", alpha = 0.01)
+plotMA(control_L1_v_embryo_ashr, ylim = ylim, main = "L1_vs_embryo_ashr\nGFP_minus_controlled", alpha = 0.01)
+plotMA(control_L3_v_embryo_ashr, ylim = ylim, main = "L3_vs_embryo_ashr\nGFP_minus_controlled", alpha = 0.01)
+plotMA(control_L3_v_L1_ashr, ylim = ylim, main = "L3_vs_L1_ashr\nGFP_minus_controlled", alpha = 0.01)
 
 par(opar)
 ```
