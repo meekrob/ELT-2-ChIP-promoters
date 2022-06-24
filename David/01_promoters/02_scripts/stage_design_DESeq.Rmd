@@ -177,7 +177,7 @@ plotMA(control_L3_v_embryo_ashr, ylim = ylim, main = "L3_vs_embryo_ashr", alpha 
 ```{r score-L3-L1}
 
 control_L3_v_L1 = results(dds.GFPplusMinus, contrast = list("groupGFPplus.stageL3", "groupGFPplus.stageL1"), lfcThreshold=1, alpha=.01)
-control_L3_v_L1_ashr <- lfcShrink(dds.GFPplusMinus, res=L3_v_L1, type = "ashr")
+control_L3_v_L1_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L3_v_L1, type = "ashr")
 
 # L3_v_L1 %>% as.data.frame() %>% 
 #   filter(!is.na(L3_v_L1$padj) & L3_v_L1$padj <= .01) %>% 
@@ -232,6 +232,7 @@ abline(v = log10(raw_count_threshold), col = "red", lty = 2)
 
 Filter genes with low read counts
 ```{r filter-out-low-readcounts}
+# get rid of this to get off-genes
 keep <- rowSums(cpm) >= raw_count_threshold
 dds <- dds[keep,]
 dds
@@ -515,7 +516,7 @@ res_L3GFPplus_vs_L3GFPminus_ashr <- lfcShrink(dds, contrast = c("group", "L3GFPp
 #           file = "../03_output/res_L3GFPplus_vs_L3GFPminus_apeglm.csv")
 ```
 
-```{r fig.width=6, fig.height=2}
+```{r plotMA-GFP-plus-minus, fig.width=6, fig.height=2}
 par(mfrow=c(1,3),mar=c(2,2,1,1))
 ylim <- c(-10,10)
 # drawLines <- function() abline(h=c(-2,2),col="dodgerblue",lwd=2)
@@ -525,12 +526,12 @@ plotMA(res_L1GFPplus_vs_L1GFPminus_ashr, ylim=ylim, main = "L1 GFP+ vs GFP-", al
 plotMA(res_L3GFPplus_vs_L3GFPminus_ashr, ylim=ylim, main = "L3 GFP+ vs GFP-", alpha = sig)
 ```
 
-```{r fig.width=9, fig.height=4}
+```{r plotCounts, fig.width=9, fig.height=4}
 plotCounts(dds, "WBGene00001578", intgroup = "group", main = "ges-1 read counts")
 ```
 
 
-```{r fig.width=9, fig.height=4}
+```{r ggplotCounts, fig.width=9, fig.height=4}
 plotCounts(dds, "WBGene00001578", intgroup = "group", returnData = TRUE) %>% 
   separate(group, sep = "(?<=embryo)|(?<=L1)|(?<=L3)", into = c("stage", "sample"), remove = FALSE) %>%
   ggplot(aes(x = sample, y = log10(count))) +
@@ -540,7 +541,7 @@ plotCounts(dds, "WBGene00001578", intgroup = "group", returnData = TRUE) %>%
   ggtitle("ges-1 read counts") +
   theme_classic()
 ```
-```{r fig.width=9, fig.height=4}
+```{r ggplotcounts-WBGene00001250, fig.width=9, fig.height=4}
 plotCounts(dds, "WBGene00001250", intgroup = "group", main = "elt-2 read counts")
 
 plotCounts(dds, "WBGene00001250", intgroup = "group", returnData = TRUE) %>% 
@@ -554,31 +555,32 @@ plotCounts(dds, "WBGene00001250", intgroup = "group", returnData = TRUE) %>%
 ```
 # Annotate and quantify tissue specific genes
 
-```{r}
+```{r read-tissue_specific_genes}
 tissue_specific_genes <- read_csv(file = robNormpath("../../01_tissue_specific_genes/03_output/tissue_specific_genes_220202.csv"), show_col_types = FALSE)
 ```
-```{r}
+
+```{r tissue_annotated_MAplot-embryo}
 tissue_annotated_MA(res_embryoGFPplus_vs_embryoGFPminus_ashr, embryo_alt_hyp_res_df)
 ```
-```{r}
+```{r tissue_annotated_MA-L1}
 tissue_annotated_MA(res_L1GFPplus_vs_L1GFPminus_ashr, L1_alt_hyp_res_df)
 ```
 
-```{r}
+```{r tissue_annotated_MA-L3}
 tissue_annotated_MA(res_L3GFPplus_vs_L3GFPminus_ashr, L3_alt_hyp_res_df)
 ```
 
 
 
-```{r fig.height=5, fig.width=6.5}
+```{r tissue_gene_quant-embryo, fig.height=5, fig.width=6.5}
 
 tissue_gene_quant(embryo_alt_hyp_res_df)
 ```
-```{r fig.height=5, fig.width=6.5}
+```{r tissue_gene_quant-L1, fig.height=5, fig.width=6.5}
 tissue_gene_quant(L1_alt_hyp_res_df)
 ```
 
-```{r fig.height=5, fig.width=6.5}
+```{r tissue_gene_quant-L3, fig.height=5, fig.width=6.5}
 tissue_gene_quant(L3_alt_hyp_res_df)
 ```
 # Between-stage GFP+ comparisons
