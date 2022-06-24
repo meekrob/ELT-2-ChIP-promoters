@@ -120,10 +120,21 @@ all(rownames(coldata) == colnames(cts))
 
 Apply the same filters in Rob's workflow (later chunks) for this section.
 
-```{r btw-stage-use-gfp-minus-as-control}
+```{r btw-stage-use-gfp-minus-as-control, eval=FALSE}
 cts.GFPplusMinus = cts %>% as.data.frame() %>% dplyr::select(contains('GFP')) %>% as.matrix() 
 coldata.GFPplusMinus = coldata %>% filter(grepl("GFP", sample)) %>% mutate(group=ifelse(grepl('plus',group), 
                     'GFPplus', 'GFPminus'))
+dds.GFPplusMinus <- DESeqDataSetFromMatrix(countData = cts.GFPplusMinus,
+                              colData = coldata.GFPplusMinus,
+                              design = ~ group + stage)
+```
+
+```{r use-whole-as-control}
+cts.GFPplusMinus = cts %>% as.data.frame() %>% dplyr::select(contains('GFPplus'),contains('whole')) %>% as.matrix() 
+coldata.GFPplusMinus = coldata %>% filter(grepl("GFPplus|whole", sample)) %>% mutate(group=ifelse(grepl('plus',group), 
+                    'GFPplus', 'whole')) 
+coldata.GFPplusMinus = coldata.GFPplusMinus[colnames(cts.GFPplusMinus),]
+
 dds.GFPplusMinus <- DESeqDataSetFromMatrix(countData = cts.GFPplusMinus,
                               colData = coldata.GFPplusMinus,
                               design = ~ group + stage)
@@ -154,6 +165,8 @@ dds.GFPplusMinus <- DESeq(dds.GFPplusMinus)
 resultsNames(dds.GFPplusMinus)
 
 ```
+
+
 ```{r score-embryo-L1}
 
 control_L1_v_embryo = results(dds.GFPplusMinus, contrast = list("groupGFPplus.stageL1"), lfcThreshold=1, alpha=.01)
@@ -627,9 +640,9 @@ par(opar)
 ```
 
 ```{r redMAplots-ashr}
-res_between_stage_GFP_df <- data.frame(as.data.frame(res_embryoGFPplus_vs_L1GFPplus_ashr), comparison = "embryo_vs_L1") %>%
-  bind_rows(data.frame(as.data.frame(res_embryoGFPplus_vs_L3GFPplus_ashr), comparison = "embryo_vs_L3")) %>%
-  bind_rows(data.frame(as.data.frame(res_L3GFPplus_vs_L1GFPplus_ashr), comparison = "L3_vs_L1")) %>% rownames_to_column(var = "WBGeneID")
+res_between_stage_GFP_df <- data.frame(as.data.frame(res_embryoGFPplus_vs_L1GFPplus_ashr) %>% rownames_to_column(var = "WBGeneID"), comparison = "embryo_vs_L1") %>%
+  bind_rows(data.frame(as.data.frame(res_embryoGFPplus_vs_L3GFPplus_ashr)%>% rownames_to_column(var = "WBGeneID"), comparison = "embryo_vs_L3")) %>%
+  bind_rows(data.frame(as.data.frame(res_L3GFPplus_vs_L1GFPplus_ashr)%>% rownames_to_column(var = "WBGeneID"), comparison = "L3_vs_L1")) 
 
 res_between_stage_GFP_df %>% replace_na(list(padj = 1)) %>% filter(padj <= 0.01) %>%
   # filter(log2FoldChange >= 1 | log2FoldChange <= -1 , padj <= 0.01) %>%
@@ -639,7 +652,90 @@ res_between_stage_GFP_df %>% replace_na(list(padj = 1)) %>% filter(padj <= 0.01)
   ylim(-10,10) +
   facet_grid(~comparison) +
   theme_classic()+ geom_density_2d(colour="purple", size=.25)
+
+
+# redesigned
+data.frame(as.data.frame(control_L1_v_embryo_ashr), comparison="L1 vs embryo") %>%
+  bind_rows(
+    data.frame(as.data.frame(control_L3_v_embryo_ashr), comparison="L3 vs embryo")
+  ) %>%
+  bind_rows(
+    data.frame(as.data.frame(control_L3_v_L1_ashr), comparison="L3 vs L1")
+  ) %>% rownames_to_column("WBGeneID") %>%
+        replace_na(list(padj = 1)) %>% 
+        mutate(isSig = padj <= 0.01) %>%
+        mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig")) %>%
+  
+ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=isSig, alpha=isSig,group=grp)) +
+  geom_point(shape = 16, stroke = 0, size = 1) +
+  ylim(-10,10) +
+  facet_grid(~comparison) +
+  theme_classic()+ geom_density_2d(colour="purple", size=.5, alpha=1) +
+  scale_color_manual(values=c('black','red')) +
+  scale_alpha_manual(values=c(.1,.5)) + geom_hline(yintercept = 0)
+
 ```
+
+
+```{r MA-across-stage-tissue-genes}
+# gather some categories
+tissue_specific_genes$tissue2 = ifelse(tissue_specific_genes$tissue == "intestine", "intestine", "non-intestine")
+tissue_specific_genes$tissue2 = ifelse(tissue_specific_genes$tissue == "ubiquitous", "ubiquitous", tissue_specific_genes$tissue2)
+
+df=data.frame(as.data.frame(control_L1_v_embryo_ashr) %>% rownames_to_column('WBGeneID'), comparison="L1 vs embryo") %>%
+  bind_rows(
+    data.frame(as.data.frame(control_L3_v_embryo_ashr) %>% rownames_to_column('WBGeneID'), comparison="L3 vs embryo")
+  ) %>%
+  bind_rows(
+    data.frame(as.data.frame(control_L3_v_L1_ashr) %>% rownames_to_column('WBGeneID'), comparison="L3 vs L1")
+  ) %>%
+        replace_na(list(padj = 1)) %>% 
+        mutate(isSig = padj <= 0.01) %>%
+        mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig")) 
+
+design1.tissued = res_between_stage_GFP_df %>% filter(WBGeneID %in% tissue_specific_genes$WBGeneID)
+design2.tissued = df %>% filter(WBGeneID %in% tissue_specific_genes$WBGeneID) 
+
+tissue_specific_genes_df = as.data.frame(tissue_specific_genes) # from tibble
+rownames(tissue_specific_genes_df) <- tissue_specific_genes_df$WBGeneID
+
+design1.tissued$tissue = tissue_specific_genes_df[design1.tissued$WBGeneID, 'tissue']
+design2.tissued$tissue = tissue_specific_genes_df[design2.tissued$WBGeneID, 'tissue']
+design1.tissued$tissue2 = tissue_specific_genes_df[design1.tissued$WBGeneID, 'tissue2']
+design2.tissued$tissue2 = tissue_specific_genes_df[design2.tissued$WBGeneID, 'tissue2']
+
+design1.tissued %<>% mutate(isSig = padj < .01) %>% mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig"))
+
+
+table(design1.tissued$isSig, design1.tissued$tissue) %>% proportions(margin=2)
+table(design2.tissued$isSig, design2.tissued$tissue) %>% proportions(margin=2)
+
+table(design1.tissued$isSig, design1.tissued$tissue) %>% proportions(margin=1)
+table(design2.tissued$isSig, design2.tissued$tissue) %>% proportions(margin=1)
+
+
+design1.tissued %>% #filter(tissue != "intestine") %>%
+ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,group=grp)) +
+  geom_point(stroke = 0, size = 1) +
+  ylim(-10,10) +
+  facet_grid(~comparison) +
+  theme_classic()+ 
+  #geom_density_2d(colour="purple", size=.5, alpha=1) +
+  #scale_color_manual(values=c('black','red')) +
+  scale_alpha_manual(values=c(.05,.5)) + geom_hline(yintercept = 0)
+
+design2.tissued %>% #filter(tissue != "intestine") %>%
+ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,group=grp)) +
+  geom_point(stroke = 0, size = 1) +
+  ylim(-10,10) +
+  facet_grid(~comparison) +
+  theme_classic()+ 
+  #geom_density_2d(colour="purple", size=.5, alpha=1) +
+  #scale_color_manual(values=c('black','red')) +
+  scale_alpha_manual(values=c(.05,.5)) + geom_hline(yintercept = 0)
+
+```
+
 
 ```{r plotMA-each-hyp-by-stage}
 opar = par(mfrow=c(3,3),mar=c(2,2,2,2))
