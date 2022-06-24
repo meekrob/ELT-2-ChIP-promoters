@@ -32,7 +32,9 @@ vsd.corr.per.stage <- function(x, main){
 
 # res_to_df(), turn DESeq2 result object to dataframe
 res_to_df <- function(in_res){
-  out_df <- as.data.frame(in_res) %>% rownames_to_column(var = "WBGeneID")
+  out_df <- as.data.frame(in_res) 
+  if (! 'WBGeneID' %in% colnames(out_df))
+    {out_df %<>% rownames_to_column(var = "WBGeneID")}
   out_df
 }
 
