@@ -145,7 +145,7 @@ p2=ggplot(data,
   xlab("LE log ChIP promoter signal") +
   ggtitle("Embryo Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
-  guides(color="none")
+  guides(color="none") + theme_bw()
 
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= LE.log_chip_signal_mean, 
@@ -177,7 +177,12 @@ title <- ggdraw() +
     # so title is aligned with left edge of first plot
     plot.margin = margin(0, 0, 0, 7)
   )
-plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
+# plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1)); 
+#ggsave("plots/signal_cor.xy.embryo.pdf", height=15,width=12)
+
+# middle one only (bound vs. unbound)
+plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
+ggsave("plots/signal_cor.xy.embryo.pdf", height=5,width=12)
 
 LE.p.title = title
 LE.p1 = p1
@@ -258,7 +263,7 @@ p2=ggplot(data,
   xlab("L1 log ChIP promoter signal") +
   ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
-  guides(color="none")
+  guides(color="none") + theme_bw()
 
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= L1.log_chip_signal_mean, 
@@ -290,7 +295,11 @@ title <- ggdraw() +
     # so title is aligned with left edge of first plot
     plot.margin = margin(0, 0, 0, 7)
   )
-plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L1.pdf", height=15,width=12)
+# plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L1.pdf", height=15,width=12)
+
+# middle one only (bound vs. unbound)
+plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
+ggsave("plots/signal_cor.xy.L1.pdf", height=5,width=12)
 
 L1.p.title = title
 L1.p1 = p1
@@ -357,7 +366,7 @@ p2=ggplot(data,
   xlab("L3 log ChIP promoter signal") +
   ggtitle("L3 Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
-  guides(color="none")
+  guides(color="none") + theme_bw()
 
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= L3.log_chip_signal_mean, 
@@ -389,7 +398,11 @@ title <- ggdraw() +
     # so title is aligned with left edge of first plot
     plot.margin = margin(0, 0, 0, 7)
   )
-plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L3.pdf", height=15,width=12)
+# plot_grid(title, p1, p2, p3, ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1));  ggsave("plots/signal_cor.xy.L3.pdf", height=15,width=12)
+
+# middle one only (bound vs. unbound)
+plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
+ggsave("plots/signal_cor.xy.L3.pdf", height=5,width=12)
 
 L3.p.title = title
 L3.p1 = p1
@@ -415,4 +428,16 @@ plot_grid(title,
           L3.p1 + ggtitle(bquote("L3 " ~ R^2 == .(round(mod.L30$r.squared,3)))),
           ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1))
 ggsave("plots/signal_cor.xy.final.pdf", height=15,width=12)
+```
+
+```{r kabels-regression-stats}
+
+kable(mod.embryo1$coefficients, digits=4)
+kable(mod.L11$coefficients, digits=4)
+kable(mod.L31$coefficients, digits=4)
+
+write.table(mod.embryo1$coefficients, file="../03_output/correlation_regression.stats.embryo.txt", sep="\t", quote=F)
+write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
+write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
+
 ```
