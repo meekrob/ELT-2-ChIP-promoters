@@ -87,7 +87,8 @@ alldata$L3_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
 ## Embryo
 
 ```{r embryo-r-squared}
-data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
+#data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
+data = alldata %>% filter(embryo_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -189,7 +190,7 @@ LE.p1 = p1
 ```
 
 ```{r get-embryo-set}
-data = alldata %>% dplyr::filter(embryo_int_exp %in% c('enriched','equal') & LE_bound &  din.status.description %in% c("down_ELT2_minus", "up_ELT2_minus")) %>% select(WBGeneID, LE.log_chip_signal_mean, rlogc.embryo, din.status.description, embryo_int_exp, LE_bound, wikigene_name)
+data = alldata %>% dplyr::filter(embryo_int_exp %in% c('enriched') & LE_bound &  din.status.description %in% c("down_ELT2_minus", "up_ELT2_minus")) %>% select(WBGeneID, LE.log_chip_signal_mean, rlogc.embryo, din.status.description, embryo_int_exp, LE_bound, wikigene_name)
 
 # trim extreme .1%
 # q.LE.chipsig = quantile(data$LE.log_chip_signal_mean, c(1-.9995,.9995))
@@ -205,7 +206,7 @@ write.table(data, file="embryo_bound_elt2_minus_changed.tsv", sep="\t", row.name
 ## L1
 
 ```{r L1-r-squared}
-data = alldata %>% filter(L1_int_exp %in% c('enriched','equal'))
+data = alldata %>% filter(L1_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -308,7 +309,7 @@ L1.p1 = p1
 ## L3
 
 ```{r L3-r-squared}
-data = alldata %>% filter(L3_int_exp %in% c('enriched','equal'))
+data = alldata %>% filter(L3_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
 
@@ -350,6 +351,7 @@ p1=ggplot(data,
   xlab("L3 log ChIP promoter signal") +
   scale_color_manual(values=okabe) #+ 
   #guides(color="none")
+p1
 
 p2=ggplot(data,
        aes(x= L3.log_chip_signal_mean, 
@@ -436,8 +438,8 @@ kable(mod.embryo1$coefficients, digits=4)
 kable(mod.L11$coefficients, digits=4)
 kable(mod.L31$coefficients, digits=4)
 
-write.table(mod.embryo1$coefficients, file="../03_output/correlation_regression.stats.embryo.txt", sep="\t", quote=F)
-write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
-write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
+# write.table(mod.embryo1$coefficients, file="../03_output/correlation_regression.stats.embryo.txt", sep="\t", quote=F)
+# write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
+# write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
 
 ```
