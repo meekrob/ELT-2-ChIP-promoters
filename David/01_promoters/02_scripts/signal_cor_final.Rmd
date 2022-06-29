@@ -105,6 +105,16 @@ mod.embryo0 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean,
 mod.embryo0$label = "ChIP signal only"
 mod.embryo1 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean * LE_bound, 
                        data = data)
+
+.mod.embryo1 = lm(rlogc.embryo ~ LE.log_chip_signal_mean * LE_bound, 
+                       data = data)
+
+embryo_contrast_bound_unbound = contrast(.mod.embryo1, list(LE_bound=FALSE,
+                    LE.log_chip_signal_mean=mean(data$LE.log_chip_signal_mean)),
+         list(LE_bound=TRUE,
+              LE.log_chip_signal_mean=mean(data$LE.log_chip_signal_mean))
+         )
+
 mod.embryo1$label = "ChIP signal AND ELT-2 binding"
 
 
@@ -223,8 +233,36 @@ mod.L10 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean,
 mod.L10$label = "ChIP signal only"
 mod.L11 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound, 
                        data = data)
+.mod.L11 = lm(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound, 
+                       data = data)
+
+L1_contrast_bound_unbound = contrast(.mod.L11, list(L1_bound=FALSE,
+                    L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean)),
+         list(L1_bound=TRUE,
+              L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean))
+         )
+
 mod.L11$label = "ChIP signal AND ELT-2 binding"
 
+
+mod.L12 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.description, 
+                       data = data)
+.mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.description, 
+                       data = data)
+contrast(.mod.L12, list(L1_bound=TRUE,
+                       din.status.description="unchanged_ELT2_minus",
+                       L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean)),
+         list(L1_bound=TRUE,
+              din.status.description="up_ELT2_minus",
+              L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean))
+         )
+contrast(.mod.L12, list(L1_bound=FALSE,
+                       din.status.description="unchanged_ELT2_minus",
+                       L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean)),
+         list(L1_bound=TRUE,
+              din.status.description="unchanged_ELT2_minus",
+              L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean))
+         )
 
 L1.straightup.cor = cor(data$L1.log_chip_signal_mean, data$rlogc.L1)
 dbound = data %>% filter(L1_bound)
@@ -272,17 +310,17 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
            #group=elt2.binding, 
            color=elt2.binding
            )) + geom_point() +
-  stat_smooth(method="lm", formula = y~x, se=F) + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
+  stat_smooth(method="lm", formula = y~x, se=F, color="black") + 
+  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x, color="black") +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
-  facet_wrap(~din.status.description ) +
+  facet_wrap(~L1_bound + din.status.description ) +
   ylab("DESeq2 rlog counts") + 
   xlab("L1 log ChIP promoter signal") +
   ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
   guides(color="none"); p3
-
+ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
 
 title <- ggdraw() + 
   draw_label(
@@ -326,8 +364,16 @@ mod.L30 = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean,
 mod.L30$label = "ChIP signal only"
 mod.L31 = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound, 
                        data = data)
-mod.L31$label = "ChIP signal AND ELT-2 binding"
+.mod.L31 = lm(rlogc.L3 ~ L3.log_chip_signal_mean * L3_bound, 
+                       data = data)
 
+L3_contrast_bound_unbound = contrast(.mod.L31, list(L3_bound=FALSE,
+                    L3.log_chip_signal_mean=mean(data$L3.log_chip_signal_mean)),
+         list(L3_bound=TRUE,
+              L3.log_chip_signal_mean=mean(data$L3.log_chip_signal_mean))
+         )
+
+mod.L31$label = "ChIP signal AND ELT-2 binding"
 
 L3.straightup.cor = cor(data$L3.log_chip_signal_mean, data$rlogc.L3)
 dbound = data %>% filter(L3_bound)
@@ -436,10 +482,22 @@ ggsave("plots/signal_cor.xy.final.pdf", height=15,width=12)
 
 kable(mod.embryo1$coefficients, digits=4)
 kable(mod.L11$coefficients, digits=4)
+kable(mod.L12$anova, digits=4)
 kable(mod.L31$coefficients, digits=4)
 
-# write.table(mod.embryo1$coefficients, file="../03_output/correlation_regression.stats.embryo.txt", sep="\t", quote=F)
-# write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
-# write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
+write.table(mod.embryo1$coefficients, file="../03_output/correlation_regression.stats.embryo.txt", sep="\t", quote=F)
+write.table(mod.embryo1$anova, file="../03_output/correlation_regression.anova.embryo.txt", sep="\t", quote=F)
+write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
+write.table(mod.L12$anova, file="../03_output/correlation_regression.anova.dineen.L1.txt", sep="\t", quote=F)
+write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
+write.table(mod.L31$coefficients, file="../03_output/correlation_regression.anova.L3.txt", sep="\t", quote=F)
+
+# use "contrast" to test bound vs not (lm coefficients only test the intercept and slope terms individually)
+
+cat(capture.output(embryo_contrast_bound_unbound), file="../03_output/correlation_regression.contrast_bound_unbound.embryo.txt", sep="\t")
+
+cat(capture.output(L1_contrast_bound_unbound), file="../03_output/correlation_regression.contrast_bound_unbound.L1.txt", sep="\t")
+
+cat(capture.output(L3_contrast_bound_unbound), file="../03_output/correlation_regression.contrast_bound_unbound.L3.txt", sep="\t")
 
 ```
