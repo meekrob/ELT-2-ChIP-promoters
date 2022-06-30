@@ -197,6 +197,26 @@ dds <- DESeq(dds)
 resultsNames(dds)
 ```
 
+# Counts table output for supplemental datatable
+
+```{r}
+# raw counts
+write.table(counts(dds, normalized = FALSE), 
+            file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_raw_counts.txt", 
+            sep = "\t", quote = FALSE, row.names = FALSE)
+# normalized counts
+write.table(counts(dds, normalized = TRUE), 
+            file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_norm_counts.txt", 
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+# rlog transformed counts
+write.table(as.data.frame(assay(rlog(dds, blind=FALSE))), 
+            file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_rlog_counts.txt", 
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+```
+
+
 # Within-stage pairwise comparisons
 
 <!-- ## Code testing, preliminary visualization -->
