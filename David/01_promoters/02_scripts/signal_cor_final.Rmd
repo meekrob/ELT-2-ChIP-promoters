@@ -19,6 +19,8 @@ library(ggridges)
 library(ggpubr)
 library(dunn.test)
 library(ggpmisc)
+#install.packages('contrast') 
+library('contrast')
 source('david-reader.R')
 source('signal_cor_functions.R')
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -319,6 +321,7 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
   xlab("L1 log ChIP promoter signal") +
   ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
+  theme_bw() + 
   guides(color="none"); p3
 ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
 
@@ -490,7 +493,7 @@ write.table(mod.embryo1$anova, file="../03_output/correlation_regression.anova.e
 write.table(mod.L11$coefficients, file="../03_output/correlation_regression.stats.L1.txt", sep="\t", quote=F)
 write.table(mod.L12$anova, file="../03_output/correlation_regression.anova.dineen.L1.txt", sep="\t", quote=F)
 write.table(mod.L31$coefficients, file="../03_output/correlation_regression.stats.L3.txt", sep="\t", quote=F)
-write.table(mod.L31$coefficients, file="../03_output/correlation_regression.anova.L3.txt", sep="\t", quote=F)
+write.table(mod.L31$anova, file="../03_output/correlation_regression.anova.L3.txt", sep="\t", quote=F)
 
 # use "contrast" to test bound vs not (lm coefficients only test the intercept and slope terms individually)
 
