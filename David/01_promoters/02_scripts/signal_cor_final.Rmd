@@ -557,7 +557,7 @@ p2=ggplot(data,
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
   ggtitle("All Expression level (ELT-2 bound/unbound)") +
-  scale_color_manual(values=okabe) + 
+  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1) +
   guides(color="none") + theme_bw()
 p2
                                                                                                     
