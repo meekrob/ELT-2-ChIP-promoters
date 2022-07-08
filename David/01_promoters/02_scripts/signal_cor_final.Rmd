@@ -312,7 +312,7 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
            #group=elt2.binding, 
            color=elt2.binding
            )) + geom_point() +
-  stat_smooth(method="lm", formula = y~x, se=F, color="black") + 
+  stat_smooth(method="lm", formula = y~x, se=F, color="black", fullrange = T) + 
   stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x, color="black") +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
@@ -503,4 +503,133 @@ cat(capture.output(L1_contrast_bound_unbound), file="../03_output/correlation_re
 
 cat(capture.output(L3_contrast_bound_unbound), file="../03_output/correlation_regression.contrast_bound_unbound.L3.txt", sep="\t")
 
+```
+
+# Use stage in model
+
+```{r stage-as-variable}
+
+data = alldata %>% filter(embryo_int_exp == "enriched") %>% 
+  select(LE.log_chip_signal_mean, LE_bound, rlogc.embryo) %>%
+  dplyr::rename(log_chip_signal_mean=LE.log_chip_signal_mean,
+                rlogc = rlogc.embryo,
+                ELT2bound = LE_bound) %>%
+  mutate(stage = "embryo")
+data = alldata %>% filter(L1_int_exp == "enriched") %>% 
+  select(L1.log_chip_signal_mean, L1_bound, rlogc.L1) %>%
+  dplyr::rename(log_chip_signal_mean=L1.log_chip_signal_mean,
+                rlogc = rlogc.L1,
+                ELT2bound = L1_bound) %>%
+        mutate(stage = "L1")  %>%
+        rbind(data)
+                                                                                    
+data = alldata %>% filter(L3_int_exp == "enriched") %>% 
+  select(L3.log_chip_signal_mean, L3_bound, rlogc.L3) %>%
+  dplyr::rename(log_chip_signal_mean=L3.log_chip_signal_mean,
+                rlogc = rlogc.L3,
+                ELT2bound = L3_bound) %>%
+        mutate(stage = "L3")  %>%
+        rbind(data)
+
+data$stage = factor(data$stage, levels=c("L1", "embryo","L3"))
+mod.all = lm.combo(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
+# FWER
+fwer = cbind(mod.all$coefficients[,c(1,4)], 
+             p.adjust(mod.all$coefficients[,4],method = "holm"),
+             p.adjust(mod.all$coefficients[,4],method = "bonferroni"))
+colnames(fwer) <- c("Estimate", "Pr(>|t|)", "FWER (holm)", "FWER (bonferroni)")
+```
+
+```{r plot-all-combined}
+p2=ggplot(data,
+       aes(x= log_chip_signal_mean, 
+           y=rlogc, 
+           group=ELT2bound,
+           color=ELT2bound
+           )) + geom_point() +
+  stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) + 
+  #stat_smooth(method="lm", formula = y~x, se=F, fullrange = T) + 
+  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x, color="black") +
+  ylim(c(0,19)) + 
+  #xlim(c(0,11)) +
+  facet_wrap(~ELT2bound + stage ) +
+  #facet_wrap(~stage ) +
+  ylab("DESeq2 rlog counts") + 
+  xlab("All log ChIP promoter signal") +
+  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  scale_color_manual(values=okabe) + 
+  guides(color="none") + theme_bw()
+p2
+                                                                                                    
+```
+
+```{r contrasts-all-model}
+
+.mod.all = lm(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
+ols.mod = ols(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
+
+chip_sigs = data %>%filter(stage=="embryo") %>% pull(log_chip_signal_mean) %>% range()
+
+contrast_embryo_binding=contrast(ols.mod, list(ELT2bound=FALSE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = "embryo"),
+                  list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage="embryo"), conf.int = 1-(.05/3))
+df_contrast_embryo_binding = contrast_embryo_binding[c("log_chip_signal_mean", "stage", "Contrast","Lower","Upper")] %>% as.data.frame()
+
+
+
+chip_sigs = data %>%filter(stage=="L1") %>% pull(log_chip_signal_mean) %>% range()
+contrast_L1_binding=contrast(ols.mod, list(ELT2bound=FALSE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = "L1"),
+                  list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage="L1"), conf.int = 1-(.05/3))
+df_contrast_L1_binding = contrast_L1_binding[c("log_chip_signal_mean", "stage",  "Contrast","Lower","Upper")] %>% as.data.frame()
+
+
+
+
+chip_sigs = data %>%filter(stage=="L3") %>% pull(log_chip_signal_mean) %>% range()
+contrast_L3_binding = contrast(ols.mod, list(ELT2bound=FALSE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = "L3"),
+                  list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage="L3"), conf.int = 1-(.05/3))
+df_contrast_L3_binding = contrast_L3_binding[c("log_chip_signal_mean","stage", "Contrast","Lower","Upper")] %>% as.data.frame()
+
+df_binding_contrasts = rbind(
+  df_contrast_embryo_binding,
+  df_contrast_L1_binding,
+  df_contrast_L3_binding
+)
+
+ggplot(df_binding_contrasts, aes(x=log_chip_signal_mean, y=Contrast)) + geom_line() + 
+   geom_ribbon(aes(ymin=Lower, ymax=Upper), width=0, alpha=0.15, linetype=0) +
+  facet_wrap(~stage) + theme_bw()
+
+
+chip_sigs = data %>% filter(stage %in% c("L1","L3")) %>% pull(log_chip_signal_mean) %>% range()
+contrast_embryo_L1 = contrast(ols.mod, list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = c("embryo")),
+         list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = c( "L1")))
+df_contrast_embryo_L1 = contrast_embryo_L1[c("log_chip_signal_mean","Contrast","Lower","Upper")] %>% as.data.frame()
+
+chip_sigs = data %>% filter(stage %in% c("L1","L3")) %>% pull(log_chip_signal_mean) %>% range()
+contrast_L1_L3 = contrast(ols.mod, list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = c("L1")),
+         list(ELT2bound=TRUE,
+                    log_chip_signal_mean=chip_sigs,
+                    stage = c( "L3")));#contrast_L1_L3
+df_c_L1_L3 = contrast_L1_L3[c("log_chip_signal_mean","Contrast","Lower","Upper")] %>% as.data.frame()
+
+ggplot(df_c_L1_L3, aes(x=log_chip_signal_mean, y=Contrast)) + geom_line() + 
+   geom_ribbon(aes(ymin=Lower, ymax=Upper), width=0, alpha=0.15, linetype=0)
 ```

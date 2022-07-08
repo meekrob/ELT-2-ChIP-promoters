@@ -120,24 +120,13 @@ all(rownames(coldata) == colnames(cts))
 
 Apply the same filters in Rob's workflow (later chunks) for this section.
 
-```{r btw-stage-use-gfp-minus-as-control, eval=FALSE}
+```{r btw-stage-use-gfp-minus-as-control}
 cts.GFPplusMinus = cts %>% as.data.frame() %>% dplyr::select(contains('GFP')) %>% as.matrix() 
-coldata.GFPplusMinus = coldata %>% filter(grepl("GFP", sample)) %>% mutate(group=ifelse(grepl('plus',group), 
+coldata.GFPplusMinus = coldata %>% filter(grepl("GFP", sample)) %>% mutate(GFPstatus=ifelse(grepl('plus',group), 
                     'GFPplus', 'GFPminus'))
 dds.GFPplusMinus <- DESeqDataSetFromMatrix(countData = cts.GFPplusMinus,
                               colData = coldata.GFPplusMinus,
-                              design = ~ group + stage)
-```
-
-```{r use-whole-as-control}
-cts.GFPplusMinus = cts %>% as.data.frame() %>% dplyr::select(contains('GFPplus'),contains('whole')) %>% as.matrix() 
-coldata.GFPplusMinus = coldata %>% filter(grepl("GFPplus|whole", sample)) %>% mutate(group=ifelse(grepl('plus',group), 
-                    'GFPplus', 'whole')) 
-coldata.GFPplusMinus = coldata.GFPplusMinus[colnames(cts.GFPplusMinus),]
-
-dds.GFPplusMinus <- DESeqDataSetFromMatrix(countData = cts.GFPplusMinus,
-                              colData = coldata.GFPplusMinus,
-                              design = ~ group + stage)
+                              design = ~ stage + GFPstatus:stage ) # https://support.bioconductor.org/p/105016/ for a comparable design
 ```
 
 ```{r remove-L1-rep2}
@@ -160,7 +149,7 @@ dds.GFPplusMinus <- dds.GFPplusMinus[keep,]
 ## Analyze
 
 ```{r perform-DE}
-design(dds.GFPplusMinus) <- ~ group + group:stage
+
 dds.GFPplusMinus <- DESeq(dds.GFPplusMinus)
 resultsNames(dds.GFPplusMinus)
 
@@ -169,7 +158,7 @@ resultsNames(dds.GFPplusMinus)
 
 ```{r score-embryo-L1}
 
-control_L1_v_embryo = results(dds.GFPplusMinus, contrast = list("groupGFPplus.stageL1"), lfcThreshold=1, alpha=.01)
+control_L1_v_embryo = results(dds.GFPplusMinus, contrast = list("stageL1.GFPstatusGFPplus", "stageembryo.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
 control_L1_v_embryo_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L1_v_embryo, type = "ashr")
 
 ylim=c(-15,15)
@@ -179,7 +168,7 @@ plotMA(control_L1_v_embryo_ashr, ylim = ylim, main = "L1_vs_embryo_ashr", alpha 
 
 ```{r score-embryo-L3}
 
-control_L3_v_embryo = results(dds.GFPplusMinus, contrast = list("groupGFPplus.stageL3"), lfcThreshold=1, alpha=.01)
+control_L3_v_embryo = results(dds.GFPplusMinus, contrast = list("stageL3.GFPstatusGFPplus", "stageembryo.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
 control_L3_v_embryo_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L3_v_embryo, type = "ashr")
 
 ylim=c(-15,15)
@@ -189,7 +178,7 @@ plotMA(control_L3_v_embryo_ashr, ylim = ylim, main = "L3_vs_embryo_ashr", alpha 
 
 ```{r score-L3-L1}
 
-control_L3_v_L1 = results(dds.GFPplusMinus, contrast = list("groupGFPplus.stageL3", "groupGFPplus.stageL1"), lfcThreshold=1, alpha=.01)
+control_L3_v_L1 = results(dds.GFPplusMinus, contrast = list("stageL3.GFPstatusGFPplus", "stageL1.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
 control_L3_v_L1_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L3_v_L1, type = "ashr")
 
 # L3_v_L1 %>% as.data.frame() %>% 
@@ -682,6 +671,17 @@ ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=isSig, alpha=isSig,gro
 tissue_specific_genes$tissue2 = ifelse(tissue_specific_genes$tissue == "intestine", "intestine", "non-intestine")
 tissue_specific_genes$tissue2 = ifelse(tissue_specific_genes$tissue == "ubiquitous", "ubiquitous", tissue_specific_genes$tissue2)
 
+design0.df = data.frame(as.data.frame(res_embryoGFPplus_vs_embryoGFPminus_ashr) %>% rownames_to_column('WBGeneID'), comparison="Embryo GFPplus vs GFPminus") %>%
+  bind_rows(
+    data.frame(as.data.frame(res_L1GFPplus_vs_L1GFPminus_ashr) %>% rownames_to_column('WBGeneID'), comparison="L1 GFPplus vs GFPminus")
+  ) %>%
+  bind_rows(
+    data.frame(as.data.frame(res_L3GFPplus_vs_L3GFPminus_ashr) %>% rownames_to_column('WBGeneID'), comparison="L3 GFPplus vs GFPminus")
+  ) %>%
+        replace_na(list(padj = 1)) %>% 
+        mutate(isSig = padj <= 0.01) %>%
+        mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig")) 
+
 df=data.frame(as.data.frame(control_L1_v_embryo_ashr) %>% rownames_to_column('WBGeneID'), comparison="L1 vs embryo") %>%
   bind_rows(
     data.frame(as.data.frame(control_L3_v_embryo_ashr) %>% rownames_to_column('WBGeneID'), comparison="L3 vs embryo")
@@ -693,26 +693,82 @@ df=data.frame(as.data.frame(control_L1_v_embryo_ashr) %>% rownames_to_column('WB
         mutate(isSig = padj <= 0.01) %>%
         mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig")) 
 
+design0.tissued = design0.df %>% filter(WBGeneID %in% tissue_specific_genes$WBGeneID) 
+
 design1.tissued = res_between_stage_GFP_df %>% filter(WBGeneID %in% tissue_specific_genes$WBGeneID)
 design2.tissued = df %>% filter(WBGeneID %in% tissue_specific_genes$WBGeneID) 
 
 tissue_specific_genes_df = as.data.frame(tissue_specific_genes) # from tibble
 rownames(tissue_specific_genes_df) <- tissue_specific_genes_df$WBGeneID
 
+
+design0.tissued$tissue = tissue_specific_genes_df[design0.tissued$WBGeneID, 'tissue']
 design1.tissued$tissue = tissue_specific_genes_df[design1.tissued$WBGeneID, 'tissue']
 design2.tissued$tissue = tissue_specific_genes_df[design2.tissued$WBGeneID, 'tissue']
+
+design0.tissued$tissue2 = tissue_specific_genes_df[design0.tissued$WBGeneID, 'tissue2']
 design1.tissued$tissue2 = tissue_specific_genes_df[design1.tissued$WBGeneID, 'tissue2']
 design2.tissued$tissue2 = tissue_specific_genes_df[design2.tissued$WBGeneID, 'tissue2']
 
+design0.tissued %<>% mutate(isSig = padj < .01) %>% mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig"))
+
 design1.tissued %<>% mutate(isSig = padj < .01) %>% mutate(grp = ifelse(isSig, ifelse(log2FoldChange > 0, "up", "down"), "notSig"))
 
+ttfunc = function(tt, caption)
+{
+  rownames(tt) <- c("padj>=.01","padj<.01")
+  tt %>% knitr::kable(digits = 3,caption = caption)
+}
+
+ttfunc(table(design0.tissued$isSig, design0.tissued$tissue) %>% proportions(margin=2) ,
+"Original design, GFPplus vs. minus; proportion of each tissue signif in GFPplus")
+
+ttfunc(table(design0.tissued$isSig, design0.tissued$tissue) %>% proportions(margin=1) ,
+"Original design, GFPplus vs. minus; proportion of each tissue represented in GFPplus")
 
 table(design1.tissued$isSig, design1.tissued$tissue) %>% proportions(margin=2)
 table(design2.tissued$isSig, design2.tissued$tissue) %>% proportions(margin=2)
 
+
 table(design1.tissued$isSig, design1.tissued$tissue) %>% proportions(margin=1)
 table(design2.tissued$isSig, design2.tissued$tissue) %>% proportions(margin=1)
 
+# Genes with tissue annotation break down this way:
+proportions(table(tissue_specific_genes$tissue2))
+#     intestine non-intestine    ubiquitous 
+#    0.08267327    0.59962871    0.31769802 
+
+# Those genes, in the control design, break down this way:
+proportions(table(design2.tissued$isSig, design2.tissued$tissue2),1)[2,]
+    # intestine non-intestine    ubiquitous 
+    # 0.1650165     0.2904290     0.5445545 
+
+# The relative change nearly boosts intestine representation by 2
+proportions(table(design2.tissued$isSig, design2.tissued$tissue2),1)[2,]/proportions(table(tissue_specific_genes$tissue2))
+#     intestine non-intestine    ubiquitous 
+#     1.9960080     0.4843481     1.7140631 
+
+# Rob's stage comparison with original design
+proportions(table(design1.tissued$isSig, design1.tissued$tissue2),1)[2,]/proportions(table(tissue_specific_genes$tissue2))
+# 
+#     intestine non-intestine    ubiquitous 
+#     1.1457037     0.7291381     1.4733135
+
+# Rob's within-stage comparison
+proportions(table(design0.tissued$isSig, design0.tissued$tissue2),1)[2,]/proportions(table(tissue_specific_genes$tissue2))
+# 
+#     intestine non-intestine    ubiquitous 
+#     1.8730024     0.5259133     1.6676216 
+
+design0.tissued %>% #filter(tissue != "intestine") %>%
+ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,group=grp)) +
+  geom_point(stroke = 0, size = 1) +
+  ylim(-10,10) +
+  facet_grid(~comparison) +
+  theme_classic()+ 
+  #geom_density_2d(colour="purple", size=.5, alpha=1) +
+  #scale_color_manual(values=c('black','red')) +
+  scale_alpha_manual(values=c(.01,.5)) + geom_hline(yintercept = 0) + ggtitle("Original design GFP+/-")
 
 design1.tissued %>% #filter(tissue != "intestine") %>%
 ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,group=grp)) +
@@ -722,7 +778,7 @@ ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,g
   theme_classic()+ 
   #geom_density_2d(colour="purple", size=.5, alpha=1) +
   #scale_color_manual(values=c('black','red')) +
-  scale_alpha_manual(values=c(.05,.5)) + geom_hline(yintercept = 0)
+  scale_alpha_manual(values=c(.01,.5)) + geom_hline(yintercept = 0)+ ggtitle("Original design stage comparison of GFP+ only")
 
 design2.tissued %>% #filter(tissue != "intestine") %>%
 ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,group=grp)) +
@@ -732,7 +788,7 @@ ggplot(aes(x = log10(baseMean), y = log2FoldChange, color=tissue2, alpha=isSig,g
   theme_classic()+ 
   #geom_density_2d(colour="purple", size=.5, alpha=1) +
   #scale_color_manual(values=c('black','red')) +
-  scale_alpha_manual(values=c(.05,.5)) + geom_hline(yintercept = 0)
+  scale_alpha_manual(values=c(.01,.5)) + geom_hline(yintercept = 0) + ggtitle("stage comparison, variable GFP status")
 
 ```
 
