@@ -19,6 +19,7 @@ library(ggridges)
 library(ggpubr)
 library(dunn.test)
 library(ggpmisc)
+library(rms)
 #install.packages('contrast') 
 library('contrast')
 source('david-reader.R')
@@ -221,6 +222,8 @@ write.table(data, file="embryo_bound_elt2_minus_changed.tsv", sep="\t", row.name
 data = alldata %>% filter(L1_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
+data %<>% filter(!is.na(din.status.description))
+
 
 # trim extreme .1%
 q.L1.chipsig = quantile(data$L1.log_chip_signal_mean, c(1-.9995,.9995))
@@ -345,6 +348,14 @@ ggsave("plots/signal_cor.xy.L1.pdf", height=5,width=12)
 
 L1.p.title = title
 L1.p1 = p1
+
+
+# based on the ANOVA, use a reduced model to isolate meaningful coefficients for meaningful contrasts
+data$din.status.description = factor(data$din.status.description, c("unchanged_ELT2_minus", "down_ELT2_minus", "up_ELT2_minus"))
+mod.reduced0 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.description, data = data)
+mod.reduced = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean:L1_bound + din.status.description, data = data)
+
+
 ```
 
 ## L3
