@@ -152,6 +152,14 @@ dds.GFPplusMinus <- dds.GFPplusMinus[keep,]
 
 dds.GFPplusMinus <- DESeq(dds.GFPplusMinus)
 resultsNames(dds.GFPplusMinus)
+rlog.stage_control = rlog(dds.GFPplusMinus)
+dat = assay(rlog.stage_control)
+# these are the GFPplus columns
+emb.cols = c(1,3,5)
+L1.cols = c(7,9)
+L3.cols = c(11,13,15)
+GFPplusRlogs = dat[, c(emb.cols,L1.cols,L3.cols)]
+
 
 ```
 
@@ -159,6 +167,9 @@ resultsNames(dds.GFPplusMinus)
 ```{r score-embryo-L1}
 
 control_L1_v_embryo = results(dds.GFPplusMinus, contrast = list("stageL1.GFPstatusGFPplus", "stageembryo.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
+
+control_L1_v_embryo_df = control_L1_v_embryo %>% as.data.frame() %>% rownames_to_column("WBID")
+
 control_L1_v_embryo_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L1_v_embryo, type = "ashr")
 
 ylim=c(-15,15)
@@ -169,6 +180,9 @@ plotMA(control_L1_v_embryo_ashr, ylim = ylim, main = "L1_vs_embryo_ashr", alpha 
 ```{r score-embryo-L3}
 
 control_L3_v_embryo = results(dds.GFPplusMinus, contrast = list("stageL3.GFPstatusGFPplus", "stageembryo.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
+
+control_L3_v_embryo_df = control_L3_v_embryo %>% as.data.frame() %>% rownames_to_column("WBID")
+
 control_L3_v_embryo_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L3_v_embryo, type = "ashr")
 
 ylim=c(-15,15)
@@ -179,6 +193,9 @@ plotMA(control_L3_v_embryo_ashr, ylim = ylim, main = "L3_vs_embryo_ashr", alpha 
 ```{r score-L3-L1}
 
 control_L3_v_L1 = results(dds.GFPplusMinus, contrast = list("stageL3.GFPstatusGFPplus", "stageL1.GFPstatusGFPplus"), lfcThreshold=1, alpha=.01)
+
+control_L3_v_L1_df = control_L3_v_L1 %>% as.data.frame() %>% rownames_to_column("WBID")
+
 control_L3_v_L1_ashr <- lfcShrink(dds.GFPplusMinus, res=control_L3_v_L1, type = "ashr")
 
 # L3_v_L1 %>% as.data.frame() %>% 
@@ -201,6 +218,25 @@ plotMA(control_L3_v_L1_ashr, ylim = ylim, main = "L3_vs_L1_ashr", alpha = 0.01)
 #   filter(!is.na(L3_v_L1$padj) & L3_v_L1$padj <= .01 & log2FoldChange >= 1)
 
 ```
+
+```{r cluster dynamic genes}
+
+# merge the results data tables
+control_L3_v_L1_df %<>% select(WBID, baseMean, log2FoldChange, padj) %>%
+  dplyr::rename(L3vL1.LFC=log2FoldChange,L3vL1.baseMean=baseMean,L3vL1.padj=padj)
+control_L1_v_embryo_df %<>% select(WBID, baseMean, log2FoldChange, padj) %>%
+  dplyr::rename(L1vEmbryo.LFC=log2FoldChange,L1vEmbryo.baseMean=baseMean,L1vEmbryo.padj=padj)
+
+control_merged_df = control_L1_v_embryo_df %>% full_join(control_L3_v_L1_df, by="WBID")
+
+control_merged_df %<>% full_join(GFPplusRlogs %>% as.data.frame() %>% rownames_to_column("WBID"), by="WBID")
+control_merged_df %<>% mutate(L3vL1.sig01 = L3vL1.padj < .01, L1vEmbryo.sig01 = L1vEmbryo.padj < .01)
+
+table(control_merged_df$L1vEmbryo.sig01,control_merged_df$L3vL1.sig01)
+```
+
+
+
 
 # Back to Rob's workflow - Make DESeqDataSet
 

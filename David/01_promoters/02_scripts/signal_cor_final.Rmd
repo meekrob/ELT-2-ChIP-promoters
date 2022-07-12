@@ -354,7 +354,8 @@ L1.p1 = p1
 data$din.status.description = factor(data$din.status.description, c("unchanged_ELT2_minus", "down_ELT2_minus", "up_ELT2_minus"))
 mod.reduced0 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.description, data = data)
 mod.reduced = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean:L1_bound + din.status.description, data = data)
-
+smack = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean + din.status.description, data = data)
+smack2 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_bound  + din.status.description, data = data)
 
 ```
 
@@ -543,7 +544,11 @@ data = alldata %>% filter(L3_int_exp == "enriched") %>%
         rbind(data)
 
 data$stage = factor(data$stage, levels=c("L1", "embryo","L3"))
+mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
+mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
 mod.all = lm.combo(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
+mod.notStage = lm.combo(rlogc ~ log_chip_signal_mean * ELT2bound, data=data)
+mod.notELT2bound = lm.combo(rlogc ~ log_chip_signal_mean * stage, data=data)
 # FWER
 fwer = cbind(mod.all$coefficients[,c(1,4)], 
              p.adjust(mod.all$coefficients[,4],method = "holm"),
@@ -552,7 +557,7 @@ colnames(fwer) <- c("Estimate", "Pr(>|t|)", "FWER (holm)", "FWER (bonferroni)")
 ```
 
 ```{r plot-all-combined}
-p2=ggplot(data,
+p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
        aes(x= log_chip_signal_mean, 
            y=rlogc, 
            group=ELT2bound,
