@@ -344,29 +344,46 @@ ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
 
 ```{r violin}
 
-t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.05/3) )
+down.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.05/3) )
 
-t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.05/3) )
+up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.05/3) )
 
-t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
+unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
 
-ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
+annotation_text = data.frame(elt2.binding="ELT-2 unbound",
+                             rlogc.L1 = 20,
+                             lab = c(sprintf("p = %.2e", down.t$p.value),
+                                             sprintf("p = %.2f", unchanged.t$p.value),
+                                             sprintf("p = %.2e", up.t$p.value)),
+                             din.status.description = factor(c("down_ELT2_minus", "unchanged_ELT2_minus", "up_ELT2_minus"))
+                             )
+
+p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
      x= "elt2.binding", 
      y="rlogc.L1", 
      add = c("mean_ci"),
-     add.params = list(size=.5,ci=1 - (.05/3)),
+     add.params = list(size=.5,
+                       color="black",
+                       ci=1 - (.05/3)),
     color="elt2.binding",
     error.plot = "crossbar",
-    fill=NA,
-    palette = okabe,ggtheme=theme_bw(),
+    fill="elt2.binding",
+    alpha=.5,
+    palette = okabe,
+    ggtheme=theme_bw(),
     facet.by = "din.status.description", 
-    panel.labs=list(din.status.description=c("down ELT-2 minus",
-                                             "unchanged ELT-2 minus",
-                                             "up ELT-2 minus"))) + 
-  ggtitle("Expression level as a function of whether a locus is bound by ELT-2") +
+    panel.labs=list(din.status.description=c("down", 
+                                             "unchanged", 
+                                             "up"))) + 
+  ggtitle("Expression level as a function ELT-2 binding status", subtitle="panels indicate direction of change upon ELT-2 deletion, p-value is for t-test of no difference between bound and unbound") +
   xlab("") + ylab("Expression level (rlog counts)") +
   theme(axis.text.x = element_text(angle = 90)) +
-  guides(color="none") 
+  guides(fill="none",color="none") + 
+  geom_text(data = annotation_text, 
+            mapping = aes(x=elt2.binding,
+                          y=rlogc.L1,
+                          label=lab)) ;p
+
 ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
 ```
 
@@ -623,7 +640,7 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
   ggtitle("All Expression level (ELT-2 bound/unbound)") +
-  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1) +
+  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1,n=64) +
   guides(color="none") + theme_bw()
 p2
                                                                                                     
