@@ -632,7 +632,6 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
                formula=y~x, 
                color="black",
                label.y=0) +
-  geom_density_2d(colour="black", size=.1, alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
   facet_wrap(~ELT2bound + stage ) +
@@ -640,10 +639,10 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
   ggtitle("All Expression level (ELT-2 bound/unbound)") +
-  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1,n=64) +
+  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1) +
   guides(color="none") + theme_bw()
 p2
-                                                                                                    
+                                                                                              
 ```
 
 ```{r contrasts-all-model}
