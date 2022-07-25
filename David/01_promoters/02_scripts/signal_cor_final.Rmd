@@ -309,6 +309,11 @@ p2=ggplot(data,
   scale_color_manual(values=okabe) + 
   guides(color="none") + theme_bw()
 
+data.L1 = data
+```
+
+```{r L1-p3}
+data = data.L1
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= L1.log_chip_signal_mean, 
            y=rlogc.L1, 
@@ -316,7 +321,15 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
            color=elt2.binding
            )) + geom_point() +
   stat_smooth(method="lm", formula = y~x, se=F, color="black", fullrange = T) + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x, color="black") +
+  stat_poly_eq(parse=T, 
+               aes(label = paste(after_stat(..rr.label..), 
+                                 after_stat(..n.label..), 
+                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+          
+               formula=y~x, 
+               color="black",
+               label.y=0) +
+  geom_density_2d(colour="black", size=.1, alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
   facet_wrap(~L1_bound + din.status.description ) +
@@ -327,7 +340,38 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
   theme_bw() + 
   guides(color="none"); p3
 ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
+```
 
+```{r violin}
+
+t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.05/3) )
+
+t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.05/3) )
+
+t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
+
+ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
+     x= "elt2.binding", 
+     y="rlogc.L1", 
+     add = c("mean_ci"),
+     add.params = list(size=.5,ci=1 - (.05/3)),
+    color="elt2.binding",
+    error.plot = "crossbar",
+    fill=NA,
+    palette = okabe,ggtheme=theme_bw(),
+    facet.by = "din.status.description", 
+    panel.labs=list(din.status.description=c("down ELT-2 minus",
+                                             "unchanged ELT-2 minus",
+                                             "up ELT-2 minus"))) + 
+  ggtitle("Expression level as a function of whether a locus is bound by ELT-2") +
+  xlab("") + ylab("Expression level (rlog counts)") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  guides(color="none") 
+ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
+```
+
+
+```{r L1-final-plot}
 title <- ggdraw() + 
   draw_label(
     "L1: Intestine enriched and equal expressed genes predicted by ChIP signal level",
@@ -407,7 +451,7 @@ p1=ggplot(data,
   geom_point(alpha=.5) +
   geom_smooth(color="black", method="lm", formula = y~x, se=F) + 
   #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
-  ggtitle(bquote(.(mod.L30$label) ~ R^2 == .(round(mod.L30$r.squared,3)))) +
+  #ggtitle(bquote(.(mod.L30$label) ~ R^2 == .(round(mod.L30$r.squared,3)))) +
   ylab("DESeq2 rlog counts") +
   xlab("L3 log ChIP promoter signal") +
   scale_color_manual(values=okabe) #+ 
@@ -564,8 +608,14 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
            color=ELT2bound
            )) + geom_point() +
   stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) + 
-  #stat_smooth(method="lm", formula = y~x, se=F, fullrange = T) + 
-  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x, color="black") +
+  stat_poly_eq(parse=T, 
+               aes(label = paste(after_stat(..rr.label..), 
+                                 after_stat(..n.label..), 
+                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+               formula=y~x, 
+               color="black",
+               label.y=0) +
+  geom_density_2d(colour="black", size=.1, alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
   facet_wrap(~ELT2bound + stage ) +
@@ -648,4 +698,42 @@ df_c_L1_L3 = contrast_L1_L3[c("log_chip_signal_mean","Contrast","Lower","Upper")
 
 ggplot(df_c_L1_L3, aes(x=log_chip_signal_mean, y=Contrast)) + geom_line() + 
    geom_ribbon(aes(ymin=Lower, ymax=Upper), width=0, alpha=0.15, linetype=0)
+```
+
+```{r construct-data-rsquare-check}
+
+d.X = seq(8,10,length.out=150)
+d.Y = 1.1 * d.X + rnorm(length(d.X))
+df = data.frame(d.X,d.Y,slope=1.1,sd=1)
+
+d.X = seq(8,10,length.out=150)
+d.Y = 1.1 * d.X + rnorm(length(d.X), 0, 2)
+df = rbind(df, data.frame(d.X,d.Y,slope=1.1,sd=2))
+
+
+d.X = seq(8,10,length.out=150)
+d.Y = 1.01 * d.X + rnorm(length(d.X))
+df = rbind(df, data.frame(d.X,d.Y,slope=1.01,sd=1))
+
+d.X = seq(8,10,length.out=150)
+d.Y = 1.01 * d.X + rnorm(length(d.X), 0, 2)
+df = rbind(df, data.frame(d.X,d.Y,slope=1.01,sd=2))
+
+df$sd = factor(df$sd)
+df$slope = factor(df$slope)
+ggplot(df, aes(x=d.X,y=d.Y, color=slope)) + geom_point() + 
+  stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) +
+  stat_poly_eq(parse=T, 
+               aes(label = paste(after_stat(..rr.label..), 
+                                 after_stat(..n.label..), 
+                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+               formula=y~x, 
+               color="black",
+               label.y=0) +
+  geom_density_2d(colour="black", size=.1, alpha=1) + 
+  ylim(c(0,19)) + 
+  facet_wrap(~sd + slope) + 
+  xlim(c(5,14)) + 
+  scale_color_manual(values=okabe) +
+  guides(color="none") + theme_bw()
 ```
