@@ -196,7 +196,9 @@ title <- ggdraw() +
 
 # middle one only (bound vs. unbound)
 plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
-ggsave("plots/signal_cor.xy.embryo.pdf", height=5,width=12)
+
+# replacing with all stages facetted
+#ggsave("plots/signal_cor.xy.embryo.pdf", height=5,width=12)
 
 LE.p.title = title
 LE.p1 = p1
@@ -328,8 +330,11 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
           
                formula=y~x, 
                color="black",
-               label.y=0) +
-  geom_density_2d(colour="black", size=.1, alpha=1) +
+               label.y=0.01) +
+  geom_density_2d(colour="black", 
+                  size=.1, 
+                  contour_var = "ndensity",
+                  alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
   facet_wrap(~L1_bound + din.status.description ) +
@@ -337,9 +342,12 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
   xlab("L1 log ChIP promoter signal") +
   ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
   scale_color_manual(values=okabe) + 
-  theme_bw() + 
-  guides(color="none"); p3
-ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
+  theme_bw() +
+  guides(color="none")
+pdf(file="plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
+p3
+dev.off()
+#ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
 ```
 
 ```{r violin}
@@ -383,8 +391,10 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
             mapping = aes(x=elt2.binding,
                           y=rlogc.L1,
                           label=lab)) ;p
-
-ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
+pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
+p
+dev.off()
+#ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
 ```
 
 
@@ -405,7 +415,7 @@ title <- ggdraw() +
 
 # middle one only (bound vs. unbound)
 plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
-ggsave("plots/signal_cor.xy.L1.pdf", height=5,width=12)
+#ggsave("plots/signal_cor.xy.L1.pdf", height=5,width=12)
 
 L1.p.title = title
 L1.p1 = p1
@@ -526,7 +536,7 @@ title <- ggdraw() +
 
 # middle one only (bound vs. unbound)
 plot_grid(title, p2, ncol=1,rel_heights = c(0.1,1)); 
-ggsave("plots/signal_cor.xy.L3.pdf", height=5,width=12)
+#ggsave("plots/signal_cor.xy.L3.pdf", height=5,width=12)
 
 L3.p.title = title
 L3.p1 = p1
@@ -551,7 +561,7 @@ plot_grid(title,
           L1.p1 + ggtitle(bquote("L1 " ~ R^2 == .(round(mod.L10$r.squared,3)))),
           L3.p1 + ggtitle(bquote("L3 " ~ R^2 == .(round(mod.L30$r.squared,3)))),
           ncol=1,labels=c('','A','B','C'), rel_heights = c(0.1, 1, 1, 1))
-ggsave("plots/signal_cor.xy.final.pdf", height=15,width=12)
+#ggsave("plots/signal_cor.xy.final.pdf", height=15,width=12)
 ```
 
 ```{r kabels-regression-stats}
@@ -631,6 +641,38 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
                                  sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
                formula=y~x, 
                color="black",
+               label.y=0.01) +
+  ylim(c(0,19)) + 
+  #xlim(c(0,11)) +
+  facet_wrap(~ELT2bound + stage ) +
+  #facet_wrap(~stage ) +
+  ylab("DESeq2 rlog counts") + 
+  xlab("All log ChIP promoter signal") +
+  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  scale_color_manual(values=okabe) +  
+  geom_density_2d(colour="black", 
+                  size=.1, 
+                  contour_var = "ndensity") +
+  guides(color="none") + theme_bw()
+p2
+pdf(file="plots/signal_cor.xy.stage.final.pdf",height=8,width=12, family="ArialMT")
+p2
+dev.off()
+#ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                                                                                   
+ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
+       aes(x= log_chip_signal_mean, 
+           y=rlogc, 
+           group=ELT2bound,
+           color=ELT2bound
+           )) + 
+  
+  stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) + 
+  stat_poly_eq(parse=T, 
+               aes(label = paste(after_stat(..rr.label..), 
+                                 after_stat(..n.label..), 
+                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+               formula=y~x, 
+               color="black",
                label.y=0) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
@@ -639,15 +681,23 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
   ggtitle("All Expression level (ELT-2 bound/unbound)") +
-  scale_color_manual(values=okabe) +  geom_density_2d(colour="black", size=.1, alpha=1) +
-  guides(color="none") + theme_bw()
-p2
-                                                                                              
+  scale_color_manual(values=okabe) +  
+  geom_point(size=.1, color="white") +
+  geom_density_2d_filled(
+                  size=.1,
+                  contour_var = "ndensity") +
+  
+  guides(color="none") + theme_bw() + theme(text = element_text(family = "Arial"))      
 ```
 
 ```{r contrasts-all-model}
 
 .mod.all = lm(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
+
+d = datadist(data$rlogc, data$log_chip_signal_mean)
+options(datadist="d") 
+
+
 ols.mod = ols(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
 
 chip_sigs = data %>%filter(stage=="embryo") %>% pull(log_chip_signal_mean) %>% range()
