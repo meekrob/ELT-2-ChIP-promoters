@@ -398,7 +398,7 @@ dev.off()
 ```
 
 
-```{r L1-final-plot}
+```{r L1-ggdraw}
 title <- ggdraw() + 
   draw_label(
     "L1: Intestine enriched and equal expressed genes predicted by ChIP signal level",
@@ -655,7 +655,7 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
                   contour_var = "ndensity") +
   guides(color="none") + theme_bw()
 p2
-pdf(file="plots/signal_cor.xy.stage.final.pdf",height=8,width=12, family="ArialMT")
+pdf(file="plots/signal_cor.xy.stage.final.pdf",height=5,width=12, family="ArialMT")
 p2
 dev.off()
 #ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                                                                                   
