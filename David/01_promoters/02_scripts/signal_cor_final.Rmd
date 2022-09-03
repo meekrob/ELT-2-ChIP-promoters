@@ -358,11 +358,13 @@ up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.stat
 
 unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
 
-annotation_text = data.frame(elt2.binding="ELT-2 unbound",
-                             rlogc.L1 = 20,
-                             lab = c(sprintf("p = %.2e", down.t$p.value),
-                                             sprintf("p = %.2f", unchanged.t$p.value),
-                                             sprintf("p = %.2e", up.t$p.value)),
+
+annotation_text = data.frame(elt2.binding=1.5,
+                             rlogc.L1 = c(21,21,22),
+                             lab = c(
+                               sprintf("italic(p) == %.1e", down.t$p.value),
+                               sprintf("italic(p) == %.2f", unchanged.t$p.value),
+                               sprintf("italic(p) == %.1e", up.t$p.value)),
                              din.status.description = factor(c("down_ELT2_minus", "unchanged_ELT2_minus", "up_ELT2_minus"))
                              )
 
@@ -370,9 +372,10 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
      x= "elt2.binding", 
      y="rlogc.L1", 
      add = c("mean_ci"),
-     add.params = list(size=.5,
+     add.params = list(size=.1,
+                       width=.75,
                        color="black",
-                       ci=1 - (.05/3)),
+                       ci=1 - (.01/3)),
     color="elt2.binding",
     error.plot = "crossbar",
     fill="elt2.binding",
@@ -383,14 +386,31 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
     panel.labs=list(din.status.description=c("down", 
                                              "unchanged", 
                                              "up"))) + 
-  ggtitle("Expression level as a function ELT-2 binding status", subtitle="panels indicate direction of change upon ELT-2 deletion, p-value is for t-test of no difference between bound and unbound") +
+  ggtitle("Expression level as a function ELT-2 binding status, ELT-2 dependency (L1)") +
   xlab("") + ylab("Expression level (rlog counts)") +
-  theme(axis.text.x = element_text(angle = 90)) +
+  theme(
+    axis.text.x = element_text(angle = 90, colour="black",vjust=.5),
+    axis.text.y=element_text(colour="black"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=12)) +
   guides(fill="none",color="none") + 
   geom_text(data = annotation_text, 
             mapping = aes(x=elt2.binding,
                           y=rlogc.L1,
-                          label=lab)) ;p
+                          label=lab),
+            parse=T) +
+    geom_line(data= rbind(
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20)-1,
+                            din.status.description="down_ELT2_minus"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20)-1,
+                            din.status.description="unchanged_ELT2_minus"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(19,20,20,19)+1,
+                            din.status.description="up_ELT2_minus")
+              ),
+            mapping=aes(x=x,y=y));p
 pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
 p
 dev.off()
@@ -613,7 +633,73 @@ data = alldata %>% filter(L3_int_exp == "enriched") %>%
                 ELT2bound = L3_bound) %>%
         mutate(stage = "L3")  %>%
         rbind(data)
+```
 
+```{r convenient-place-to-output-stage-violins}
+embryo.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "embryo"), 
+       conf.level = 1-(.05/3) )
+L1.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L1"), 
+       conf.level = 1-(.05/3) )
+L3.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L3"), 
+       conf.level = 1-(.05/3) )
+
+
+annotation_text = data.frame(ELT2bound = FALSE,
+                             rlogc = c(22,22,21),
+                             lab = c(sprintf("italic(p) == %.1e", embryo.t$p.value),
+                                   sprintf("italic(p) == %.1e", L1.t$p.value),
+                                   sprintf("italic(p) == %.1e", L3.t$p.value)),
+                             stage = factor(c("embryo", "L1", "L3"))
+                             )
+
+ggviolin(data=data, x="ELT2bound",y="rlogc",   
+        add = c("mean_ci"),
+#        draw_quantiles = c(.5),
+     add.params = list(size=.1,
+                         width=.75,
+                       color="black",
+                       ci=1 - (.01/3)),
+
+    color="ELT2bound",
+    error.plot = "crossbar",
+    fill="ELT2bound",
+    alpha=.5,
+    palette = okabe,
+    ggtheme=theme_bw(),
+    facet.by = "stage") + 
+  ggtitle("Expression level as a function ELT-2 binding status") +
+  xlab("") + ylab("Expression level (rlog counts)") +
+#  theme_classic() +
+  theme(axis.text.x=element_text(colour="black", angle=90,vjust=.5),
+        axis.text.y=element_text(colour="black"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=10)) +
+  guides(fill="none",color="none") + 
+  scale_x_discrete(labels=c("ELT-2 unbound", "ELT-2 bound")) +
+    geom_text(data = annotation_text, 
+            mapping = aes(x=1.5,
+                          y=rlogc,
+                          label=lab),
+                          parse=TRUE
+                          ) +
+  geom_line(data= rbind(
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20),
+                            stage="embryo"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20),
+                            stage="L1"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(19,20,20,19),
+                            stage="L3")
+              ),
+            mapping=aes(x=x,y=y))
+            
+```
+
+
+
+```{r }
 data$stage = factor(data$stage, levels=c("L1", "embryo","L3"))
 mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
 mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
