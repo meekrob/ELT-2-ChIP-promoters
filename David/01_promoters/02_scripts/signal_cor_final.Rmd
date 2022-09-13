@@ -270,6 +270,10 @@ contrast(.mod.L12, list(L1_bound=FALSE,
               din.status.description="unchanged_ELT2_minus",
               L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean))
          )
+# remove binding to see if an ELT-2-dependency coefficient is significant by t-test
+data$din.status.description=factor(data$din.status.description, levels=c("unchanged_ELT2_minus", "up_ELT2_minus","down_ELT2_minus" ))
+mod.L13 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * din.status.description, 
+                       data = data)
 
 L1.straightup.cor = cor(data$L1.log_chip_signal_mean, data$rlogc.L1)
 dbound = data %>% filter(L1_bound)
@@ -359,12 +363,24 @@ up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.stat
 unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
 
 
+# this part is bullshit because geom_text(parse=T) reformats the %.2e into %.f
+up.formatted.exp = floor(log(up.t$p.value,10))
+down.formatted.exp = floor(log(down.t$p.value,10))
+up.formatted.coef = round( up.t$p.value * 10 ^ -up.formatted.exp, 1)
+down.formatted.coef = round( down.t$p.value * 10 ^ -down.formatted.exp, 1)
+
+
+fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
+
 annotation_text = data.frame(elt2.binding=1.5,
                              rlogc.L1 = c(21,21,22),
                              lab = c(
-                               sprintf("italic(p) == %.1e", down.t$p.value),
+                               sprintf(fmt_string, down.formatted.coef,
+                                       down.formatted.exp),
                                sprintf("italic(p) == %.2f", unchanged.t$p.value),
-                               sprintf("italic(p) == %.1e", up.t$p.value)),
+                               sprintf(fmt_string, up.formatted.coef,
+                                       up.formatted.exp)
+                               ),
                              din.status.description = factor(c("down_ELT2_minus", "unchanged_ELT2_minus", "up_ELT2_minus"))
                              )
 
@@ -386,13 +402,15 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
     panel.labs=list(din.status.description=c("down", 
                                              "unchanged", 
                                              "up"))) + 
-  ggtitle("Expression level as a function ELT-2 binding status, ELT-2 dependency (L1)") +
+  ggtitle("A) Higher mean expression of ELT-2 bound, ELT-2-dependant promoters") +
   xlab("") + ylab("Expression level (rlog counts)") +
   theme(
-    axis.text.x = element_text(angle = 90, colour="black",vjust=.5),
+    axis.text.x = element_text(#angle = 90, 
+                           colour="black",vjust=.5),
     axis.text.y=element_text(colour="black"),
-        strip.background = element_blank(),
-        strip.text = element_text(size=12)) +
+    strip.background = element_blank(),
+    plot.title = element_text(face="bold"),
+    strip.text = element_text(size=12)) +
   guides(fill="none",color="none") + 
   geom_text(data = annotation_text, 
             mapping = aes(x=elt2.binding,
@@ -410,8 +428,9 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
                             y=c(19,20,20,19)+1,
                             din.status.description="up_ELT2_minus")
               ),
-            mapping=aes(x=x,y=y));p
-pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
+            mapping=aes(x=x,y=y))
+p
+pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=3.2,width=8.4, family="ArialMT")
 p
 dev.off()
 #ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
@@ -644,15 +663,33 @@ L3.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L3"),
        conf.level = 1-(.05/3) )
 
 
+# this part is bullshit but it will match the x10^exp in the L1 sectoni
+embryo.formatted.exp = floor(log(embryo.t$p.value,10))
+embryo.formatted.coef = round( embryo.t$p.value * 10 ^ -embryo.formatted.exp, 1)
+
+L1.formatted.exp = floor(log(L1.t$p.value,10))
+L1.formatted.coef = round( L1.t$p.value * 10 ^ -L1.formatted.exp, 1)
+
+L3.formatted.exp = floor(log(L3.t$p.value,10))
+L3.formatted.coef = round( L3.t$p.value * 10 ^ -L3.formatted.exp, 1)
+
+fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
+
 annotation_text = data.frame(ELT2bound = FALSE,
                              rlogc = c(22,22,21),
-                             lab = c(sprintf("italic(p) == %.1e", embryo.t$p.value),
-                                   sprintf("italic(p) == %.1e", L1.t$p.value),
-                                   sprintf("italic(p) == %.1e", L3.t$p.value)),
+                             lab = c(sprintf(fmt_string, 
+                                             embryo.formatted.coef,
+                                             embryo.formatted.exp),
+                                   sprintf(fmt_string, 
+                                           L1.formatted.coef,
+                                           L1.formatted.exp),
+                                   sprintf(fmt_string, 
+                                           L3.formatted.coef,
+                                           L3.formatted.exp)),
                              stage = factor(c("embryo", "L1", "L3"))
                              )
 
-ggviolin(data=data, x="ELT2bound",y="rlogc",   
+p=ggviolin(data=data, x="ELT2bound",y="rlogc",   
         add = c("mean_ci"),
 #        draw_quantiles = c(.5),
      add.params = list(size=.1,
@@ -667,13 +704,15 @@ ggviolin(data=data, x="ELT2bound",y="rlogc",
     palette = okabe,
     ggtheme=theme_bw(),
     facet.by = "stage") + 
-  ggtitle("Expression level as a function ELT-2 binding status") +
+  ggtitle("A) Higher mean expression level of intestine-enriched genes in ELT-2 bound promoters") +
   xlab("") + ylab("Expression level (rlog counts)") +
 #  theme_classic() +
-  theme(axis.text.x=element_text(colour="black", angle=90,vjust=.5),
+  theme(axis.text.x=element_text(colour="black", #angle=90,
+                                 vjust=.5),
         axis.text.y=element_text(colour="black"),
         strip.background = element_blank(),
-        strip.text = element_text(size=10)) +
+        strip.text = element_text(size=10),
+        plot.title = element_text(face="bold")) +
   guides(fill="none",color="none") + 
   scale_x_discrete(labels=c("ELT-2 unbound", "ELT-2 bound")) +
     geom_text(data = annotation_text, 
@@ -693,8 +732,11 @@ ggviolin(data=data, x="ELT2bound",y="rlogc",
                             y=c(19,20,20,19),
                             stage="L3")
               ),
-            mapping=aes(x=x,y=y))
-            
+            mapping=aes(x=x,y=y));p
+
+pdf(file="plots/signal_cor.violin.stages.pdf", height=4,width=8.4, family="ArialMT")
+p
+dev.off()         
 ```
 
 
@@ -714,6 +756,13 @@ colnames(fwer) <- c("Estimate", "Pr(>|t|)", "FWER (holm)", "FWER (bonferroni)")
 ```
 
 ```{r plot-all-combined}
+
+
+
+emb.r2 = mod.embryo1$r.squared
+L1.r2 = mod.L11$r.squared
+L3.r2 = mod.L31$r.squared
+
 p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
        aes(x= log_chip_signal_mean, 
            y=rlogc, 
@@ -722,29 +771,34 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
            )) + geom_point() +
   stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) + 
   stat_poly_eq(parse=T, 
-               aes(label = paste(after_stat(..rr.label..), 
-                                 after_stat(..n.label..), 
-                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+               aes(label = after_stat(..n.label..)),
                formula=y~x, 
                color="black",
-               label.y=0.01) +
+               label.y=0.02) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
-  facet_wrap(~ELT2bound + stage ) +
+  facet_wrap(~ELT2bound + stage) +
   #facet_wrap(~stage ) +
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
-  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  ggtitle("B) Low gene expression variance explained by ChIP promoter signal") +
   scale_color_manual(values=okabe) +  
   geom_density_2d(colour="black", 
                   size=.1, 
                   contour_var = "ndensity") +
-  guides(color="none") + theme_bw()
+  guides(color="none") + theme_bw() + theme(
+        strip.background = element_blank(),
+        strip.text = element_text(size=10),
+    plot.title = element_text(face="bold"))
 p2
-pdf(file="plots/signal_cor.xy.stage.final.pdf",height=5,width=12, family="ArialMT")
+pdf(file="plots/signal_cor.xy.stage.final.pdf",height=5,width=8, family="ArialMT")
 p2
 dev.off()
-#ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                                                                                   
+#ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                           
+```
+
+
+```{r}
 ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
        aes(x= log_chip_signal_mean, 
            y=rlogc, 
@@ -766,14 +820,15 @@ ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3")))
   #facet_wrap(~stage ) +
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
-  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  ggtitle("B) Low gene expression variance explained by ChIP promoter signal") +
   scale_color_manual(values=okabe) +  
   geom_point(size=.1, color="white") +
   geom_density_2d_filled(
                   size=.1,
                   contour_var = "ndensity") +
   
-  guides(color="none") + theme_bw() + theme(text = element_text(family = "Arial"))      
+  guides(color="none") + theme_bw() + 
+  theme(text = element_text(family = "Arial", face = "bold"))
 ```
 
 ```{r contrasts-all-model}
