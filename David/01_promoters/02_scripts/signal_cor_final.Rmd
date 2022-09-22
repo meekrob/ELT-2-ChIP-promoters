@@ -347,7 +347,7 @@ p2=ggplot(data,
   facet_wrap(~elt2.binding ) +
   ylab("DESeq2 rlog counts") + 
   xlab("L1 log ChIP promoter signal") +
-  ggtitle("L1 Expression level (ELT-2 bound/unbound)", subtitle="Dineen data onlyy") +
+  ggtitle("L1 Expression level (ELT-2 bound/unbound)", subtitle="Dineen data only") +
   scale_color_manual(values=okabe) + 
   guides(color="none") + theme_bw(); p2
 
@@ -356,11 +356,15 @@ data.L1 = data
 ### Supplemental Figure 10b
 
 ```{r L1-signal-cor-plot}
+# relevel to down, unchanged, up, for display. having the unchanged first is
+# useful for categorical regression
+levels(data.L1$din.status.description) = c("down_ELT2_minus", 
+                                           "unchanged_ELT2_minus", 
+                                           "up_ELT2_minus")
 data = data.L1
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= L1.log_chip_signal_mean, 
-           y=rlogc.L1, 
-           #group=elt2.binding, 
+           y=rlogc.L1,
            color=elt2.binding
            )) + geom_point() +
   stat_smooth(method="lm", formula = y~x, se=F, color="black", fullrange = T) + 
@@ -378,7 +382,13 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
                   alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
-  facet_wrap(~L1_bound + din.status.description ) +
+  facet_wrap(~L1_bound + din.status.description,
+             labeller = 
+               labeller(.cols=function(variable,value){
+               l = list( down_ELT2_minus = "down",
+                         unchanged_ELT2_minus = "unchanged",
+                         up_ELT2_minus = "up")
+               return(l[value])})) +
   ylab("DESeq2 rlog counts") + 
   xlab("L1 log ChIP promoter signal") +
   ggtitle("B) ELT-2 responsive genes have the same relationship to ChIP signal in peaks versus not") +
