@@ -1,5 +1,5 @@
 ---
-title: "Signal Correlations"
+title: "Signal Correlations and ANOVA for Supplemental figures 9 and 10"
 author: "DC King - Onish lab"
 date: "5/19/2022"
 output: pdf_document
@@ -14,29 +14,30 @@ library(magrittr)
 library(knitr) # for kable
 library(ggplot2)
 library(cowplot)
-library(multcompView)
+library(multcompView) # for signal_cor_functions.R
 library(ggridges)
 library(ggpubr)
-library(dunn.test)
+library(dunn.test) # for signal_cor_functions.R
 library(ggpmisc)
 library(rms)
 #install.packages('contrast') 
 library('contrast')
 source('david-reader.R')
-source('signal_cor_functions.R')
+source('signal_cor_functions.R') # for lm.combo and unused HSD and dunn functions
 okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ```
 
 ## ELT-2 data
 
 ```{r read-data-ELT-2}
-elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE)
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE) # from data-reader.R
 #glimpse(elt2.data)
 ```
 
 ## Rob data
 
 ```{r read-rob-merged}
+# david-reader.R
 rob = read_rob_all_merged() %>% dplyr::select(-starts_with("pvalue."),-starts_with("lfcSE."))
 glimpse(rob)
 ```
@@ -87,9 +88,9 @@ alldata$L3_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
 
 # Linear models
 
-## Embryo
+### Embryo
 
-```{r embryo-r-squared}
+```{r embryo-trim-data}
 #data = alldata %>% filter(embryo_int_exp %in% c('enriched','equal'))
 data = alldata %>% filter(embryo_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
@@ -100,7 +101,9 @@ q.LE.chipsig = quantile(data$LE.log_chip_signal_mean, c(1-.9995,.9995))
 q.rlogc.embryo = quantile(data$rlogc.embryo, c(1-.9995,.9995),na.rm=T)
 data %<>% filter(between(LE.log_chip_signal_mean, q.LE.chipsig[1],q.LE.chipsig[2]))
 data %<>% filter(between(rlogc.embryo, q.rlogc.embryo[1],q.rlogc.embryo[2]))
+```
 
+```{r embryo-lm}
 # base model (0): chip signal
 mod.embryo0 = lm.combo(rlogc.embryo ~ LE.log_chip_signal_mean, 
                        data = data)
@@ -119,13 +122,18 @@ embryo_contrast_bound_unbound = contrast(.mod.embryo1, list(LE_bound=FALSE,
          )
 
 mod.embryo1$label = "ChIP signal AND ELT-2 binding"
+```
 
-
+```{r embryo-pearson-cor}
 LE.straightup.cor = cor(data$LE.log_chip_signal_mean, data$rlogc.embryo)
 dbound = data %>% filter(LE_bound)
 dunbound = data %>% filter(!LE_bound)
 LE.bound.cor = cor.test(dbound$LE.log_chip_signal_mean, dbound$rlogc.embryo, conf.level=.975)
 LE.unbound.cor = cor.test(dunbound$LE.log_chip_signal_mean, dunbound$rlogc.embryo, conf.level=.975)
+
+```
+
+```{r skipped-embryo-plot-models, include=FALSE}
 
 data %<>% mutate(elt2.binding = factor(ifelse(LE_bound, "ELT-2 bound", "ELT-2 unbound"),
                                        levels = c("ELT-2 unbound","ELT-2 bound")))
@@ -204,7 +212,7 @@ LE.p.title = title
 LE.p1 = p1
 ```
 
-```{r get-embryo-set}
+```{r skipped-get-embryo-set, include=FALSE}
 data = alldata %>% dplyr::filter(embryo_int_exp %in% c('enriched') & LE_bound &  din.status.description %in% c("down_ELT2_minus", "up_ELT2_minus")) %>% select(WBGeneID, LE.log_chip_signal_mean, rlogc.embryo, din.status.description, embryo_int_exp, LE_bound, wikigene_name)
 
 # trim extreme .1%
@@ -218,9 +226,11 @@ head(data)
 write.table(data, file="embryo_bound_elt2_minus_changed.tsv", sep="\t", row.names = F, quote = F)
 ```
 
-## L1
+### L1
 
-```{r L1-r-squared}
+This section works on data with a Dineen status description only. Later chunks that include the stage as a variable use the full set.
+
+```{r L1-dineen-trim-data}
 data = alldata %>% filter(L1_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
@@ -232,6 +242,11 @@ q.L1.chipsig = quantile(data$L1.log_chip_signal_mean, c(1-.9995,.9995))
 q.rlogc.L1 = quantile(data$rlogc.L1, c(1-.9995,.9995),na.rm=T)
 data %<>% filter(between(L1.log_chip_signal_mean, q.L1.chipsig[1],q.L1.chipsig[2]))
 data %<>% filter(between(rlogc.L1, q.rlogc.L1[1],q.rlogc.L1[2]))
+```
+
+
+```{r L1-dineen-lm}
+
 
 # base model (0): chip signal
 mod.L10 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean, 
@@ -256,6 +271,11 @@ mod.L12 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.de
                        data = data)
 .mod.L12 = lm(rlogc.L1 ~ L1.log_chip_signal_mean * L1_bound * din.status.description, 
                        data = data)
+```
+
+Contrasts seem very useful but I don't know if they are applicable to the big picture.
+
+```{r skipped-L1-dineen-contrasts, include=FALSE}
 contrast(.mod.L12, list(L1_bound=TRUE,
                        din.status.description="unchanged_ELT2_minus",
                        L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean)),
@@ -270,16 +290,36 @@ contrast(.mod.L12, list(L1_bound=FALSE,
               din.status.description="unchanged_ELT2_minus",
               L1.log_chip_signal_mean=mean(data$L1.log_chip_signal_mean))
          )
+```
 
+Since ELT-2 binding is not a significant coefficient, how do the t-tests on the remaining coefficients change when you take it out?
+
+```{r L1-dineen-model-remove-ELT2-dep}
+# remove binding to see if an ELT-2-dependency coefficient is significant by t-test
+data$din.status.description=factor(data$din.status.description, levels=c("unchanged_ELT2_minus", "up_ELT2_minus","down_ELT2_minus" ))
+mod.L13 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean * din.status.description, 
+                       data = data)
+mod.L13
+```
+
+Skipped to focus on R-squared and coefficient estimates/p-values.
+
+``` {r skipped-L1-dineen-pearson-cor, include=FALSE}
 L1.straightup.cor = cor(data$L1.log_chip_signal_mean, data$rlogc.L1)
 dbound = data %>% filter(L1_bound)
 dunbound = data %>% filter(!L1_bound)
 L1.bound.cor = cor.test(dbound$L1.log_chip_signal_mean, dbound$rlogc.L1, conf.level=.975)
 L1.unbound.cor = cor.test(dunbound$L1.log_chip_signal_mean, dunbound$rlogc.L1, conf.level=.975)
+```
 
+```{r L1-dineen-data-rename-L1_bound}
 data %<>% mutate(elt2.binding = factor(ifelse(L1_bound, "ELT-2 bound", "ELT-2 unbound"),
                                        levels = c("ELT-2 unbound","ELT-2 bound")))
+```
 
+Skipped because it is included in the final plots.
+
+```{r skipped-L1-dineen-plots, include=FALSE}
 p1=ggplot(data, 
        aes(x=L1.log_chip_signal_mean, 
            y=rlogc.L1, 
@@ -287,12 +327,12 @@ p1=ggplot(data,
            color=elt2.binding)) + 
   geom_point(alpha=.5) +
   geom_smooth(color="black", method="lm", formula = y~x, se=F) + 
-  #stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
-  ggtitle(bquote(.(mod.L10$label) ~ R^2 == .(round(mod.L10$r.squared,3)))) +
+  stat_poly_eq(parse=T, aes(label = ..rr.label..), formula=y~x) +
+  ggtitle(bquote(.(mod.L10$label) ~ R^2 == .(round(mod.L10$r.squared,3))),
+          subtitle = "Dineen data only") +
   ylab("DESeq2 rlog counts") +
   xlab("L1 log ChIP promoter signal") +
-  scale_color_manual(values=okabe) #+ 
-  #guides(color="none")
+  scale_color_manual(values=okabe);p1
 
 p2=ggplot(data,
        aes(x= L1.log_chip_signal_mean, 
@@ -307,19 +347,24 @@ p2=ggplot(data,
   facet_wrap(~elt2.binding ) +
   ylab("DESeq2 rlog counts") + 
   xlab("L1 log ChIP promoter signal") +
-  ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
+  ggtitle("L1 Expression level (ELT-2 bound/unbound)", subtitle="Dineen data only") +
   scale_color_manual(values=okabe) + 
-  guides(color="none") + theme_bw()
+  guides(color="none") + theme_bw(); p2
 
 data.L1 = data
 ```
+### Supplemental Figure 10b
 
-```{r L1-p3}
+```{r L1-signal-cor-plot}
+# relevel to down, unchanged, up, for display. having the unchanged first is
+# useful for categorical regression
+levels(data.L1$din.status.description) = c("down_ELT2_minus", 
+                                           "unchanged_ELT2_minus", 
+                                           "up_ELT2_minus")
 data = data.L1
 p3=ggplot(data %>% filter(!is.na(din.status.description)),
        aes(x= L1.log_chip_signal_mean, 
-           y=rlogc.L1, 
-           #group=elt2.binding, 
+           y=rlogc.L1,
            color=elt2.binding
            )) + geom_point() +
   stat_smooth(method="lm", formula = y~x, se=F, color="black", fullrange = T) + 
@@ -337,32 +382,58 @@ p3=ggplot(data %>% filter(!is.na(din.status.description)),
                   alpha=1) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
-  facet_wrap(~L1_bound + din.status.description ) +
+  facet_wrap(~L1_bound + din.status.description,
+             labeller = 
+               labeller(.cols=function(variable,value){
+               l = list( down_ELT2_minus = "down",
+                         unchanged_ELT2_minus = "unchanged",
+                         up_ELT2_minus = "up")
+               return(l[value])})) +
   ylab("DESeq2 rlog counts") + 
   xlab("L1 log ChIP promoter signal") +
-  ggtitle("L1 Expression level (ELT-2 bound/unbound)") +
+  ggtitle("B) ELT-2 responsive genes have the same relationship to ChIP signal in peaks versus not") +
   scale_color_manual(values=okabe) + 
   theme_bw() +
-  guides(color="none")
-pdf(file="plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
+  theme(
+        strip.background = element_blank(),
+        strip.text = element_text(size=10),
+    plot.title = element_text(face="bold")
+  ) +
+  guides(color="none"); p3
+pdf(file="plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=8, family="ArialMT")
 p3
 dev.off()
 #ggsave("plots/signal_cor.xy.L1.dineen.status.pdf", height=5,width=12)
 ```
+### Supplemental Figure 10a
 
 ```{r violin}
-
+#levels(data.L1$din.status.description) <- c("down_ELT2_minus"  ,"unchanged_ELT2_minus", "up_ELT2_minus")
 down.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.05/3) )
 
 up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.05/3) )
 
 unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
 
-annotation_text = data.frame(elt2.binding="ELT-2 unbound",
-                             rlogc.L1 = 20,
-                             lab = c(sprintf("p = %.2e", down.t$p.value),
-                                             sprintf("p = %.2f", unchanged.t$p.value),
-                                             sprintf("p = %.2e", up.t$p.value)),
+
+# this part is bullshit because geom_text(parse=T) reformats the %.2e into %.f
+up.formatted.exp = floor(log(up.t$p.value,10))
+down.formatted.exp = floor(log(down.t$p.value,10))
+up.formatted.coef = round( up.t$p.value * 10 ^ -up.formatted.exp, 1)
+down.formatted.coef = round( down.t$p.value * 10 ^ -down.formatted.exp, 1)
+
+
+fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
+
+annotation_text = data.frame(elt2.binding=1.5,
+                             rlogc.L1 = c(21,21,22),
+                             lab = c(
+                               sprintf(fmt_string, down.formatted.coef,
+                                       down.formatted.exp),
+                               sprintf("italic(p) == %.2f", unchanged.t$p.value),
+                               sprintf(fmt_string, up.formatted.coef,
+                                       up.formatted.exp)
+                               ),
                              din.status.description = factor(c("down_ELT2_minus", "unchanged_ELT2_minus", "up_ELT2_minus"))
                              )
 
@@ -370,35 +441,55 @@ p = ggviolin(data.L1 %>% filter(!is.na(din.status.description)),
      x= "elt2.binding", 
      y="rlogc.L1", 
      add = c("mean_ci"),
-     add.params = list(size=.5,
+     add.params = list(size=.1,
+                       width=.75,
                        color="black",
-                       ci=1 - (.05/3)),
+                       ci=1 - (.01/3)),
     color="elt2.binding",
     error.plot = "crossbar",
     fill="elt2.binding",
     alpha=.5,
     palette = okabe,
     ggtheme=theme_bw(),
-    facet.by = "din.status.description", 
-    panel.labs=list(din.status.description=c("down", 
-                                             "unchanged", 
-                                             "up"))) + 
-  ggtitle("Expression level as a function ELT-2 binding status", subtitle="panels indicate direction of change upon ELT-2 deletion, p-value is for t-test of no difference between bound and unbound") +
+    facet.by = "din.status.description"
+    ,panel.labs=list(din.status.description=c("unchanged", "up", "down")) # i don't know what the hell is going on here, but the order is really screwed up
+) + 
+  ggtitle("A) Higher mean expression of ELT-2 bound, ELT-2-dependent promoters") +
   xlab("") + ylab("Expression level (rlog counts)") +
-  theme(axis.text.x = element_text(angle = 90)) +
+  theme(
+    axis.text.x = element_text(#angle = 90, 
+                           colour="black",vjust=.5),
+    axis.text.y=element_text(colour="black"),
+    strip.background = element_blank(),
+    plot.title = element_text(face="bold"),
+    strip.text = element_text(size=12)) +
   guides(fill="none",color="none") + 
   geom_text(data = annotation_text, 
             mapping = aes(x=elt2.binding,
                           y=rlogc.L1,
-                          label=lab)) ;p
-pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12, family="ArialMT")
+                          label=lab),
+            parse=T) +
+    geom_line(data= rbind(
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20)-1,
+                            din.status.description="down_ELT2_minus"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20)-1,
+                            din.status.description="unchanged_ELT2_minus"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(19,20,20,19)+1,
+                            din.status.description="up_ELT2_minus")
+              ),
+            mapping=aes(x=x,y=y))
+p
+pdf(file="plots/signal_cor.violin.L1.dineen.status.pdf", height=3.2,width=8, family="ArialMT")
 p
 dev.off()
-#ggsave("plots/signal_cor.violin.L1.dineen.status.pdf", height=5,width=12)
+
 ```
 
 
-```{r L1-ggdraw}
+```{r skipped-L1-ggdraw, include=FALSE}
 title <- ggdraw() + 
   draw_label(
     "L1: Intestine enriched and equal expressed genes predicted by ChIP signal level",
@@ -432,7 +523,7 @@ smack2 = lm.combo(rlogc.L1 ~ L1.log_chip_signal_mean*L1_bound  + din.status.desc
 
 ## L3
 
-```{r L3-r-squared}
+```{r L3-filter-trim-data}
 data = alldata %>% filter(L3_int_exp %in% c('enriched'))
 #data %<>% filter(WBGeneID != 'WBGene00016153') # negative signal, lowest point
 #data %<>% filter(WBGeneID != 'WBGene00012762') # kind of hot region, highest point in "depleted"
@@ -442,7 +533,9 @@ q.L3.chipsig = quantile(data$L3.log_chip_signal_mean, c(1-.9995,.9995))
 q.rlogc.L3 = quantile(data$rlogc.L3, c(1-.9995,.9995),na.rm=T)
 data %<>% filter(between(L3.log_chip_signal_mean, q.L3.chipsig[1],q.L3.chipsig[2]))
 data %<>% filter(between(rlogc.L3, q.rlogc.L3[1],q.rlogc.L3[2]))
+```
 
+```{r L3-lm}
 # base model (0): chip signal
 mod.L30 = lm.combo(rlogc.L3 ~ L3.log_chip_signal_mean, 
                        data = data)
@@ -466,10 +559,14 @@ dbound = data %>% filter(L3_bound)
 dunbound = data %>% filter(!L3_bound)
 L3.bound.cor = cor.test(dbound$L3.log_chip_signal_mean, dbound$rlogc.L3, conf.level=.975)
 L3.unbound.cor = cor.test(dunbound$L3.log_chip_signal_mean, dunbound$rlogc.L3, conf.level=.975)
+```
 
+```{r L3-rename-L3_bound}
 data %<>% mutate(elt2.binding = factor(ifelse(L3_bound, "ELT-2 bound", "ELT-2 unbound"),
                                        levels = c("ELT-2 unbound","ELT-2 bound")))
+```
 
+```{r skipped-L3-plot, include=FALSE}
 p1=ggplot(data, 
        aes(x=L3.log_chip_signal_mean, 
            y=rlogc.L3, 
@@ -542,7 +639,7 @@ L3.p.title = title
 L3.p1 = p1
 ```
 
-```{r all-plots}
+```{r skipped-all-plots, include=FALSE}
 title <- ggdraw() + 
   draw_label(
     "Expression level of Intestine enriched and equal expressed genes predicted by ChIP signal intensity",
@@ -588,9 +685,9 @@ cat(capture.output(L3_contrast_bound_unbound), file="../03_output/correlation_re
 
 ```
 
-# Use stage in model
+# All data by stage- supplemental figure 9
 
-```{r stage-as-variable}
+```{r format-all-data}
 
 data = alldata %>% filter(embryo_int_exp == "enriched") %>% 
   select(LE.log_chip_signal_mean, LE_bound, rlogc.embryo) %>%
@@ -613,7 +710,104 @@ data = alldata %>% filter(L3_int_exp == "enriched") %>%
                 ELT2bound = L3_bound) %>%
         mutate(stage = "L3")  %>%
         rbind(data)
+```
 
+## Supplemental Figure 9a
+
+```{r t-tests-for-violins}
+embryo.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "embryo"), 
+       conf.level = 1-(.05/3) )
+L1.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L1"), 
+       conf.level = 1-(.05/3) )
+L3.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L3"), 
+       conf.level = 1-(.05/3) )
+
+```
+
+```{r label-formatting-for-scientific-notation}
+# this part is bullshit but it will match the x10^exp in the L1 section
+embryo.formatted.exp = floor(log(embryo.t$p.value,10))
+embryo.formatted.coef = round( embryo.t$p.value * 10 ^ -embryo.formatted.exp, 1)
+
+L1.formatted.exp = floor(log(L1.t$p.value,10))
+L1.formatted.coef = round( L1.t$p.value * 10 ^ -L1.formatted.exp, 1)
+
+L3.formatted.exp = floor(log(L3.t$p.value,10))
+L3.formatted.coef = round( L3.t$p.value * 10 ^ -L3.formatted.exp, 1)
+
+fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
+```
+
+```{r annotation-text-dataframe}
+annotation_text = data.frame(ELT2bound = FALSE,
+                             rlogc = c(22,22,21),
+                             lab = c(sprintf(fmt_string, 
+                                             embryo.formatted.coef,
+                                             embryo.formatted.exp),
+                                   sprintf(fmt_string, 
+                                           L1.formatted.coef,
+                                           L1.formatted.exp),
+                                   sprintf(fmt_string, 
+                                           L3.formatted.coef,
+                                           L3.formatted.exp)),
+                             stage = factor(c("embryo", "L1", "L3"))
+                             )
+```
+
+```{r violin-plot}
+p=ggviolin(data=data, x="ELT2bound",y="rlogc",   
+        add = c("mean_ci"),
+#        draw_quantiles = c(.5),
+     add.params = list(size=.1,
+                         width=.75,
+                       color="black",
+                       ci=1 - (.01/3)),
+
+    color="ELT2bound",
+    error.plot = "crossbar",
+    fill="ELT2bound",
+    alpha=.5,
+    palette = okabe,
+    ggtheme=theme_bw(),
+    facet.by = "stage") + 
+  ggtitle("A) Higher mean expression level of intestine-enriched genes in ELT-2 bound promoters") +
+  xlab("") + ylab("Expression level (rlog counts)") +
+#  theme_classic() +
+  theme(axis.text.x=element_text(colour="black", #angle=90,
+                                 vjust=.5),
+        axis.text.y=element_text(colour="black"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=10),
+        plot.title = element_text(face="bold")) +
+  guides(fill="none",color="none") + 
+  scale_x_discrete(labels=c("ELT-2 unbound", "ELT-2 bound")) +
+    geom_text(data = annotation_text, 
+            mapping = aes(x=1.5,
+                          y=rlogc,
+                          label=lab),
+                          parse=TRUE
+                          ) +
+  geom_line(data= rbind(
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20),
+                            stage="embryo"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(20,21,21,20),
+                            stage="L1"),
+              data.frame(x=c(1,1,2,2),
+                            y=c(19,20,20,19),
+                            stage="L3")
+              ),
+            mapping=aes(x=x,y=y));p
+
+pdf(file="plots/signal_cor.violin.stages.pdf", height=4,width=8, family="ArialMT")
+p
+dev.off()         
+```
+
+### FWER on the coefficient t-tests
+
+```{r fwer-on-stage-coefficients}
 data$stage = factor(data$stage, levels=c("L1", "embryo","L3"))
 mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
 mod.log_chip_mean = lm.combo(rlogc ~ log_chip_signal_mean, data=data)
@@ -625,9 +819,17 @@ fwer = cbind(mod.all$coefficients[,c(1,4)],
              p.adjust(mod.all$coefficients[,4],method = "holm"),
              p.adjust(mod.all$coefficients[,4],method = "bonferroni"))
 colnames(fwer) <- c("Estimate", "Pr(>|t|)", "FWER (holm)", "FWER (bonferroni)")
+fwer
 ```
 
-```{r plot-all-combined}
+## Supplemental Figure 9b
+```{r stages-extract-r-squared-from-models}
+emb.r2 = mod.embryo1$r.squared
+L1.r2 = mod.L11$r.squared
+L3.r2 = mod.L31$r.squared
+```
+
+```{r stages-signal-cor-plot}
 p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
        aes(x= log_chip_signal_mean, 
            y=rlogc, 
@@ -636,29 +838,41 @@ p2=ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"
            )) + geom_point() +
   stat_smooth(color="black", method="lm", formula = y~x, se=F, fullrange = T) + 
   stat_poly_eq(parse=T, 
-               aes(label = paste(after_stat(..rr.label..), 
-                                 after_stat(..n.label..), 
-                                 sep="*\", \"*")), # https://www.rdocumentation.org/packages/ggpmisc/versions/0.4.5/topics/stat_poly_eq
+              aes(label = paste(after_stat(..rr.label..), 
+                 after_stat(..n.label..), 
+                 sep="*\", \"*")),
                formula=y~x, 
                color="black",
-               label.y=0.01) +
+               label.y=0.02) +
   ylim(c(0,19)) + 
   #xlim(c(0,11)) +
-  facet_wrap(~ELT2bound + stage ) +
+  facet_wrap(~ELT2bound + stage) +
   #facet_wrap(~stage ) +
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
-  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  ggtitle("B) Intestine-enriched genes have the same relationship to ChIP signal in peaks versus not") +
   scale_color_manual(values=okabe) +  
   geom_density_2d(colour="black", 
                   size=.1, 
                   contour_var = "ndensity") +
-  guides(color="none") + theme_bw()
+  guides(color="none") + theme_bw() + theme(
+        strip.background = element_blank(),
+        strip.text = element_text(size=10),
+    plot.title = element_text(face="bold"))
 p2
-pdf(file="plots/signal_cor.xy.stage.final.pdf",height=5,width=12, family="ArialMT")
+pdf(file="plots/signal_cor.xy.stage.final.pdf",height=5,width=7.7, family="ArialMT")
 p2
 dev.off()
-#ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                                                                                   
+#ggsave("plots/signal_cor.xy.stage.final.pdf", height=8,width=12)                           
+```
+
+End of visualizations and analyses used in the paper.
+
+# Other visualizations/analyses not used
+
+### filled density plots
+
+```{r filled-density-plots, include=FALSE}
 ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3"))),
        aes(x= log_chip_signal_mean, 
            y=rlogc, 
@@ -680,17 +894,20 @@ ggplot(data %>% mutate(stage=forcats::fct_relevel(stage, c("embryo","L1","L3")))
   #facet_wrap(~stage ) +
   ylab("DESeq2 rlog counts") + 
   xlab("All log ChIP promoter signal") +
-  ggtitle("All Expression level (ELT-2 bound/unbound)") +
+  ggtitle("B) Low gene expression variance explained by ChIP promoter signal") +
   scale_color_manual(values=okabe) +  
   geom_point(size=.1, color="white") +
   geom_density_2d_filled(
                   size=.1,
                   contour_var = "ndensity") +
   
-  guides(color="none") + theme_bw() + theme(text = element_text(family = "Arial"))      
+  guides(color="none") + theme_bw() + 
+  theme(text = element_text(family = "Arial", face = "bold"))
 ```
 
-```{r contrasts-all-model}
+### using datadist (rms) and contrast (rms)
+
+```{r contrasts-all-model, include=FALSE}
 
 .mod.all = lm(rlogc ~ log_chip_signal_mean * stage * ELT2bound, data=data)
 
@@ -766,7 +983,7 @@ ggplot(df_c_L1_L3, aes(x=log_chip_signal_mean, y=Contrast)) + geom_line() +
    geom_ribbon(aes(ymin=Lower, ymax=Upper), width=0, alpha=0.15, linetype=0)
 ```
 
-```{r construct-data-rsquare-check}
+```{r construct-data-rsquare-check, include=FALSE}
 
 d.X = seq(8,10,length.out=150)
 d.Y = 1.1 * d.X + rnorm(length(d.X))
