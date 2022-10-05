@@ -409,18 +409,22 @@ dev.off()
 
 ```{r violin}
 #levels(data.L1$din.status.description) <- c("down_ELT2_minus"  ,"unchanged_ELT2_minus", "up_ELT2_minus")
-down.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.05/3) )
+down.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "down_ELT2_minus"), conf.level = 1-(.01/3) )
 
-up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.05/3) )
+up.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "up_ELT2_minus"), conf.level = 1-(.01/3) )
 
-unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.05/3) )
+unchanged.t = t.test(rlogc.L1 ~ elt2.binding, data = data.L1 %>% filter(!is.na(din.status.description) & din.status.description == "unchanged_ELT2_minus"), conf.level = 1-(.01/3) )
 
+
+up.t$q.value = min(up.t$p.value*3,1)
+unchanged.t$q.value = min(unchanged.t$p.value*3,1)
+down.t$q.value = min(down.t$p.value*3,1)
 
 # this part is bullshit because geom_text(parse=T) reformats the %.2e into %.f
-up.formatted.exp = floor(log(up.t$p.value,10))
-down.formatted.exp = floor(log(down.t$p.value,10))
-up.formatted.coef = round( up.t$p.value * 10 ^ -up.formatted.exp, 1)
-down.formatted.coef = round( down.t$p.value * 10 ^ -down.formatted.exp, 1)
+up.formatted.exp = floor(log(up.t$q.value,10))
+down.formatted.exp = floor(log(down.t$q.value,10))
+up.formatted.coef = round( up.t$q.value * 10 ^ -up.formatted.exp, 1)
+down.formatted.coef = round( down.t$q.value * 10 ^ -down.formatted.exp, 1)
 
 
 fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
@@ -430,7 +434,7 @@ annotation_text = data.frame(elt2.binding=1.5,
                              lab = c(
                                sprintf(fmt_string, down.formatted.coef,
                                        down.formatted.exp),
-                               sprintf("italic(p) == %.2f", unchanged.t$p.value),
+                               sprintf("italic(p) == %.2f", unchanged.t$q.value),
                                sprintf(fmt_string, up.formatted.coef,
                                        up.formatted.exp)
                                ),
@@ -716,24 +720,28 @@ data = alldata %>% filter(L3_int_exp == "enriched") %>%
 
 ```{r t-tests-for-violins}
 embryo.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "embryo"), 
-       conf.level = 1-(.05/3) )
+       conf.level = 1-(.01/3) )
 L1.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L1"), 
-       conf.level = 1-(.05/3) )
+       conf.level = 1-(.01/3) )
 L3.t = t.test(rlogc ~ ELT2bound, data = data %>% filter(stage == "L3"), 
-       conf.level = 1-(.05/3) )
+       conf.level = 1-(.01/3) )
+
+embryo.t$q.value = min(1, embryo.t$p.value*3)
+L1.t$q.value = min(1, L1.t$p.value*3)
+L3.t$q.value = min(1, L3.t$p.value*3)
 
 ```
 
 ```{r label-formatting-for-scientific-notation}
 # this part is bullshit but it will match the x10^exp in the L1 section
-embryo.formatted.exp = floor(log(embryo.t$p.value,10))
-embryo.formatted.coef = round( embryo.t$p.value * 10 ^ -embryo.formatted.exp, 1)
+embryo.formatted.exp = floor(log(embryo.t$q.value,10))
+embryo.formatted.coef = round( embryo.t$q.value * 10 ^ -embryo.formatted.exp, 1)
 
-L1.formatted.exp = floor(log(L1.t$p.value,10))
-L1.formatted.coef = round( L1.t$p.value * 10 ^ -L1.formatted.exp, 1)
+L1.formatted.exp = floor(log(L1.t$q.value,10))
+L1.formatted.coef = round( L1.t$q.value * 10 ^ -L1.formatted.exp, 1)
 
-L3.formatted.exp = floor(log(L3.t$p.value,10))
-L3.formatted.coef = round( L3.t$p.value * 10 ^ -L3.formatted.exp, 1)
+L3.formatted.exp = floor(log(L3.t$q.value,10))
+L3.formatted.coef = round( L3.t$q.value * 10 ^ -L3.formatted.exp, 1)
 
 fmt_string = "italic(p) == %.2f%%*%%10^%d" # %%*%% resolves to %*% in sprintf, which resolve to a small times character (x) in geom_text(parse=T), which is plotmath
 ```
