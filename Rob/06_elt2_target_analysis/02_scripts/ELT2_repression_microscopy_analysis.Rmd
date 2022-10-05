@@ -1,0 +1,108 @@
+---
+title: "ELT2_repression_microscopy"
+author: "Rtpw"
+date: "8/4/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+input_df <- read_csv("../01_input/ELT2_Repression_Microscopy_All_Data.csv") %>% mutate(gene = fct_relevel(gene, c("ELT2", "CEBP1", "ETS4", "PQM1")),
+                                                                             RNAi = fct_relevel(RNAi, c("L4440", "ELT2"))) %>% 
+  separate(Label, sep = ":", into = c("Label", "type", "channel"))
+
+analysis_df <- input_df %>% 
+  group_by(Label, type) %>% 
+  summarise(mean_background = mean(Mean)) %>% 
+  filter(type == "background") %>% 
+  select(-type) %>% 
+  right_join(input_df, by = "Label") %>% 
+  filter(type == "intestine") %>%
+  mutate(AU = (IntDen - (mean_background*Area))/Area)
+```
+
+
+```{r fig.width=7, fig.height=2.5}
+gfp_plot <- analysis_df %>%
+  # filter(!(gene == "ETS4" & rep == 4)) %>%
+  ggplot(aes(x = RNAi, y = AU)) +
+  # geom_violin() +
+  geom_boxplot(width = 0.5) +
+  geom_jitter(alpha = 0.3, width = 0.2, size = 2, aes(stroke = 0)) +
+  # facet_grid(rep~gene) +
+  facet_grid(. ~ gene) +
+  # facet_grid(gene~.) + #, scales = "free") +
+  scale_y_continuous(limits = c(0,1000), breaks = seq(0,1000, by = 200), expand = c(0,0))+
+  # expand_limits(y = 0) +
+  theme_classic()
+  # theme(
+  #   plot.title = element_text(
+  #     face = "bold",
+  #     size = rel(1.2),
+  #     hjust = 0.5
+  #   ),
+  #   # text = element_text(family = "Arial"),
+  #   # axis.title = element_text(
+  #   #   face = "bold",
+  #   #   size = rel(1),
+  #   #   color = "black"
+  #   # ),
+  #   # axis.title.y = element_text(angle = 90, vjust = 2),
+  #   # axis.title.x = element_text(vjust = -0.2),
+  #   axis.text = element_text(colour = "black"),
+  #   axis.line = element_line(colour = "black"),
+  #   axis.ticks = element_line(),
+  #   panel.background = element_rect(fill = "white", 
+  #           colour = NA),
+  #   panel.grid.major = element_line(colour = "grey"),
+  #   panel.grid.minor = element_line(colour = "grey"),
+  #   panel.grid.major.x = element_blank(),
+  #   strip.background = element_blank(),
+  #   strip.text = element_text(face = "bold"),
+  #   panel.border = element_rect(fill = NA, 
+  #           colour = "black"),
+  #   
+  # )
+gfp_plot
+```
+Save the plot
+```{r}
+# ggsave(gfp_plot, filename = "../03_output/elt2_regulated_TFs_GFP_reporter_plot.pdf", width = 7, height = 2.5)
+
+```
+
+
+```{r}
+
+t.test(x = analysis_df %>% filter(gene == "ELT2", RNAi == "L4440") %>% pull(AU),
+       y = analysis_df %>% filter(gene == "ELT2", RNAi == "ELT2") %>% pull(AU))$p.value
+
+t.test(x = analysis_df %>% filter(gene == "CEBP1", RNAi == "L4440") %>% pull(AU),
+       y = analysis_df %>% filter(gene == "CEBP1", RNAi == "ELT2") %>% pull(AU))$p.value
+
+t.test(x = analysis_df %>% filter(gene == "ETS4", RNAi == "L4440") %>% pull(AU),
+       y = analysis_df %>% filter(gene == "ETS4", RNAi == "ELT2") %>% pull(AU))$p.value
+
+t.test(x = analysis_df %>% filter(gene == "PQM1", RNAi == "L4440") %>% pull(AU),
+       y = analysis_df %>% filter(gene == "PQM1", RNAi == "ELT2") %>% pull(AU))$p.value
+```
+
+Number of worms in each sample/treatment pair
+```{r}
+
+analysis_df %>% group_by(gene, RNAi) %>% summarise(n())
+```
+```{r}
+analysis_df %>% group_by(gene, RNAi) %>% summarise(mean(AU))
+```
+

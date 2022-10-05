@@ -659,7 +659,7 @@ all_stage_rna_chip_FC <- embryo_rna_chip_FC %>% mutate(stage = "embryo") %>%
   bind_rows(L1_rna_chip_FC %>% mutate(stage = "L1")) %>%
   bind_rows(L3_rna_chip_FC %>% mutate(stage = "L3")) %>%
   filter(gutFC > -20)
-  
+
 all_stage_rna_chip_FC %>%
   filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus")) %>%
   inner_join(GO_TFs, by = "WBGeneID") %>%
@@ -679,7 +679,7 @@ all_stage_rna_chip_FC %>%
 
 ```{r fig.width= 4.5, fig.height=5.5}
 elt2_target_TFs_plot <- all_stage_rna_chip_FC %>%
-  filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus")) %>%
+  filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus", )) %>%
   inner_join(wtf3, by = "WBGeneID") %>%
   ggplot(aes(x = gutFC, y = elt2FC, label = Public_name, color = elt2_ko)) +
   geom_point(data = all_stage_rna_chip_FC %>% 
@@ -698,7 +698,7 @@ elt2_target_TFs_plot <- all_stage_rna_chip_FC %>%
         axis.text.y=element_text(colour="black"))
 
 elt2_target_TFs_plot
-ggsave(filename = "../03_output/elt2_target_TFs_plot.pdf", width = 4.5, height = 5.5)
+# ggsave(filename = "../03_output/elt2_target_TFs_plot.pdf", width = 4.5, height = 5.5)
 ```
 
 

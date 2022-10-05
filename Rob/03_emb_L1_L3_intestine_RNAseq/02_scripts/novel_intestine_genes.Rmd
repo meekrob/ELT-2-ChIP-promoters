@@ -129,3 +129,40 @@ embryo_enriched_annotation %>% filter(WBGeneID %in% unique(L1_enriched_annotatio
 18. WBGene00011850, T20B3.1, Predicted to enable carnitine O-octanoyltransferase activity. Predicted to be located in peroxisome.
 19. WBGene00206354, F27E5.9, Predicted to be located in membrane. Predicted to be integral component of membrane.
 20. WBGene00044211, Y60A3A.25, Is affected by several genes including daf-12; hsf-1; and eat-2 based on tiling array; microarray; and RNA-seq studies. 
+
+WBGene00043097, C02D5.4
+WBGene00000071, acy-4
+WBGene00000267, bre-2
+
+```{r fig.width=3, fig.height = 4}
+novel_genes <- data.frame(WBGeneID = c("WBGene00043097", "WBGene00000071", "WBGene00000267"), gene_name = c("C02D5.4", "acy-4", "bre-2"))
+res_emb <- read_csv("../03_output/pairwise_DE_results/res_embryoGFPplus_vs_embryoGFPminus.csv")
+res_L1 <- read_csv("../03_output/pairwise_DE_results/res_L1GFPplus_vs_L1GFPminus.csv")
+res_L3 <- read_csv("../03_output/pairwise_DE_results/res_L3GFPplus_vs_L3GFPminus.csv")
+
+novel_gene_data <- res_emb %>% filter(WBGeneID %in% novel_genes$WBGeneID) %>% mutate(stage = "emb") %>%
+  bind_rows(
+    res_L1 %>% filter(WBGeneID %in% novel_genes$WBGeneID) %>% mutate(stage = "L1")
+  ) %>%
+  bind_rows(
+    res_L3 %>% filter(WBGeneID %in% novel_genes$WBGeneID) %>% mutate(stage = "L3")
+  ) %>%
+  left_join(novel_genes, by = "WBGeneID")
+head(novel_gene_data)
+```
+
+
+```{r fig.width=3, fig.height = 4}
+novel_gene_plot <- ggplot(novel_gene_data, aes(x = stage, y = log2FoldChange, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin=log2FoldChange-lfcSE, ymax=log2FoldChange+lfcSE), width=.2,
+                 position=position_dodge(.9)) +
+  scale_y_continuous(breaks = seq(0,6, by = 1)) +
+  facet_grid(gene_name~.) +
+  theme_classic()
+
+novel_gene_plot
+# ggsave(plot = novel_gene_plot, filename = "../03_output/plots/novel_intestine_genes/220815_Novel_Intestine_Genes_log2FC.pdf",
+       width = 3, height = 4)
+```
+

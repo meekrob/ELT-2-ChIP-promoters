@@ -1,0 +1,188 @@
+---
+title: "elt2_promoter_regulation"
+author: "Robert Williams"
+date: "6/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+load libraries
+
+```{r}
+library(tidyverse)
+```
+load data
+```{r}
+cq_data <- read_csv(file = "../01_input/RWP28_qRT-PCR_data.csv")
+```
+
+```{r}
+cq_data %>% 
+  mutate(Sample = fct_relevel(Sample, c("L4440rnai-N2", "L4440rnai-elt7", "ELT2rnai-N2", "ELT2rnai-elt7"))) %>%
+  filter(Target %in% c("elt-2", "act-3"), Content !="NTC") %>% 
+  group_by(rep, Sample, Target) %>% summarise(mean_Cq = mean(Cq)) %>% 
+  pivot_wider(names_from = Target, values_from = mean_Cq) %>%
+  ungroup() %>% rowwise() %>% 
+  # group_by(rep) %>%
+  # summarise(CtN2 = `ELT2rnai-N2`-)
+  mutate(dCq = `elt-2`-`act-3`) %>%
+  select(-`act-3`, -`elt-2`) %>%
+  pivot_wider(names_from = Sample, values_from = dCq) %>%
+  rowwise() %>%
+  mutate(ddCq_N2 = `ELT2rnai-N2`- `L4440rnai-N2`, ddCq_elt7 = `ELT2rnai-elt7`- `L4440rnai-elt7`) %>%
+  select(rep, ddCq_N2, ddCq_elt7) %>%
+  pivot_longer(names_to = "ddCq", cols = c("ddCq_N2", "ddCq_elt7")) %>%
+  mutate(fc = 2^(-value)) %>%
+  # mutate(rep = as.character(rep)) %>%
+  ggplot(aes(x = ddCq, y = value)) +
+  geom_point(aes(color = rep))
+```
+```{r}
+cq_processed <- cq_data %>% 
+  mutate(Sample = fct_relevel(Sample, c("L4440rnai-N2", "L4440rnai-elt7", "ELT2rnai-N2", "ELT2rnai-elt7")),
+         rep = as.character(rep)) %>%
+  filter(Target %in% c("elt-2", "act-3"), Content !="NTC") %>% 
+  group_by(rep, Sample, Target) %>% summarise(mean_Cq = mean(Cq)) %>% 
+  pivot_wider(names_from = Target, values_from = mean_Cq) %>%
+  ungroup() %>% rowwise() %>% 
+  mutate(dCq = `elt-2` - `act-3`) %>%
+  mutate(exp = 2^(-dCq))
+
+normalizer <- cq_processed %>% filter(Sample == "L4440rnai-N2") %>% select(rep, normalizer = exp)
+cq_processed %>%
+  left_join(normalizer, by = "rep") %>%
+  rowwise() %>%
+  mutate(norm_exp = exp /normalizer) %>%
+  mutate(rep = as.character(rep)) %>%
+  filter(!(rep == 1 & Sample == "ELT2rnai-elt7")) %>%
+  ggplot(aes(x = Sample, y = norm_exp)) +
+  # geom_point(aes(color = rep)) +
+  geom_boxplot() +
+  theme_classic()
+```
+
+# Used excel to calculate ddCt, then plot
+I wasn't sure if I was doing it correctly with dplyr.
+The results look similar so I guess I did it correctly.
+```{r}
+cq_plotting <- read_csv("../RWP28_qRT-PCR_for_plotting.csv") %>% 
+  pivot_longer(cols = `L4440rnai-N2`:`ELT2rnai-elt7`, names_to = "sample", values_to =  "ddCq") %>%
+  mutate(sample = fct_relevel(sample, c("L4440rnai-N2", "L4440rnai-elt7", "ELT2rnai-N2", "ELT2rnai-elt7")),
+         Rep = as.character(Rep)) %>%
+  filter(!(Rep == 1 & sample == "ELT2rnai-elt7"))
+
+cq_plotting %>%
+  ggplot(aes(x = sample, y = ddCq)) +
+  # geom_point(aes(color = Rep)) %>%
+  geom_boxplot() +
+  theme_classic()
+```
+
+
+```{r fig.width=3.5, fig.height=2}
+qpcr_plot <- cq_plotting %>% 
+  group_by(sample) %>% 
+  summarise(ddCq.mean = mean(ddCq), ddCq.SD = sd(ddCq)) %>%
+  ggplot(aes(x = sample, y = ddCq.mean)) +
+  geom_bar(stat = "identity", width = 0.5, fill = "grey", color = "black") +
+  geom_errorbar(aes(ymin = ddCq.mean-ddCq.SD, ymax = ddCq.mean+ddCq.SD), width = 0.2) +
+  theme_classic()
+qpcr_plot
+```
+export the plot
+
+```{r}
+ggsave(plot = qpcr_plot, filename = "../03_output/elt-2_regulation_q-pcr_result.pdf", width = 3.5, height = 2)
+```
+
+
+
+# ELT-2 3'UTR RNA-seq analysis
+
+Load libraries
+```{r}
+library(DESeq2)
+library(tidyverse)
+```
+```{r}
+
+#Load and format data
+
+utr_analysis <- function(infile){
+countsData <- read.delim(file = infile, header = TRUE, sep = "\t") %>% column_to_rownames(var = "Geneid")
+head(countsData)
+metadata1 <- c("elt2D_sorted_1",
+"elt2D_sorted_2",
+"elt2D_sorted_3",
+"elt2D_sorted_4",
+"elt2Delt7D_sorted_1",
+"elt2Delt7D_sorted_2",
+"elt2Delt7D_sorted_3",
+"wt_sorted_1",
+"wt_sorted_2",
+"wt_sorted_3",
+"wt_sorted_4",
+"elt7D_sorted_1",
+"elt7D_sorted_2",
+"elt7D_sorted_3")
+
+metadata1 <- data.frame(names = metadata1) %>% 
+  separate(names, sep = "_", into = c("genotype", "sorted", "rep"), remove = FALSE)
+  
+metadata1<- metadata1 %>% 
+  mutate(genotype = fct_relevel(genotype, c("wt", "elt7D", "elt2D", "elt2Delt7D"))) %>% 
+  arrange(genotype)
+
+countsData <- countsData %>% select(Chr:Length, metadata1$names)
+
+cts <- as.matrix(countsData %>% select(metadata1$names))
+rownames(metadata1)<- metadata1$names
+coldata <- metadata1[,c("names", "genotype", "rep")]
+rownames(coldata) <- as.vector(metadata1$names)
+all(rownames(coldata) == colnames(cts))
+
+
+# Make DESeqDataSet
+
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ rep + genotype)
+dds <- DESeq(dds)
+resultsNames(dds)
+plotCounts(dds, "WBGene00001250", intgroup = "genotype", returnData = TRUE)
+}
+```
+
+
+```{r}
+utr_elt2_reads <- bind_rows(
+data.frame(utr_analysis("../01_input/five_prime_utr_counts.txt"), type = "five_prime"),
+data.frame(utr_analysis("../01_input/three_prime_utr_counts.txt"), type = "three_prime")
+)
+```
+
+
+```{r fig.width=5, fig.height=2}
+ggplot(utr_elt2_reads, aes(x = genotype, y = count, fill = type)) +
+  geom_boxplot(position = "dodge") +
+  theme_classic()
+
+ggplot(utr_elt2_reads, aes(x = genotype, y = count, fill = type)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_grid(.~type)
+```
+```{r fig.width = 4, fig.height = 2.5}
+elt2_five_prime_reads <- ggplot(utr_elt2_reads %>% filter(type == "five_prime"), aes(x = genotype, y = count)) +
+  geom_boxplot(fill = "grey") +
+  theme_classic()
+elt2_five_prime_reads
+```
+
+```{r}
+ggsave(elt2_five_prime_reads, filename = "../03_output/elt-2_five_prime_reads.pdf", width = 4, height = 2.5)
+```
+

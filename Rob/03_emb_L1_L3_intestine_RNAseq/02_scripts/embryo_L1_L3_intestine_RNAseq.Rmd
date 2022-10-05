@@ -340,7 +340,36 @@ de_category_MA_plot(L3_alt_hyp_res_df, paste("L3 differentially expressed genes\
 ```{r}
 de_category_bar_plot(L3_alt_hyp_res_df, paste("L3 differentially expressed genes\nlfc = ",thresh," & padj < ",sig, sep = ""))
 ```
+```{r fig.width=5.5, fig.height=3.5}
+cells_vs_whole_bar_plot <- L1_alt_hyp_res_df %>% filter(isDE == TRUE, label == "whole_vs_cells") %>% group_by(type) %>% summarize(genes = n()) %>% mutate(stage = "L1") %>%
+  bind_rows(
+    L3_alt_hyp_res_df %>% filter(isDE == TRUE, label == "whole_vs_cells") %>% group_by(type) %>% summarize(genes = n()) %>% mutate(stage = "L3")
+    ) %>%
+  bind_rows(
+    embryo_alt_hyp_res_df %>% filter(isDE == TRUE, label == "whole_vs_cells") %>% group_by(type) %>% summarize(genes = n()) %>% mutate(stage = "embryo")
+  ) %>%
+  ggplot(aes(x = type, y = genes, fill = stage, label = genes)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.5, color = "black") +
+  geom_text(hjust = -0.25, position = position_dodge(width = 0.7)) +
+  scale_fill_manual(values = c("black", "grey", "white")) +
+  theme_classic() +
+  coord_flip()
+ggsave(plot = cells_vs_whole_bar_plot, filename = "../03_output/plots/cells_vs_whole/cells_vs_whole_bar_plot.pdf", width = 5.5, height = 3.5)  
+```
 
+```{r, fig.width=6, fig.height=3}
+cells_vs_whole_MA_plot <- de_category_MA_plot(
+L1_alt_hyp_res_df %>% filter(label == "whole_vs_cells") %>% mutate(label = comparison) %>%
+  bind_rows(
+    L3_alt_hyp_res_df %>% filter(label == "whole_vs_cells") %>% mutate(label = comparison)
+    ) %>%
+  bind_rows(
+    embryo_alt_hyp_res_df %>% filter(label == "whole_vs_cells") %>% mutate(label = comparison)
+  ),
+title = NULL
+)
+ggsave(plot = cells_vs_whole_MA_plot, filename = "../03_output/plots/cells_vs_whole/cells_vs_whole_MA_plot.pdf", width = 6, height = 3)
+```
 
 
 # Embryo Intestine FACS MA plots
