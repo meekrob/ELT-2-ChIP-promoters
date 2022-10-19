@@ -7,6 +7,15 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+
+stopifnot(basename(dirname(getwd())) == "06_elt2_target_analysis")
+stopifnot(basename(dirname(dirname(getwd()))) == "Rob")
+stopifnot(basename(dirname(dirname(dirname(getwd())))) == "ELT-2-ChIP-revision")
+david_dir = normalizePath("../../../david")
+david_dir_plots = file.path(david_dir,"01_promoters/03_output/plots")
+david_dir_plots
+stopifnot(file.exists(david_dir_plots))
 ```
 
 
@@ -440,9 +449,22 @@ q1_contingency_df
 q1_pval_df <- data.frame()
 for(i in unique(q1_contingency_df$stage)){
   # print(i)
-  q1_pval <- chisq.test(q1_contingency_df %>% filter(stage == i) %>% select(-stage, -intestine_expression))$p.value
+  chi = chisq.test(q1_contingency_df %>% filter(stage == i) %>% select(-stage, -intestine_expression))
+  rownames(chi$observed) <- c("enriched", "not_enriched")
+  rownames(chi$expected) <- c("enriched", "not_enriched")
+  q1_pval <- chi$p.value
+  q1_expected <- chi$expected
   print(c(i, q1_pval))
-  q1_pval_df <-q1_pval_df %>% bind_rows(data.frame(stage = i, chi.pval = q1_pval))
+  q1_pval_df <-q1_pval_df %>% bind_rows(data.frame(stage = i, 
+                                   chi.pval = q1_pval, 
+                                   expected.bound.enriched = chi$expected['enriched','bound'],
+                                   expected.not_bound.enriched = chi$expected['enriched',
+                                                                              'not_bound'],
+                                   expected.bound.not_enriched = chi$expected['not_enriched',
+                                                                              'bound'],
+                                   expected.not_bound.not_enriched =
+                                     chi$expected['not_enriched',
+                                                  'not_bound']))
 }
 
 
@@ -451,9 +473,76 @@ q1_table <- q1_contingency_df %>%
   rowwise() %>%
   mutate(percent_bound = (100*bound)/(bound+not_bound),
          percent_not_bound = (100*not_bound)/(bound+not_bound)) %>%
-  left_join(q1_pval_df %>% mutate(chi.padj = p.adjust(chi.pval, method = "bonferroni")), by = "stage")
+  left_join(q1_pval_df %>% mutate(chi.padj = p.adjust(chi.pval, method = "bonferroni")), by = "stage") %>% mutate(bound.expected = ifelse(intestine_expression == "enriched", 
+                        expected.bound.enriched, 
+                        expected.bound.not_enriched), 
+           not_bound.expected = ifelse(intestine_expression == "enriched", 
+                        expected.not_bound.enriched, 
+                        expected.not_bound.not_enriched)) %>% select(-starts_with("expected"))  %>%
+  mutate(fraction.bound.expected = bound.expected / (bound+not_bound),
+         fraction.not_bound.expected = not_bound.expected / (bound+not_bound),
+         )
 
 q1_table
+```
+
+```{r}
+like_robs_stacked_data = q1_table %>% pivot_longer(c("bound","not_bound"), names_to = "promoter_status", values_to = "genes") %>% select(stage , intestine_expression, promoter_status, genes)
+
+# transfer the expected columns to their own rows
+expected_rows = q1_table %>% 
+  select(stage, intestine_expression, bound.expected, not_bound.expected) %>%
+  filter(intestine_expression == "enriched") %>% 
+  dplyr::rename(bound=bound.expected,
+                not_bound=not_bound.expected) %>%
+  
+  pivot_longer(cols=c("bound","not_bound"),
+               values_to = "genes", 
+               names_to = "promoter_status") %>% 
+  mutate(intestine_expression = "expected")
+
+like_robs_stacked_data %<>% rbind(expected_rows) %>%
+mutate(promoter_status = factor(promoter_status, levels = c("not_bound", "bound"))) %>%
+  mutate(intestine_expression = factor(intestine_expression, levels = c("expected",
+                                                                        "not_enriched",
+                                                                        "enriched"))) %>%
+  mutate(obs.exp = ifelse(intestine_expression=="expected", "expected", "observed"))
+
+p1 = ggplot(like_robs_stacked_data, aes(x = intestine_expression, 
+                                   y = genes, 
+                                   fill = promoter_status
+                                   #,alpha=obs.exp # will override to .5 for expected, else 1
+                                   ) 
+       ) +
+  geom_bar(stat = "identity", 
+           position = "fill", 
+           color = "black", 
+           width = 0.9, 
+           size = 0.25) +
+  scale_fill_manual(values = c("white", "black"), labels=c("not bound", "bound")) +
+  #scale_alpha_manual(values = c(.5,1)) + 
+  facet_wrap(~stage) + 
+theme_classic() +
+  theme(axis.text.x=element_text(colour="black", angle=90),
+        axis.text.y=element_text(colour="black"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=15))  + 
+  guides(
+    fill=guide_legend(title="Promoter status"),
+    alpha="none") +
+  ggtitle("Figure 4C") +
+  xlab("intestine-enriched (RNA-seq)") +
+  ylab("% genes in each category") + 
+  scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+  scale_x_discrete(labels = c("expected", "not enriched", "enriched"))
+
+
+p1
+pdf(file=file.path(david_dir_plots,"fig4_C_fraction_bound_stack.pdf"),height=5,width=7, family="ArialMT")
+p1
+dev.off()
+
+
 ```
 ## Question: What is the fraction of transcriptionally dependent ELT-2 targets?
 
@@ -493,6 +582,130 @@ for(i in unique(q2_contingency_df$stage)){
   }
 }
 q2_pval_df
+
+allchisq.list=lapply(split(q2_contingency_df, q2_contingency_df$stage), 
+       function(X){
+         lapply(
+           split(X, X$promoter_status), function(Z){
+              chi.obj = chisq.test(Z %>% select(-(stage:promoter_status)))
+              observed = data.frame(chi.obj$observed, 
+                                    stage=Z$stage,
+                                    promoter_status=Z$promoter_status,
+                                    intestine_expression=Z$intestine_expression,
+                                    value_type="observed")
+              expected = data.frame(chi.obj$expected, 
+                                    stage=Z$stage,
+                                    promoter_status=Z$promoter_status,
+                                    intestine_expression=Z$intestine_expression,
+                                    value_type="expected")
+              ep = rev(cumsum(rev(chi.obj$expected))/sum(chi.obj$expected))
+              ep.df <- data.frame(activated=ep[1],repressed=ep[2],independent=ep[3])
+              expected_proportion =   
+                data.frame(ep.df,
+                           stage=Z$stage,
+                           promoter_status=Z$promoter_status,
+                           intestine_expression=Z$intestine_expression,
+                           value_type="expected_proportion")
+              
+              bind_rows(observed, expected,expected_proportion)
+           } 
+         )
+})
+
+```
+
+
+``` {r add-expected-to-rob-graph}
+
+allchisq.df = allchisq.list$embryo %>% bind_rows() %>% 
+  rbind(allchisq.list$L1 %>% bind_rows()) %>% 
+  rbind(allchisq.list$L3 %>% bind_rows()) %>% pivot_longer(cols=c("activated","repressed","independent"),names_to="elt2_ko", values_to="genes")
+
+a = allchisq.df %>% filter(value_type == "observed")
+b = allchisq.df %>% filter(value_type == "expected" & intestine_expression == "enriched") %>% mutate(intestine_expression = "expected")
+c = rbind(a,b)
+table(c$intestine_expression, c$value_type)
+
+allchisq.df %<>%  
+  # make an "expected" class in intestine_expression (already a combination of intestine_expression and value_type)
+  mutate(intestine_expression = ifelse(
+    value_type == 'expected' & intestine_expression == 'enriched', 
+    'expected', 
+    intestine_expression)) %>% 
+  # drop the superfluous data
+  filter(intestine_expression != "not_enriched" & value_type != "expected") #%>% select(-value_type)
+
+table(allchisq.df$intestine_expression, allchisq.df$value_type)
+
+allchisq.df$elt2_ko = factor(allchisq.df$elt2_ko, levels=c("activated","repressed","independent"))
+
+c$elt2_ko = factor(c$elt2_ko, levels=c("activated","repressed","independent"))
+c$intestine_expression = factor(c$intestine_expression, 
+                                levels=c("expected","not_enriched","enriched"))
+
+
+p2 = ggplot(c, aes(x = intestine_expression, 
+                   y = genes, 
+               #    alpha = intestine_expression, 
+                   fill = elt2_ko)) +
+  geom_bar(stat = "identity", 
+           position = "fill", 
+           color = "black",
+           width = .7,
+           size = 0.25) +
+  scale_fill_manual(values = c("darkgreen", "darkmagenta", "white"), labels=c("ELT-2 activated",
+                                                                              "ELT-2 repressed",
+                                                                              "ELT-2 independent")) +
+  #scale_alpha_manual(values = c(.5,1,1)) + 
+  facet_grid(promoter_status~stage, labeller = labeller(.rows = c("not_bound" = "ELT-2 absent",
+         "bound" = "ELT-2 present"))) +
+  theme_classic() +
+  theme(axis.text.x=element_text(colour="black", angle=90),
+        axis.text.y=element_text(colour="black"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=10)) + 
+  guides(alpha="none",
+         fill=guide_legend(title=expression(paste(italic("elt-2")^"-", "  phenotype (RNA-seq)")))) +
+  ggtitle("Figure 4D") + 
+  xlab("intestine-enriched (RNA-seq)") +
+  ylab("% genes in each category") + 
+  scale_y_continuous(labels = scales::percent_format(scale = 100))+
+  scale_x_discrete(labels = c("expected", "not enriched", "enriched"))
+ 
+p2 # ggplot output variable
+pdf(file=file.path(david_dir_plots,"fig4_D_fraction_bound_stack_KO.pdf"),height=5,width=7, family="ArialMT")
+p2
+dev.off()
+```
+
+
+```{r}
+fraction_regulated_targets <- all_stages_chip %>% 
+  group_by(stage, intestine_expression, promoter_status, elt2_ko) %>% 
+  summarise(genes = n(), .groups = "keep") %>% 
+  drop_na(elt2_ko) %>%
+  
+  ggplot(aes(x = intestine_expression, y = genes, fill = elt2_ko)) +
+  geom_bar(stat = "identity", position = "fill", color = "black", width = 0.5, size = 0.25) +
+  scale_fill_manual(values = c("darkgreen", "darkmagenta", "white")) +
+  
+  facet_grid(promoter_status~stage) +
+  #coord_cartesian(ylim=c(.5,1)) + 
+  theme_classic() +
+  theme(axis.text.x=element_text(colour="black"),
+        axis.text.y=element_text(colour="black")) +
+  geom_segment(allchisq.df %>% filter(genes != 1 & value_type == "expected_proportion"), 
+               inherit.aes = FALSE, 
+               mapping=aes(x=.5,xend=2.5, y=genes, yend=genes), 
+               color="grey", 
+               alpha=.5) 
+
+
+fraction_regulated_targets
+
+```
+
+```{r}
 
 
 q2_table <- q2_contingency_df %>% 
@@ -659,7 +872,7 @@ all_stage_rna_chip_FC <- embryo_rna_chip_FC %>% mutate(stage = "embryo") %>%
   bind_rows(L1_rna_chip_FC %>% mutate(stage = "L1")) %>%
   bind_rows(L3_rna_chip_FC %>% mutate(stage = "L3")) %>%
   filter(gutFC > -20)
-
+  
 all_stage_rna_chip_FC %>%
   filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus")) %>%
   inner_join(GO_TFs, by = "WBGeneID") %>%
@@ -679,7 +892,7 @@ all_stage_rna_chip_FC %>%
 
 ```{r fig.width= 4.5, fig.height=5.5}
 elt2_target_TFs_plot <- all_stage_rna_chip_FC %>%
-  filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus", )) %>%
+  filter(promoter_status == "bound", elt2_ko %in% c("up_ELT2_minus", "down_ELT2_minus")) %>%
   inner_join(wtf3, by = "WBGeneID") %>%
   ggplot(aes(x = gutFC, y = elt2FC, label = Public_name, color = elt2_ko)) +
   geom_point(data = all_stage_rna_chip_FC %>% 
@@ -698,7 +911,7 @@ elt2_target_TFs_plot <- all_stage_rna_chip_FC %>%
         axis.text.y=element_text(colour="black"))
 
 elt2_target_TFs_plot
-# ggsave(filename = "../03_output/elt2_target_TFs_plot.pdf", width = 4.5, height = 5.5)
+ggsave(filename = "../03_output/elt2_target_TFs_plot.pdf", width = 4.5, height = 5.5)
 ```
 
 
