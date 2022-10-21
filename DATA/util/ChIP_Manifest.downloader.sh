@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # run in parent directory as util/ChIP_Manifest.downloader.sh
+# Run an Rscript to parse the manifest Excel sheet,
+# download the parsed data using wget
 
 skip_header=1
 
