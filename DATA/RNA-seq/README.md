@@ -1,4 +1,4 @@
-# Links to RNA-seq data files.
+# Quick links to RNA-seq data files
 
 These files are symbolic links that work on Mac and Linux, and on Windows if git was installed with symbolic links enabled. The original paths are listed below to navigate to them directly.
 
