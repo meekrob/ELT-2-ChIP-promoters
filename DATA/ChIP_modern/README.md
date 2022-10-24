@@ -1,1 +1,1 @@
-Chip download and download the processing. 
+ChIP-seq data download and processing. 
