@@ -30,7 +30,7 @@ okabe <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#C
 ## ELT-2 data
 
 ```{r read-data-ELT-2}
-elt2.data = read_ELT2_binding_data(as_genomic_ranges = FALSE) # from data-reader.R
+elt2.data = read_ELT2_binding_data(as_genomic_ranges = TRUE) # from david-reader.R
 #glimpse(elt2.data)
 ```
 
@@ -67,6 +67,11 @@ merge %<>% dplyr::mutate(LE.log_chip_signal_mean = LE.log_chip_signal_mean*log(2
                   L3.log_chip_signal_mean = L3.log_chip_signal_mean*log(2,10),
                   L3.log_chip_signal_max  = L3.log_chip_signal_max*log(2,10)
                   )
+```
+
+
+```{r output-promoters}
+merge %>% select(seqnames, start, end, WBGeneID, embryo_int_exp, LE_bound) %>% filter(embryo_int_exp == "enriched") %>% select(-embryo_int_exp) %>%  write.table(file="promoter_files/promoters_embryo_bound_TF.bed", sep="\t", quote=FALSE, row.names = FALSE, col.names = FALSE)
 ```
 
 ```{r choose-columns}
