@@ -16,92 +16,25 @@ library(tidyverse)
 
 ```{r data}
 promoter_data = readRDS('~/work/ELT-2-ChIP-revision/David/01_promoters/03_output/promoter_data/all.df.rds') 
+promoter_gr = makeGRangesFromDataFrame(promoter_data, keep.extra.columns = T, seqinfo=Seqinfo(genome="ce11"))
 ```
 
-```{r read-data-ELT-2}
-stages = list(LE='LE',L1='L1',L3='L3')
-elt2.peak.data =  lapply(stages, function(stage) {
-  IDR_peaks.agg = read.table(sprintf("../01_promoters/01_input/ELT2_%s_combined_IDR.df",stage)) # peaks with signal agg
-  IDR_peaks.agg$V4 = NULL
-  IDR_peaks.agg$V5 = NULL
-  IDR_peaks.agg$V6 = NULL
-  IDR_peaks.agg$V8 = NULL
-  colnames(IDR_peaks.agg) <- c("chrom", "start","end","intensity",
-                               "nlogq","offset","signal.mean","signal.max")
-  gr.IDR = makeGRangesFromDataFrame(IDR_peaks.agg,
-                                    keep.extra.columns = T)
-  seqinfo(gr.IDR) <- Seqinfo(genome="ce11")
-  gr.IDR$signal.sum = width(gr.IDR )*gr.IDR$signal.mean
-  return(gr.IDR)
-})
-```
 
-## Rob data
-
-```{r read-rob-merged}
-# david-reader.R
-rob = read_rob_all_merged() %>% dplyr::select(-starts_with("pvalue."),-starts_with("lfcSE."))
-glimpse(rob)
-```
-
-```{r combine-elt-2-rnaseq}
-merge = right_join(rob, elt2.data, by = "WBGeneID")
-# glimpse(merge)
-
-# Left-over genes are NA in alldata. Give them a label
-merge$embryo_int_exp[is.na(merge$embryo_int_exp)] = 'ftr'
-merge$L1_int_exp[is.na(merge$L1_int_exp)] = 'ftr'
-merge$L3_int_exp[is.na(merge$L3_int_exp)] = 'ftr'
-
-merge$embryo.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$LE_bound, "bound", "unbound"), merge$embryo_int_exp)
-merge$L1.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L1_bound, "bound", "unbound"), merge$L1_int_exp)
-merge$L3.boundEnrichedStatus = sprintf("%s.%s", ifelse(merge$L3_bound, "bound", "unbound"), merge$L3_int_exp)
-
-# fix a name 
-merge %<>% dplyr::rename(L3.log_chip_signal_mean = L3_log.chip_signal_mean)
-```
-
-```{r log2-chip-to-log10, eval=FALSE}
-merge %<>% dplyr::mutate(LE.log_chip_signal_mean = LE.log_chip_signal_mean*log(2,10),
-                  LE.log_chip_signal_max  = LE.log_chip_signal_max*log(2,10),
-                  L1.log_chip_signal_mean = L1.log_chip_signal_mean*log(2,10),
-                  L1.log_chip_signal_max  = L1.log_chip_signal_max*log(2,10),
-                  L3.log_chip_signal_mean = L3.log_chip_signal_mean*log(2,10),
-                  L3.log_chip_signal_max  = L3.log_chip_signal_max*log(2,10)
-                  )
-```
-
-```{r choose-columns}
-
-alldata = merge %>% dplyr::select(ends_with("log_chip_signal_mean"), 
-                        starts_with("rlogc."),
-                        starts_with("log2FoldChange."),
-                        ends_with(".boundEnrichedStatus"),
-                        ends_with("_int_exp"),
-                        ends_with("_bound"),
-                        din.status.description,
-                        wikigene_name,
-                        WBGeneID)
-
-alldata$embryo_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
-alldata$L1_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
-alldata$L3_int_exp %<>% factor(levels=c("equal","depleted","enriched","ftr"))
-
-
-```
-
-```{r change-back-dirs}
-setwd(oldwd)
-```
 
 ```{r pattern-matching}
 
-matches_to_granges = function(matchobj) {
-
+matches_to_granges = function(matchobj, genome.seq) {
+  # get the actual sequence matches
+  step1 = extractAllMatches(genome.seq[[1]], matchobj)
+  step2 = as.character(step1, check.limits = FALSE)
+  step3 = split(step2, names(step2))
   glist = list()
   for (chromosome_name in names(matchobj)) {
-    glist[[chromosome_name]] = GRanges(seqnames=chromosome_name,                                    ranges=matchobj[[chromosome_name]],
-                              seqinfo = Seqinfo(genome="ce11"))
+    gr = GRanges(seqnames=chromosome_name,                                                                     ranges=matchobj[[chromosome_name]], 
+                 seqinfo = Seqinfo(genome="ce11"))
+  
+    gr$sequence = step3[[chromosome_name]]
+    glist[[chromosome_name]] = gr
   }
   unlist(GRangesList(glist) )
     
@@ -116,18 +49,16 @@ matches_to_granges = function(matchobj) {
 proj_root = "../.."
 genome.seq = readDNAStringSet("../../DATA/sequence/ce11_no_mito.fa")
 
-david_promoter_dir = file.path(proj_root,"David/01_promoters/03_output")
 
-promoters1200 = read.table(
-  file.path(
-    david_promoter_dir,
-    "filtered.promoters.minus1000_plus200.df"))
-
-promoters1200$V8 = NULL
-promoters1200$V9 = NULL
-
-colnames(promoters1200) <- c("chrom", "start", "end", "span", "strand", "wbid", "name")
-gr.promoters = makeGRangesFromDataFrame(promoters1200, keep.extra.columns = T)
+gene_body_masks = makeGRangesFromDataFrame(
+  read.table(
+    file.path("..", 
+              proj_root, 
+              "ELT2-Metanalysis/DATA/HOT/gene_body_masks.bed")),
+    seqnames.field = "V1", 
+    start.field = "V2", 
+    end.field = "V3", seqinfo = Seqinfo(genome="ce11")
+  )
 ```
 
 ```{r TGATAA-matches}
@@ -135,9 +66,27 @@ gr.promoters = makeGRangesFromDataFrame(promoters1200, keep.extra.columns = T)
 genome.TGATAA = vmatchPattern('TGATAA', genome.seq)
 genome.WGATAR = vmatchPattern('WGATAR', genome.seq, fixed=FALSE)
 
-granges.TGATAA = matches_to_granges(genome.TGATAA)
-granges.WGATAR = matches_to_granges(genome.WGATAR)
+ir.TGATAA = unlist(genome.TGATAA) # IRanges object
+granges.TGATAA = GRanges(
+  seqnames=names(ir.TGATAA), 
+  ranges=ir.TGATAA, 
+  seqinfo = Seqinfo(genome="ce11"))
 
+ir.WGATAR = unlist(genome.WGATAR) # IRanges object
+granges.WGATAR = GRanges(
+  seqnames=names(ir.WGATAR), 
+  ranges=ir.WGATAR, 
+  seqinfo = Seqinfo(genome="ce11"))
+length(granges.TGATAA)
+table(seqnames(granges.TGATAA))
+
+granges.TGATAA.masked = subsetByOverlaps(granges.TGATAA,gene_body_masks)
+length(granges.TGATAA.masked)
+table(seqnames(granges.TGATAA.masked))
+
+granges.WGATAR.masked = subsetByOverlaps(granges.WGATAR,gene_body_masks)
+length(granges.WGATAR.masked)
+table(seqnames(granges.WGATAR.masked))
 ```
 
 ```{r ELT-2-peak-locations}
@@ -159,24 +108,94 @@ ELT2.bystage = GRangesList(list(
     L3 = makeGRangesFromDataFrame(L3, seqnames.field = "V1", 
                    start.field = "V2", 
                    end.field = "V3", seqinfo = Seqinfo(genome="ce11"))))
+addmargins(table(seqnames(ELT2.bystage)),2)
 
+
+ELT2.bystage.masked = GRangesList(lapply(as.list(ELT2.bystage),
+          function(stage.gr){
+            subsetByOverlaps(stage.gr,gene_body_masks)
+          }) )
+addmargins(table(seqnames(ELT2.bystage.masked)),2)
 ```
 
 
-```{r number-of-tgataa}
-length(granges.TGATAA) 
-# [1] 52912
+```{r number-of-peaks-with-tgataa}
+peaks.tgataa = GRangesList(lapply(as.list(ELT2.bystage.masked),
+          function(stage.gr){
+            subsetByOverlaps(stage.gr,granges.TGATAA.masked)
+          }) )
+lapply(peaks.tgataa, length)
+lapply(ELT2.bystage.masked, length)
 
-lapply(ELT2.bystage,length)
+unlist(lapply(peaks.tgataa, length))/unlist(lapply(ELT2.bystage.masked, length))
+```
+```{r tgataas-that-are-bound}
+tgataa.w.peaks = GRangesList(lapply(as.list(ELT2.bystage.masked),
+          function(stage.gr){
+            subsetByOverlaps(granges.TGATAA.masked, stage.gr)
+          }) )
+
+length(granges.TGATAA.masked)
+unlist(lapply(tgataa.w.peaks, length))
+unlist(lapply(tgataa.w.peaks, length))/length(granges.TGATAA.masked)
 ```
 
-```{r}
-for (stage in names(ELT2.bystage)) {
-  ELT2.bystage[[stage]]$TGATAA.count = countOverlaps(ELT2.bystage[[stage]], granges.TGATAA)
-  ELT2.bystage[[stage]]$WGATAR.count = countOverlaps(ELT2.bystage[[stage]], granges.WGATAR)
-}
-lapply(ELT2.bystage, function(x) {mean(x$TGATAA.count)})
-lapply(ELT2.bystage, function(x) {mean(x$WGATAR.count)})
+```{r number-of-peaks-with-wgatar}
+peaks.wgatar = GRangesList(lapply(as.list(ELT2.bystage.masked),
+          function(stage.gr){
+            subsetByOverlaps(stage.gr,granges.WGATAR.masked)
+          }) )
+print("number of peaks with WGATAR")
+lapply(peaks.wgatar, length)
+print("total numbers of peaks")
+lapply(ELT2.bystage.masked, length)
+
+print("fraction of ELT-2 peaks with WGATAR")
+unlist(lapply(peaks.wgatar, length))/unlist(lapply(ELT2.bystage.masked, length))
+```
+```{r wgatars-that-are-bound}
+wgatar.w.peaks = GRangesList(lapply(as.list(ELT2.bystage.masked),
+          function(stage.gr){
+            subsetByOverlaps(granges.WGATAR.masked, stage.gr)
+          }) )
+
+length(granges.WGATAR.masked)
+unlist(lapply(wgatar.w.peaks, length))
+unlist(lapply(wgatar.w.peaks, length))/length(granges.WGATAR.masked)
+```
+
+```{r promoters}
+promoter_gr$TGATAA = countOverlaps(promoter_gr, granges.TGATAA.masked)
+promoter_gr$TGATAA.bound.LE = countOverlaps(promoter_gr, tgataa.w.peaks$LE)
+promoter_gr$TGATAA.bound.L1 = countOverlaps(promoter_gr, tgataa.w.peaks$L1)
+promoter_gr$TGATAA.bound.L3 = countOverlaps(promoter_gr, tgataa.w.peaks$L3)
+promoter_df = as.data.frame(promoter_gr)
+```
+
+```{r LE}
+
+promoter_df %>% filter(embryo_int_exp %in% c("enriched")) %>% group_by(LE_bound, embryo_int_exp) %>% 
+  summarize(n=n(),mean_TGATAA_count = mean(TGATAA), 
+            mean_bound_TGATAA_count = mean(TGATAA.bound.LE),
+            no_TGATAA = sum(TGATAA == 0),
+            no_bound_TGATAA = sum(TGATAA.bound.LE == 0))
 
 ```
 
+```{r L1}
+promoter_df %>% filter(L1_int_exp %in% c("enriched")) %>% group_by(L1_bound, L1_int_exp) %>% 
+  summarize(n=n(),mean_TGATAA_count = mean(TGATAA), 
+            mean_bound_TGATAA_count = mean(TGATAA.bound.L1),
+            no_TGATAA = sum(TGATAA == 0),
+            no_bound_TGATAA = sum(TGATAA.bound.L1 == 0))
+
+```
+
+```{r L3}
+promoter_df %>% filter(L3_int_exp %in% c("enriched")) %>% group_by(L3_bound, L3_int_exp) %>% 
+  summarize(n=n(),mean_TGATAA_count = mean(TGATAA), 
+            mean_bound_TGATAA_count = mean(TGATAA.bound.L3),
+            no_TGATAA = sum(TGATAA == 0),
+            no_bound_TGATAA = sum(TGATAA.bound.L3 == 0))
+
+```
