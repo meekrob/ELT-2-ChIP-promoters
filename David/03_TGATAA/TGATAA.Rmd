@@ -181,12 +181,23 @@ motifProfile = function(granges.query) {
   granges.query$TGATAA = countOverlaps(granges.query, granges.TGATAA)
   granges.query$AGATAA = countOverlaps(granges.query, granges.AGATAA)
   granges.query$AGATAG = countOverlaps(granges.query, granges.AGATAG)
-  granges.query$GGATAA = countOverlaps(granges.query, granges.GGATAA)
-  granges.query$GGATAG = countOverlaps(granges.query, granges.GGATAG)
   granges.query$TGATAG = countOverlaps(granges.query, granges.TGATAG)
   granges.query
 }
-tmp = motifProfile(ELT2.bystage.masked$LE)
+
+peaks.wgatar.profile = GRangesList(lapply(as.list(ELT2.bystage.masked),
+          function(stage.gr){
+            motifProfile(stage.gr)
+          }) )
+
+a=mcols(peaks.wgatar.profile$LE) %>% as.data.frame() %>% colSums() 
+b=mcols(peaks.wgatar.profile$L1) %>% as.data.frame() %>% colSums() 
+c=mcols(peaks.wgatar.profile$L3) %>% as.data.frame() %>% colSums() 
+sequence.profiles = rbind(a,b,c)
+rownames(sequence.profiles) <- c("LE","L1","L3")
+dimnames(sequence.profiles) <- list(stage=rownames(sequence.profiles),sequence=colnames(sequence.profiles))
+sequence.profiles.long = sequence.profiles %>% reshape2::melt(value.name="count")
+ggplot(sequence.profiles.long, aes(x=sequence, y=count)) + geom_bar(stat="identity") + facet_wrap(~stage) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
 
