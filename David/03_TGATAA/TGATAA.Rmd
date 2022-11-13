@@ -64,35 +64,58 @@ gene_body_masks = makeGRangesFromDataFrame(
 ```
 
 # TGATAA-matches
+```{r GRvmatchPattern}
+GRvmatchPattern = function(pattern, subject, max.mismatch = 0, min.mismatch = 0, 
+    with.indels = FALSE, fixed = TRUE, algorithm = "auto", ...) {
+    ByPos_MIndex.obj = vmatchPattern(pattern, 
+                          subject, 
+                          max.mismatch = max.mismatch, 
+                          min.mismatch = min.mismatch, 
+                          with.indels = with.indels, 
+                          fixed = fixed, 
+                          algorithm = algorithm, ...)
+    ir = unlist(ByPos_MIndex.obj) # IRanges object 
+    return(
+      GRanges(
+          seqnames=names(ir), 
+          ranges=ir, 
+          seqinfo = Seqinfo(genome="ce11"))
+)
+}
+```
 
-```{r TGATAA-matches}
+```{r GATA-matches}
+# scan all WGATAR subseqs, convert to GRanges, and mask out gene bodies
+granges.TGATAA = subsetByOverlaps(GRvmatchPattern('TGATAA', genome.seq), 
+                                  gene_body_masks)
+granges.WGATAR = subsetByOverlaps(GRvmatchPattern('WGATAR', genome.seq, fixed =
+                                                    FALSE),
+                                  
+                                  gene_body_masks)
+granges.AGATAA = subsetByOverlaps(GRvmatchPattern('AGATAA', genome.seq),
+                                  gene_body_masks)
+granges.GGATAA = subsetByOverlaps(GRvmatchPattern('GGATAA', genome.seq),
+                                  gene_body_masks)
+granges.GGATAG = subsetByOverlaps(GRvmatchPattern('GGATAG', genome.seq),
+                                  gene_body_masks)
+granges.AGATAG = subsetByOverlaps(GRvmatchPattern('AGATAG', genome.seq),
+                                  gene_body_masks)
+granges.TGATAG = subsetByOverlaps(GRvmatchPattern('TGATAG', genome.seq),
+                                  gene_body_masks)
+```
 
-genome.TGATAA = vmatchPattern('TGATAA', genome.seq)
-genome.WGATAR = vmatchPattern('WGATAR', genome.seq, fixed=FALSE)
-
-ir.TGATAA = unlist(genome.TGATAA) # IRanges object
-granges.TGATAA = GRanges(
-  seqnames=names(ir.TGATAA), 
-  ranges=ir.TGATAA, 
-  seqinfo = Seqinfo(genome="ce11"))
-
-ir.WGATAR = unlist(genome.WGATAR) # IRanges object
-granges.WGATAR = GRanges(
-  seqnames=names(ir.WGATAR), 
-  ranges=ir.WGATAR, 
-  seqinfo = Seqinfo(genome="ce11"))
-
+```{r}
 table(seqnames(granges.TGATAA)) %>% addmargins(1) %>% knitr::kable(label = "TGATAAs ")
 table(seqnames(granges.WGATAR)) %>% addmargins(1) %>% knitr::kable(label = "WGATARs ")
 
-granges.TGATAA.masked = subsetByOverlaps(granges.TGATAA,gene_body_masks)
 
-table(seqnames(granges.TGATAA.masked)) %>% addmargins(1) %>% knitr::kable(label = "TGATAAs masked")
 
-granges.WGATAR.masked = subsetByOverlaps(granges.WGATAR,gene_body_masks)
-table(seqnames(granges.WGATAR.masked)) %>%
+table(seqnames(granges.TGATAA)) %>% addmargins(1) %>% knitr::kable(label = "TGATAAs masked")
+
+
+table(seqnames(granges.WGATAR)) %>%
   addmargins(1) %>% 
-  knitr::kable(label = "WGATARs masked")
+  knitr::kable(label = "WGATARs ")
 ```
 
 # ELT-2-peak-locations
@@ -131,7 +154,7 @@ addmargins(table(seqnames(ELT2.bystage.masked)),2)
 ```{r number-of-peaks-with-tgataa}
 peaks.tgataa = GRangesList(lapply(as.list(ELT2.bystage.masked),
           function(stage.gr){
-            subsetByOverlaps(stage.gr,granges.TGATAA.masked)
+            subsetByOverlaps(stage.gr,granges.TGATAA)
           }) )
 #lapply(peaks.tgataa, length)
 #lapply(ELT2.bystage.masked, length)
@@ -144,20 +167,33 @@ unlist(lapply(peaks.tgataa, length))/unlist(lapply(ELT2.bystage.masked, length))
 ```{r tgataas-that-are-bound}
 tgataa.w.peaks = GRangesList(lapply(as.list(ELT2.bystage.masked),
           function(stage.gr){
-            subsetByOverlaps(granges.TGATAA.masked, stage.gr)
+            subsetByOverlaps(granges.TGATAA, stage.gr)
           }) )
 
 # length(granges.TGATAA.masked)
 # unlist(lapply(tgataa.w.peaks, length))
-unlist(lapply(tgataa.w.peaks, length))/length(granges.TGATAA.masked)
+unlist(lapply(tgataa.w.peaks, length))/length(granges.TGATAA)
 ```
 
 # number-of-peaks-with-wgatar
+```{r get-motif-profile}
+motifProfile = function(granges.query) {
+  granges.query$TGATAA = countOverlaps(granges.query, granges.TGATAA)
+  granges.query$AGATAA = countOverlaps(granges.query, granges.AGATAA)
+  granges.query$AGATAG = countOverlaps(granges.query, granges.AGATAG)
+  granges.query$GGATAA = countOverlaps(granges.query, granges.GGATAA)
+  granges.query$GGATAG = countOverlaps(granges.query, granges.GGATAG)
+  granges.query$TGATAG = countOverlaps(granges.query, granges.TGATAG)
+  granges.query
+}
+tmp = motifProfile(ELT2.bystage.masked$LE)
+```
+
 
 ```{r number-of-peaks-with-wgatar}
 peaks.wgatar = GRangesList(lapply(as.list(ELT2.bystage.masked),
           function(stage.gr){
-            subsetByOverlaps(stage.gr,granges.WGATAR.masked)
+            subsetByOverlaps(stage.gr,granges.WGATAR)
           }) )
 # print("number of peaks with WGATAR")
 # lapply(peaks.wgatar, length)
@@ -172,18 +208,18 @@ unlist(lapply(peaks.wgatar, length))/unlist(lapply(ELT2.bystage.masked, length))
 ```{r wgatars-that-are-bound}
 wgatar.w.peaks = GRangesList(lapply(as.list(ELT2.bystage.masked),
           function(stage.gr){
-            subsetByOverlaps(granges.WGATAR.masked, stage.gr)
+            subsetByOverlaps(granges.WGATAR, stage.gr)
           }) )
 
 # length(granges.WGATAR.masked)
 # unlist(lapply(wgatar.w.peaks, length))
-unlist(lapply(wgatar.w.peaks, length))/length(granges.WGATAR.masked)
+unlist(lapply(wgatar.w.peaks, length))/length(granges.WGATAR)
 ```
 
 # promoters
 
 ```{r promoters}
-promoter_gr$TGATAA = countOverlaps(promoter_gr, granges.TGATAA.masked)
+promoter_gr$TGATAA = countOverlaps(promoter_gr, granges.TGATAA)
 promoter_gr$TGATAA.bound.LE = countOverlaps(promoter_gr, tgataa.w.peaks$LE)
 promoter_gr$TGATAA.bound.L1 = countOverlaps(promoter_gr, tgataa.w.peaks$L1)
 promoter_gr$TGATAA.bound.L3 = countOverlaps(promoter_gr, tgataa.w.peaks$L3)
@@ -194,13 +230,14 @@ promoter_df = as.data.frame(promoter_gr)
 
 ```{r LE}
 
-promoter_df %>% filter(embryo_int_exp %in% c("enriched")) %>% group_by(LE_bound, embryo_int_exp) %>% 
+promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_exp == c("enriched"))) %>% group_by(LE_bound, embryo_enriched) %>% 
   summarize(n=n(),mean_TGATAA_count = mean(TGATAA), 
             mean_bound_TGATAA_count = mean(TGATAA.bound.LE),
             no_TGATAA = sum(TGATAA == 0),
             no_bound_TGATAA = sum(TGATAA.bound.LE == 0),
             have_TGATAA_but_not_bound = no_bound_TGATAA-no_TGATAA) %>% knitr::kable(label="embryo")
 
+tmp=promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_exp == c("enriched"))) 
 ```
 
 # L1
