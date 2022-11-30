@@ -190,14 +190,32 @@ peaks.wgatar.profile = GRangesList(lapply(as.list(ELT2.bystage.masked),
             motifProfile(stage.gr)
           }) )
 
+replicate_colSums=function(gr) {
+  bootstrap_indices = sample(1:length(gr), size = length(gr), replace = T)
+  mcols(gr[bootstrap_indices]) %>% as.data.frame() %>% colSums()
+}
+
+LE.simulation = replicate(1000, replicate_colSums(peaks.wgatar.profile$LE))
+LE.expected = rowMeans(LE.simulation)
+L1.simulation = replicate(1000, replicate_colSums(peaks.wgatar.profile$L1))
+L1.expected = rowMeans(L1.simulation)
+L3.simulation = replicate(1000, replicate_colSums(peaks.wgatar.profile$L3))
+L3.expected = rowMeans(L3.simulation)
+
 a=mcols(peaks.wgatar.profile$LE) %>% as.data.frame() %>% colSums() 
 b=mcols(peaks.wgatar.profile$L1) %>% as.data.frame() %>% colSums() 
-c=mcols(peaks.wgatar.profile$L3) %>% as.data.frame() %>% colSums() 
+c=mcols(peaks.wgatar.profile$L3) %>% as.data.frame() %>% colSums()
+
 sequence.profiles = rbind(a,b,c)
 rownames(sequence.profiles) <- c("LE","L1","L3")
-dimnames(sequence.profiles) <- list(stage=rownames(sequence.profiles),sequence=colnames(sequence.profiles))
+dimnames(sequence.profiles) <- list(stage=rownames(sequence.profiles),
+                                    sequence=colnames(sequence.profiles))
 sequence.profiles.long = sequence.profiles %>% reshape2::melt(value.name="count")
-ggplot(sequence.profiles.long, aes(x=sequence, y=count)) + geom_bar(stat="identity") + facet_wrap(~stage) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggplot(sequence.profiles.long, aes(x=sequence, y=count)) + 
+  geom_bar(stat="identity") + 
+  facet_wrap(~stage) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
 
@@ -237,6 +255,34 @@ promoter_gr$TGATAA.bound.L3 = countOverlaps(promoter_gr, tgataa.w.peaks$L3)
 promoter_df = as.data.frame(promoter_gr)
 ```
 
+```{r promoter-randomizations}
+rando.tgataa = read.table("promoters.fa_1000.TGATAA.gz")
+rownames(rando.tgataa) = rando.tgataa[[1]]
+rando.tgataa = rando.tgataa[,-c(1,2)]
+
+embryo_enriched.tf = promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_exp == c("enriched"))) %>% pull(embryo_enriched)
+L1_enriched.tf = promoter_df %>% mutate(enriched = !is.na(L1_int_exp) & (L1_int_exp == c("enriched"))) %>% pull(enriched)
+L3_enriched.tf = promoter_df %>% mutate(enriched = !is.na(L3_int_exp) & (L3_int_exp == c("enriched"))) %>% pull(enriched)
+LE_bound = promoter_df$LE_bound
+L1_bound = promoter_df$L1_bound
+L3_bound = promoter_df$L3_bound
+
+bkgrd.tgataa.embryo.bound = mean(colSums( rando.tgataa[embryo_enriched.tf&LE_bound,] > 0 ))
+bkgrd.tgataa.embryo.unbound = mean(colSums( rando.tgataa[embryo_enriched.tf&!LE_bound,] > 0 ))
+bkgrd.tgataa.NOTembryo.bound = mean(colSums( rando.tgataa[!embryo_enriched.tf&LE_bound,] > 0 ))
+bkgrd.tgataa.NOTembryo.unbound = mean(colSums( rando.tgataa[!embryo_enriched.tf&!LE_bound,] > 0 ))
+
+bkgrd.tgataa.L1.bound = mean(colSums( rando.tgataa[L1_enriched.tf&L1_bound,] > 0 ))
+bkgrd.tgataa.L1.unbound = mean(colSums( rando.tgataa[L1_enriched.tf&!L1_bound,] > 0 ))
+bkgrd.tgataa.NOTL1.bound = mean(colSums( rando.tgataa[!L1_enriched.tf&L1_bound,] > 0 ))
+bkgrd.tgataa.NOTL1.unbound = mean(colSums( rando.tgataa[!L1_enriched.tf&!L1_bound,] > 0 ))
+
+bkgrd.tgataa.L3.bound = mean(colSums( rando.tgataa[L3_enriched.tf&L3_bound,] > 0 ))
+bkgrd.tgataa.L3.unbound = mean(colSums( rando.tgataa[L3_enriched.tf&!L3_bound,] > 0 ))
+bkgrd.tgataa.NOTL3.bound = mean(colSums( rando.tgataa[!L3_enriched.tf&L3_bound,] > 0 ))
+bkgrd.tgataa.NOTL3.unbound = mean(colSums( rando.tgataa[!L3_enriched.tf&!L3_bound,] > 0 ))
+```
+
 # LE
 
 ```{r LE}
@@ -248,7 +294,64 @@ promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_ex
             no_bound_TGATAA = sum(TGATAA.bound.LE == 0),
             have_TGATAA_but_not_bound = no_bound_TGATAA-no_TGATAA) %>% knitr::kable(label="embryo")
 
-tmp=promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_exp == c("enriched"))) 
+
+```
+```{r bootstrap-splits}
+
+prof = function(y) {
+  boot.ix = sample(1:nrow(y), size=nrow(y), replace=T)
+  a = mean(y[boot.ix, 'TGATAA'])
+  b = mean(y[boot.ix, 'TGATAA'] > 0)
+  return( c(a,b) )
+}
+
+embryo_presplit=promoter_df %>% mutate(embryo_enriched = !is.na(embryo_int_exp) & (embryo_int_exp == c("enriched"))) 
+embryo_split = split(embryo_presplit, ~ embryo_enriched + LE_bound)
+names(embryo_split) <- c("not_enriched.not_bound", "enriched.not_bound", "not_enriched.bound", "enriched.bound")
+k=lapply(names(embryo_split), function(x) {
+  res = replicate(1000, prof(embryo_split[[x]]))
+  df = as.data.frame(t(res))
+  colnames(df) <- c('ave.TGATAA','ave.set.w.TGATAA')
+  df$set = x
+  df
+})
+K = do.call('rbind', k)
+ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("LE: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
+ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("LE: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+
+L1_presplit=promoter_df %>% mutate(L1_enriched = !is.na(L1_int_exp) & (L1_int_exp == c("enriched"))) 
+L1_split = split(L1_presplit, ~ L1_enriched + L1_bound)
+names(L1_split) <- c("not_enriched.not_bound", "enriched.not_bound", "not_enriched.bound", "enriched.bound")
+k=lapply(names(L1_split), function(x) {
+  res = replicate(1000, prof(L1_split[[x]]))
+  df = as.data.frame(t(res))
+  colnames(df) <- c('ave.TGATAA','ave.set.w.TGATAA')
+  df$set = x
+  df
+})
+K = do.call('rbind', k)
+ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L1: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0,1.5))
+ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L1: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+
+L3_presplit=promoter_df %>% mutate(L3_enriched = !is.na(L3_int_exp) & (L3_int_exp == c("enriched"))) 
+L3_split = split(L3_presplit, ~ L3_enriched + L3_bound)
+names(L3_split) <- c("not_enriched.not_bound", "enriched.not_bound", "not_enriched.bound", "enriched.bound")
+k=lapply(names(L3_split), function(x) {
+  res = replicate(1000, prof(L3_split[[x]]))
+  df = as.data.frame(t(res))
+  colnames(df) <- c('ave.TGATAA','ave.set.w.TGATAA')
+  df$set = x
+  df
+})
+K = do.call('rbind', k)
+ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L3: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
+ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L3: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+```
+
+```{r TGATAA-breakdown}
+embryo_presplit %>% group_by(embryo_enriched, LE_bound) %>% summarize(mean_TGATAA = mean(TGATAA))
+L1_presplit %>% group_by(L1_enriched, L1_bound) %>% summarize(mean_TGATAA = mean(TGATAA))
+L3_presplit %>% group_by(L3_enriched, L3_bound) %>% summarize(mean_TGATAA = mean(TGATAA))
 ```
 
 # L1
