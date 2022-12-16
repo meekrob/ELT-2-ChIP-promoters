@@ -316,8 +316,17 @@ k=lapply(names(embryo_split), function(x) {
   df
 })
 K = do.call('rbind', k)
-ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("LE: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
-ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("LE: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+p = ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("LE: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
+p
+pdf(file="plots/LE_mean_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
+
+p=ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("LE: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+p
+pdf(file="plots/LE_fraction_promoters_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
 
 L1_presplit=promoter_df %>% mutate(L1_enriched = !is.na(L1_int_exp) & (L1_int_exp == c("enriched"))) 
 L1_split = split(L1_presplit, ~ L1_enriched + L1_bound)
@@ -330,8 +339,19 @@ k=lapply(names(L1_split), function(x) {
   df
 })
 K = do.call('rbind', k)
-ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L1: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0,1.5))
-ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L1: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+p=ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L1: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0,1.5))
+p
+pdf(file="plots/L1_mean_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
+
+p=ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L1: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+
+p
+pdf(file="plots/L1_fraction_promoters_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
+
 
 L3_presplit=promoter_df %>% mutate(L3_enriched = !is.na(L3_int_exp) & (L3_int_exp == c("enriched"))) 
 L3_split = split(L3_presplit, ~ L3_enriched + L3_bound)
@@ -344,8 +364,15 @@ k=lapply(names(L3_split), function(x) {
   df
 })
 K = do.call('rbind', k)
-ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L3: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
-ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L3: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+p=ggplot(K, aes(x=set,y=ave.TGATAA)) + geom_boxplot() + ggtitle("L3: Mean TGATAA across set", subtitle = "bootstrap distributions") + ylab("Mean TGATAA") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ ylim(c(0,1.5))
+pdf(file="plots/L3_mean_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
+p=ggplot(K, aes(x=set,y=ave.set.w.TGATAA)) + geom_boxplot() + ggtitle("L3: Fraction of promoters w/ at least one TGATAA", subtitle = "bootstrap distributions") + ylab("fraction of promoters") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ylim(c(0.25,1))
+p
+pdf(file="plots/L3_fraction_promoters_TGATAA.pdf",height=4,width=6.5, family="ArialMT")
+p
+dev.off()
 ```
 
 ```{r TGATAA-breakdown}
