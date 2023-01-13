@@ -201,16 +201,16 @@ resultsNames(dds)
 
 ```{r}
 # raw counts
-write.table(counts(dds, normalized = FALSE), 
+write.table(as.data.frame(counts(dds, normalized = FALSE)) %>% rownames_to_column(var = "WBGeneID"), 
             file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_raw_counts.txt", 
             sep = "\t", quote = FALSE, row.names = FALSE)
 # normalized counts
-write.table(counts(dds, normalized = TRUE), 
+write.table(as.data.frame(counts(dds, normalized = TRUE)) %>% rownames_to_column(var = "WBGeneID"), 
             file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_norm_counts.txt", 
             sep = "\t", quote = FALSE, row.names = FALSE)
 
 # rlog transformed counts
-write.table(as.data.frame(assay(rlog(dds, blind=FALSE))), 
+write.table(as.data.frame(assay(rlog(dds, blind=FALSE))) %>% rownames_to_column(var = "WBGeneID"), 
             file = "../03_output/count_tables_for_sup/intestine_FACS_RNAseq_rlog_counts.txt", 
             sep = "\t", quote = FALSE, row.names = FALSE)
 
@@ -218,84 +218,6 @@ write.table(as.data.frame(assay(rlog(dds, blind=FALSE))),
 
 
 # Within-stage pairwise comparisons
-
-<!-- ## Code testing, preliminary visualization -->
-
-<!-- ```{r} -->
-<!-- #for loop attempt one -->
-<!-- combinations<- data.frame(combos = 1:4, top = c("embryowhole", "embryoGFPplus", "embryoGFPminus", "embryoGFPplus"), bottom = c("embryocells", "embryocells", "embryocells", "embryoGFPminus")) -->
-
-<!-- res_embryowhole_vs_embryocells <- results(dds, contrast = c("group", combinations$top[1], combinations$bottom[1])) -->
-<!-- res_embryowhole_vs_embryocells_shrunk <- lfcShrink(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]), type = "ashr", quiet = TRUE) -->
-
-<!-- res_embryowhole_vs_embryocells <- results(dds, contrast = c("group", combinations$top[1], combinations$bottom[1])) -->
-<!-- res_embryowhole_vs_embryocells_shrunk <- lfcShrink(dds, contrast = c("group", combinations$top[1], combinations$bottom[1]), type = "ashr", quiet = TRUE) -->
-
-<!-- for(i in 1:nrow(combinations)){ -->
-<!--   res.var.name<- paste("res",combinations$top[i], "vs", combinations$bottom[i], sep = "_") -->
-<!--   res.shrunk.var.name <- paste("res",combinations$top[i], "vs", combinations$bottom[i], "shrunk", sep = "_") -->
-<!--   print(res.var.name) -->
-<!--   print(res.shrunk.var.name) -->
-<!--   assign(res.var.name, results(dds, contrast = c("group", combinations$top[i], combinations$bottom[i]))) -->
-<!-- } -->
-
-<!-- # res_embryoGFPplus_vs_embryoGFPminus -->
-<!-- # plotMA(res_embryowhole_vs_embryocells_shrunk, ylim = ylim, main = "whole vs cells") -->
-<!-- # combinations$top[1] -->
-<!-- # class(res_embryowhole_vs_embryocells) -->
-
-<!-- # for loop attempt two -->
-<!-- samples <- paste("embryo", c("whole", "GFPplus", "cells", "GFPminus"), sep = "") -->
-<!-- combos <- combn(samples, 2, simplify = FALSE) -->
-
-<!-- for(i in 1:length(combos)){ -->
-<!--   print(c(combos[[i]][1], combos[[i]][2])) -->
-<!--   res.var.name<- paste("res",combos[[i]][1], "vs", combos[[i]][2], sep = "_") -->
-<!--   res.shrunk.var.name <- paste("res",combos[[i]][1], "vs", combos[[i]][2], "shrunk", sep = "_") -->
-<!--   print(res.var.name) -->
-<!--   print(res.shrunk.var.name) -->
-<!--   assign(res.var.name, results(dds, contrast = c("group", combos[[i]][1], combos[[i]][2]))) -->
-<!--   assign(res.shrunk.var.name, lfcShrink(dds, contrast = c("group", combos[[i]][1], combos[[i]][2]), type = "ashr", quiet = TRUE)) -->
-<!-- } -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- combos -->
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-<!-- par(mfrow = c(3, 3), mar=c(2,2,1,1)) -->
-<!-- ylim = c(-10,10) -->
-<!-- plotMA(res_embryowhole_vs_embryocells_shrunk, ylim = ylim, main = "whole vs cells") -->
-<!-- plotMA(res_embryowhole_vs_embryoGFPplus_shrunk, ylim = ylim, main = "whole vs GFP+") -->
-<!-- plotMA(res_embryowhole_vs_embryoGFPminus_shrunk, ylim = ylim, main = "whole vs GFP-") -->
-<!-- plotMA(res_embryoGFPplus_vs_embryocells_shrunk, ylim = ylim, main = "GFP+ vs cells") -->
-<!-- plotMA(res_embryoGFPplus_vs_embryoGFPminus_shrunk, ylim = ylim, main = "GFP+ vs GFP-") -->
-<!-- plotMA(res_embryocells_vs_embryoGFPminus_shrunk, ylim = ylim, main = "cells vs GFP-") -->
-<!-- ``` -->
-<!-- ## ggplot version of plotting -->
-
-<!-- ```{r} -->
-<!-- all_embryo_comparisons <- data.frame() -->
-<!-- for(i in 1:length(combos)){ -->
-<!-- tobind <- as.data.frame(lfcShrink(dds, contrast = c("group", combos[[i]][1], combos[[i]][2]), type = "ashr", quiet = TRUE)) %>%  -->
-<!--   rownames_to_column(var = "WBGeneID") %>%  -->
-<!--   mutate(comparison = paste(combos[[i]][1], combos[[i]][2], sep = "_vs_"))  -->
-<!-- all_embryo_comparisons <- bind_rows(all_embryo_comparisons, tobind) -->
-<!-- } -->
-
-
-<!-- ggplot(all_embryo_comparisons %>% replace_na(list(padj = 1)), aes(x = log10(baseMean), y = log2FoldChange, color = padj < 0.1)) + -->
-<!--   geom_point(shape = 16, alpha = 0.1, stroke = 0, size = 1) + -->
-<!--   ylim(c(-10,10))+ -->
-<!--   facet_wrap(~comparison) + -->
-<!--   scale_color_manual(values = c("black", "red"), name = "q.value < 0.1") + -->
-<!--   theme_classic() -->
-
-
-<!-- # write_csv(all_embryo_comparisons, file = "../03_output/embryo_all_pairwise_res.csv") -->
-<!-- ``` -->
 
 ## Set cutoff values
 ```{r}
