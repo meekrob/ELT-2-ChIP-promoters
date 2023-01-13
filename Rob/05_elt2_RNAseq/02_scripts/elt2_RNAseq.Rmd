@@ -113,8 +113,8 @@ plotMA(res_elt2D_v_wt_ashr, ylim = c(-10,10))
 # Alternative hypothesis testing
 
 ```{r}
-thresh
-sig
+thresh <- 1
+sig <- 0.01
 res_altHyp_greater <- results(dds_elt2, altHypothesis = "greater", lfcThreshold = thresh, alpha = sig)
 res_altHyp_less <- results(dds_elt2, altHypothesis = "less", lfcThreshold = thresh, alpha = sig)
 res_altHyp_lessAbs <- results(dds_elt2, altHypothesis = "lessAbs", lfcThreshold = thresh, alpha = sig)
@@ -168,17 +168,17 @@ elt2_regulated_genes<- elt2_regulated_genes %>% rename(WBGeneID = "wbps_gene_id"
 Counts of genes in each category
 
 ```{r}
-elt2_regulated_gene_counts <- elt2_regulated_genes %>% group_by(description) %>% summarise(genes = n()) %>% fct_recode(description = c(""))
+elt2_regulated_gene_counts <- elt2_regulated_genes %>% group_by(description) %>% summarise(genes = n()) %>% #fct_recode(description = c("")) %>%
   ggplot(aes(x = description, y = genes, fill = description, label = genes)) +
   geom_bar(stat = "identity") +
   geom_text(vjust = -0.5) +
   ylim(c(0, 10000)) +
-  # coord_flip() +
+  coord_flip() +
   theme_bw()
 
 elt2_regulated_gene_counts
 
-ggsave(elt2_regulated_gene_counts, filename = "../03_output/elt2_regulated_gene_counts_plot.pdf", width = 6, height = 3, useDingbats = FALSE)
+# ggsave(elt2_regulated_gene_counts, filename = "../03_output/elt2_regulated_gene_counts_plot.pdf", width = 6, height = 3, useDingbats = FALSE)
 ```
 
 # MA plot
